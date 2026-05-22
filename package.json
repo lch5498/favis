@@ -1,0 +1,21 @@
+{
+  "name": "family-house-keeping",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Family-only housekeeping app monorepo with Flutter iOS, Vercel Functions, and Supabase.",
+  "workspaces": [
+    "apps/api",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "dev:api": "npm --workspace apps/api run dev",
+    "typecheck": "npm --workspaces --if-present run typecheck",
+    "lint": "npm --workspaces --if-present run lint",
+    "test": "npm --workspaces --if-present run test",
+    "mobile:analyze": "cd apps/mobile && flutter analyze",
+    "mobile:test": "cd apps/mobile && flutter test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
