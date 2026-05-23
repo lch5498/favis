@@ -30,11 +30,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _apiClient = ApiClient();
+  late final CupertinoTabController _tabController;
 
   List<FamilySummary> _families = const [];
   String? _selectedFamilyId;
   String? _message;
   bool _isLoadingFamilies = true;
+  int _homeRefreshToken = 0;
 
   AppFamily? get _selectedFamily {
     if (_families.isEmpty) {
@@ -53,7 +55,34 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _tabController = CupertinoTabController();
+    _tabController.addListener(_handleTabChange);
     _loadFamilies();
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (_tabController.index != 0) {
+      return;
+    }
+
+    setState(() {
+      _homeRefreshToken += 1;
+    });
+  }
+
+  void _openScheduleTab() {
+    _tabController.index = 1;
+  }
+
+  void _openParkingTab() {
+    _tabController.index = 2;
   }
 
   Future<void> _loadFamilies() async {
@@ -176,15 +205,87 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    final selectedFamily = _families
+        .map((summary) => summary.family)
+        .firstWhere((family) => family.id == selectedFamilyId);
+    await _selectFamily(selectedFamily);
+  }
+
+  Future<void> _selectFamily(AppFamily family) async {
     setState(() {
-      _selectedFamilyId = selectedFamilyId;
+      _selectedFamilyId = family.id;
     });
-    await _saveSelectedFamilyId(selectedFamilyId);
+    await _saveSelectedFamilyId(family.id);
   }
 
   @override
   Widget build(BuildContext context) {
     final selectedFamily = _selectedFamily;
+
+    if (!_isLoadingFamilies && selectedFamily != null) {
+      final families = _families.map((summary) => summary.family).toList();
+
+      return CupertinoTabScaffold(
+        controller: _tabController,
+        tabBar: CupertinoTabBar(
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.house),
+              activeIcon: Icon(CupertinoIcons.house_fill),
+              label: '홈',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.calendar),
+              activeIcon: Icon(CupertinoIcons.calendar_today),
+              label: '일정',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.car_detailed),
+              activeIcon: Icon(CupertinoIcons.car_detailed),
+              label: '주차',
+            ),
+          ],
+        ),
+        tabBuilder: (context, index) {
+          return CupertinoTabView(
+            builder: (context) {
+              switch (index) {
+                case 1:
+                  return ScheduleScreen(
+                    family: selectedFamily,
+                    families: families,
+                    sessionToken: widget.sessionToken,
+                    onSelectFamily: _selectFamily,
+                  );
+                case 2:
+                  return ParkingScreen(
+                    family: selectedFamily,
+                    families: families,
+                    sessionToken: widget.sessionToken,
+                    onSelectFamily: _selectFamily,
+                  );
+                case 0:
+                default:
+                  return _HomeDashboardTab(
+                    user: widget.user,
+                    sessionToken: widget.sessionToken,
+                    family: selectedFamily,
+                    families: families,
+                    refreshToken: _homeRefreshToken,
+                    message: _message,
+                    onOpenFamilyManagement: _openFamilyManagement,
+                    onSwitchFamily: _switchFamily,
+                    onOpenSchedule: _openScheduleTab,
+                    onOpenParking: _openParkingTab,
+                    onUpdateProfile: widget.onUpdateProfile,
+                    onLogout: widget.onLogout,
+                  );
+              }
+            },
+          );
+        },
+      );
+    }
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -199,47 +300,23 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _openFamilyManagement,
           child: const Icon(CupertinoIcons.person_2),
         ),
-        trailing: widget.onLogout == null
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(32, 32),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        CupertinoPageRoute<void>(
-                          builder: (_) => ProfileScreen(
-                            user: widget.user,
-                            onSave: widget.onUpdateProfile,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Icon(CupertinoIcons.person_crop_circle),
-                  ),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(32, 32),
-                    onPressed: widget.onLogout,
-                    child: const Icon(CupertinoIcons.square_arrow_right),
-                  ),
-                ],
-              ),
+        trailing: _HomeNavigationTrailing(
+          user: widget.user,
+          onUpdateProfile: widget.onUpdateProfile,
+          onLogout: widget.onLogout,
+        ),
       ),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-          child: _HomeBody(
-            user: widget.user,
-            sessionToken: widget.sessionToken,
-            selectedFamily: selectedFamily,
-            message: _message,
-            isLoadingFamilies: _isLoadingFamilies,
-            onReloadFamilies: _loadFamilies,
-            onOpenFamilyManagement: _openFamilyManagement,
-          ),
+          child: _isLoadingFamilies
+              ? const Center(child: CupertinoActivityIndicator())
+              : _FamilyRequiredIntro(
+                  userNickname: widget.user.nickname,
+                  message: _message,
+                  onReloadFamilies: _loadFamilies,
+                  onOpenFamilyManagement: _openFamilyManagement,
+                ),
         ),
       ),
     );
@@ -311,97 +388,503 @@ class _HomeTitle extends StatelessWidget {
   }
 }
 
-class _HomeBody extends StatelessWidget {
-  const _HomeBody({
+class _HomeNavigationTrailing extends StatelessWidget {
+  const _HomeNavigationTrailing({
     required this.user,
-    required this.sessionToken,
-    required this.selectedFamily,
-    required this.message,
-    required this.isLoadingFamilies,
-    required this.onReloadFamilies,
-    required this.onOpenFamilyManagement,
+    required this.onUpdateProfile,
+    required this.onLogout,
   });
 
   final AppUser user;
-  final String sessionToken;
-  final AppFamily? selectedFamily;
-  final String? message;
-  final bool isLoadingFamilies;
-  final Future<void> Function() onReloadFamilies;
-  final VoidCallback onOpenFamilyManagement;
+  final Future<AppUser> Function(String nickname) onUpdateProfile;
+  final VoidCallback? onLogout;
 
   @override
   Widget build(BuildContext context) {
-    if (isLoadingFamilies) {
-      return const Center(child: CupertinoActivityIndicator());
+    if (onLogout == null) {
+      return const SizedBox.shrink();
     }
 
-    final selectedFamily = this.selectedFamily;
-
-    if (selectedFamily == null) {
-      return _FamilyRequiredIntro(
-        userNickname: user.nickname,
-        message: message,
-        onReloadFamilies: onReloadFamilies,
-        onOpenFamilyManagement: onOpenFamilyManagement,
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _HomeHeader(
-          userNickname: user.nickname,
-          familyName: selectedFamily.name,
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(32, 32),
+          onPressed: () {
+            Navigator.of(context).push(
+              CupertinoPageRoute<void>(
+                builder: (_) =>
+                    ProfileScreen(user: user, onSave: onUpdateProfile),
+              ),
+            );
+          },
+          child: const Icon(CupertinoIcons.person_crop_circle),
         ),
-        if (message != null) ...[
-          const SizedBox(height: 14),
-          _InlineMessage(message: message!),
-        ],
-        const SizedBox(height: 22),
-        Expanded(
-          child: _HomeMenuTile(
-            icon: CupertinoIcons.calendar,
-            title: '학원 일정 관리',
-            subtitle: '${selectedFamily.name} 가족의 수업 시간과 이동 일정을 봅니다.',
-            accentColor: CupertinoColors.systemTeal,
-            backgroundColor: const Color(0xFFE6F3F1),
-            onPressed: () {
-              Navigator.of(context).push(
-                CupertinoPageRoute<void>(
-                  builder: (_) => ScheduleScreen(
-                    family: selectedFamily,
-                    sessionToken: sessionToken,
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 14),
-        Expanded(
-          child: _HomeMenuTile(
-            icon: CupertinoIcons.car_detailed,
-            title: '주차 관리',
-            subtitle: '${selectedFamily.name} 가족의 차량과 주차 위치를 관리합니다.',
-            accentColor: CupertinoColors.systemOrange,
-            backgroundColor: const Color(0xFFFFF0E5),
-            onPressed: () {
-              Navigator.of(context).push(
-                CupertinoPageRoute<void>(
-                  builder: (_) => ParkingScreen(
-                    family: selectedFamily,
-                    sessionToken: sessionToken,
-                  ),
-                ),
-              );
-            },
-          ),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(32, 32),
+          onPressed: onLogout,
+          child: const Icon(CupertinoIcons.square_arrow_right),
         ),
       ],
     );
   }
 }
+
+class _HomeDashboardTab extends StatefulWidget {
+  const _HomeDashboardTab({
+    required this.user,
+    required this.sessionToken,
+    required this.family,
+    required this.families,
+    required this.refreshToken,
+    required this.message,
+    required this.onOpenFamilyManagement,
+    required this.onSwitchFamily,
+    required this.onOpenSchedule,
+    required this.onOpenParking,
+    required this.onUpdateProfile,
+    required this.onLogout,
+  });
+
+  final AppUser user;
+  final String sessionToken;
+  final AppFamily family;
+  final List<AppFamily> families;
+  final int refreshToken;
+  final String? message;
+  final VoidCallback onOpenFamilyManagement;
+  final VoidCallback onSwitchFamily;
+  final VoidCallback onOpenSchedule;
+  final VoidCallback onOpenParking;
+  final Future<AppUser> Function(String nickname) onUpdateProfile;
+  final VoidCallback? onLogout;
+
+  @override
+  State<_HomeDashboardTab> createState() => _HomeDashboardTabState();
+}
+
+class _HomeDashboardTabState extends State<_HomeDashboardTab> {
+  final _apiClient = ApiClient();
+
+  ScheduleDashboard? _scheduleDashboard;
+  ParkingDashboard? _parkingDashboard;
+  String? _message;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBriefing();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeDashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.family.id != widget.family.id ||
+        oldWidget.sessionToken != widget.sessionToken ||
+        oldWidget.refreshToken != widget.refreshToken) {
+      _loadBriefing();
+    }
+  }
+
+  Future<void> _loadBriefing() async {
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    final now = DateTime.now();
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    try {
+      final schedules = await _apiClient.getScheduleDashboard(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        rangeStart: dayStart,
+        rangeEnd: dayEnd,
+      );
+      final parking = await _apiClient.getParkingDashboard(
+        widget.sessionToken,
+        familyId: widget.family.id,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _scheduleDashboard = schedules;
+        _parkingDashboard = parking;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      navigationBar: CupertinoNavigationBar(
+        middle: _HomeTitle(
+          family: widget.family,
+          canSwitch: widget.families.length > 1,
+          onPressed: widget.onSwitchFamily,
+        ),
+        leading: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(32, 32),
+          onPressed: widget.onOpenFamilyManagement,
+          child: const Icon(CupertinoIcons.person_2),
+        ),
+        trailing: _HomeNavigationTrailing(
+          user: widget.user,
+          onUpdateProfile: widget.onUpdateProfile,
+          onLogout: widget.onLogout,
+        ),
+      ),
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+          children: [
+            if (widget.message != null) ...[
+              _InlineMessage(message: widget.message!),
+              const SizedBox(height: 14),
+            ],
+            if (_message != null) ...[
+              _InlineMessage(message: _message!),
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 48,
+                child: CupertinoButton(
+                  color: CupertinoColors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  onPressed: _loadBriefing,
+                  child: const Text(
+                    '브리핑 새로고침',
+                    style: TextStyle(
+                      color: CupertinoColors.systemTeal,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            if (_isLoading &&
+                _scheduleDashboard == null &&
+                _parkingDashboard == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 80),
+                child: Center(child: CupertinoActivityIndicator()),
+              )
+            else ...[
+              _ScheduleBriefingSection(
+                schedules: _scheduleDashboard?.schedules ?? const [],
+                onPressed: widget.onOpenSchedule,
+              ),
+              const SizedBox(height: 14),
+              _ParkingBriefingSection(
+                dashboard: _parkingDashboard,
+                onPressed: widget.onOpenParking,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleBriefingSection extends StatelessWidget {
+  const _ScheduleBriefingSection({
+    required this.schedules,
+    required this.onPressed,
+  });
+
+  final List<AppSchedule> schedules;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final orderedSchedules = [...schedules]
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+
+    return _BriefingSection(
+      icon: CupertinoIcons.calendar,
+      title: '오늘 일정',
+      emptyText: '오늘 등록된 일정이 없습니다.',
+      isEmpty: orderedSchedules.isEmpty,
+      onPressed: onPressed,
+      children: orderedSchedules
+          .take(4)
+          .map((schedule) => _ScheduleBriefingTile(schedule: schedule))
+          .toList(),
+    );
+  }
+}
+
+class _ParkingBriefingSection extends StatelessWidget {
+  const _ParkingBriefingSection({
+    required this.dashboard,
+    required this.onPressed,
+  });
+
+  final ParkingDashboard? dashboard;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final parkingDashboard = dashboard;
+    final currentLocations = parkingDashboard?.currentLocations ?? const [];
+    final vehiclesById = {
+      for (final vehicle in parkingDashboard?.vehicles ?? const <Vehicle>[])
+        vehicle.id: vehicle,
+    };
+
+    return _BriefingSection(
+      icon: CupertinoIcons.car_detailed,
+      title: '현재 주차 위치',
+      emptyText: '등록된 현재 주차 위치가 없습니다.',
+      isEmpty: currentLocations.isEmpty,
+      onPressed: onPressed,
+      children: currentLocations
+          .map(
+            (record) => _ParkingBriefingTile(
+              record: record,
+              vehicle: vehiclesById[record.vehicleId],
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _BriefingSection extends StatelessWidget {
+  const _BriefingSection({
+    required this.icon,
+    required this.title,
+    required this.emptyText,
+    required this.isEmpty,
+    required this.onPressed,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final String emptyText;
+  final bool isEmpty;
+  final VoidCallback onPressed;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      borderRadius: BorderRadius.circular(16),
+      onPressed: onPressed,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+        decoration: BoxDecoration(
+          color: CupertinoColors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E5EA)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: CupertinoColors.systemTeal, size: 21),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  CupertinoIcons.chevron_forward,
+                  color: CupertinoColors.systemGrey3,
+                  size: 17,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  emptyText,
+                  style: const TextStyle(
+                    color: Color(0xFF6E6E73),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              )
+            else
+              ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduleBriefingTile extends StatelessWidget {
+  const _ScheduleBriefingTile({required this.schedule});
+
+  final AppSchedule schedule;
+
+  @override
+  Widget build(BuildContext context) {
+    final timeText =
+        '${_twoDigits(schedule.startsAt.hour)}:${_twoDigits(schedule.startsAt.minute)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 46,
+            child: Text(
+              timeText,
+              style: const TextStyle(
+                color: CupertinoColors.systemGrey,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  schedule.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  schedule.memberNickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF6E6E73),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParkingBriefingTile extends StatelessWidget {
+  const _ParkingBriefingTile({required this.record, required this.vehicle});
+
+  final ParkingRecord record;
+  final Vehicle? vehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicleTitle = vehicle == null
+        ? '차량'
+        : '${vehicle!.nickname} · ${vehicle!.plateNumber}';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE6F3F1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              CupertinoIcons.location_solid,
+              color: CupertinoColors.systemTeal,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  vehicleTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  record.locationText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF6E6E73),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
 class _FamilyRequiredIntro extends StatelessWidget {
   const _FamilyRequiredIntro({
@@ -506,44 +989,6 @@ class _FamilyRequiredIntro extends StatelessWidget {
   }
 }
 
-class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({required this.userNickname, required this.familyName});
-
-  final String userNickname;
-  final String familyName;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$familyName 가족',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: CupertinoColors.systemGrey,
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '$userNickname님, 오늘 뭐부터 볼까요?',
-          style: const TextStyle(
-            color: Color(0xFF111111),
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-            height: 1.12,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _InlineMessage extends StatelessWidget {
   const _InlineMessage({required this.message});
 
@@ -568,91 +1013,6 @@ class _InlineMessage extends StatelessWidget {
             fontWeight: FontWeight.w600,
             letterSpacing: 0,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeMenuTile extends StatelessWidget {
-  const _HomeMenuTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.accentColor,
-    required this.backgroundColor,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color accentColor;
-  final Color backgroundColor;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      borderRadius: BorderRadius.circular(18),
-      onPressed: onPressed,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0x14FFFFFF)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: CupertinoColors.white,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(icon, color: accentColor, size: 28),
-                ),
-                const Spacer(),
-                Icon(
-                  CupertinoIcons.chevron_forward,
-                  color: accentColor,
-                  size: 22,
-                ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF111111),
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF5F6368),
-                fontSize: 14,
-                height: 1.3,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0,
-              ),
-            ),
-          ],
         ),
       ),
     );

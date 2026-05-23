@@ -6,11 +6,15 @@ class ParkingScreen extends StatefulWidget {
   const ParkingScreen({
     super.key,
     required this.family,
+    required this.families,
     required this.sessionToken,
+    required this.onSelectFamily,
   });
 
   final AppFamily family;
+  final List<AppFamily> families;
   final String sessionToken;
+  final Future<void> Function(AppFamily family) onSelectFamily;
 
   @override
   State<ParkingScreen> createState() => _ParkingScreenState();
@@ -19,6 +23,7 @@ class ParkingScreen extends StatefulWidget {
 class _ParkingScreenState extends State<ParkingScreen> {
   final _apiClient = ApiClient();
 
+  late AppFamily _family;
   ParkingDashboard? _dashboard;
   String? _message;
   bool _isLoading = true;
@@ -38,7 +43,18 @@ class _ParkingScreenState extends State<ParkingScreen> {
   @override
   void initState() {
     super.initState();
+    _family = widget.family;
     _loadParking();
+  }
+
+  @override
+  void didUpdateWidget(covariant ParkingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.family.id != widget.family.id) {
+      _family = widget.family;
+      _loadParking();
+    }
   }
 
   Future<void> _loadParking() async {
@@ -50,7 +66,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
     try {
       final dashboard = await _apiClient.getParkingDashboard(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: _family.id,
       );
 
       if (mounted) {
@@ -110,14 +126,14 @@ class _ParkingScreenState extends State<ParkingScreen> {
       if (vehicle == null) {
         await _apiClient.createVehicle(
           widget.sessionToken,
-          familyId: widget.family.id,
+          familyId: _family.id,
           nickname: input.nickname,
           plateNumber: input.plateNumber,
         );
       } else {
         await _apiClient.updateVehicle(
           widget.sessionToken,
-          familyId: widget.family.id,
+          familyId: _family.id,
           vehicleId: vehicle.id,
           nickname: input.nickname,
           plateNumber: input.plateNumber,
@@ -142,7 +158,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
     await _runTask(() async {
       await _apiClient.deleteVehicle(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: _family.id,
         vehicleId: vehicle.id,
       );
       await _loadParking();
@@ -153,7 +169,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
     await Navigator.of(context).push(
       CupertinoPageRoute<void>(
         builder: (_) => ParkingPresetScreen(
-          family: widget.family,
+          family: _family,
           sessionToken: widget.sessionToken,
           canManage: _dashboard?.canManage ?? false,
         ),
@@ -181,7 +197,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
     await _runTask(() async {
       await _apiClient.createParkingRecord(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: _family.id,
         vehicleId: vehicle.id,
         presetId: selected.presetId,
         locationText: selected.locationText,
@@ -217,6 +233,47 @@ class _ParkingScreenState extends State<ParkingScreen> {
     return result ?? false;
   }
 
+  Future<void> _switchFamily() async {
+    if (widget.families.length < 2) {
+      return;
+    }
+
+    final selectedFamilyId = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: const Text('가족 전환'),
+        actions: widget.families
+            .map(
+              (family) => CupertinoActionSheetAction(
+                isDefaultAction: family.id == _family.id,
+                onPressed: () => Navigator.of(context).pop(family.id),
+                child: Text(family.name),
+              ),
+            )
+            .toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (selectedFamilyId == null) {
+      return;
+    }
+
+    final selectedFamily = widget.families.firstWhere(
+      (family) => family.id == selectedFamilyId,
+    );
+
+    setState(() {
+      _family = selectedFamily;
+      _dashboard = null;
+    });
+    await widget.onSelectFamily(selectedFamily);
+    await _loadParking();
+  }
+
   @override
   Widget build(BuildContext context) {
     final dashboard = _dashboard;
@@ -224,7 +281,11 @@ class _ParkingScreenState extends State<ParkingScreen> {
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('주차 관리'),
+        middle: _FeatureFamilyTitle(
+          family: _family,
+          canSwitch: widget.families.length > 1,
+          onPressed: _switchFamily,
+        ),
         trailing: dashboard?.canManage == true
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -239,7 +300,6 @@ class _ParkingScreenState extends State<ParkingScreen> {
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
             _ParkingHeader(
-              familyName: widget.family.name,
               canManage: dashboard?.canManage ?? false,
               onManagePresets: _openPresetManagement,
             ),
@@ -287,6 +347,63 @@ class _ParkingScreenState extends State<ParkingScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _FeatureFamilyTitle extends StatelessWidget {
+  const _FeatureFamilyTitle({
+    required this.family,
+    required this.canSwitch,
+    required this.onPressed,
+  });
+
+  final AppFamily family;
+  final bool canSwitch;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canSwitch) {
+      return Text(
+        family.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          inherit: false,
+          color: Color(0xFF111111),
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+      );
+    }
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(44, 32),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              family.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                inherit: false,
+                color: Color(0xFF111111),
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(CupertinoIcons.chevron_down, size: 15),
+        ],
       ),
     );
   }
@@ -520,12 +637,10 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
 
 class _ParkingHeader extends StatelessWidget {
   const _ParkingHeader({
-    required this.familyName,
     required this.canManage,
     required this.onManagePresets,
   });
 
-  final String familyName;
   final bool canManage;
   final VoidCallback onManagePresets;
 
@@ -541,18 +656,6 @@ class _ParkingHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '$familyName 가족',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF6E6E73),
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 6),
           const Text(
             '차량과 주차 위치를 관리하세요.',
             style: TextStyle(
@@ -584,7 +687,8 @@ class _ParkingHeader extends StatelessWidget {
                     '주차 위치 즐겨찾기',
                     style: TextStyle(
                       color: CupertinoColors.systemOrange,
-                      fontSize: 15,
+                      fontSize: 14,
+                      height: 1.1,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0,
                     ),
@@ -743,7 +847,8 @@ class _VehicleCard extends StatelessWidget {
                       child: const Text(
                         '위치 등록',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 15,
+                          height: 1.1,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0,
                         ),
@@ -1144,7 +1249,8 @@ class _EmptyState extends StatelessWidget {
                 child: Text(
                   actionLabel,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: 15,
+                    height: 1.1,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
                   ),

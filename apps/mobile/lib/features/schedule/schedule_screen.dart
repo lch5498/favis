@@ -8,11 +8,15 @@ class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({
     super.key,
     required this.family,
+    required this.families,
     required this.sessionToken,
+    required this.onSelectFamily,
   });
 
   final AppFamily family;
+  final List<AppFamily> families;
   final String sessionToken;
+  final Future<void> Function(AppFamily family) onSelectFamily;
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -21,19 +25,52 @@ class ScheduleScreen extends StatefulWidget {
 class _ScheduleScreenState extends State<ScheduleScreen> {
   final _apiClient = ApiClient();
 
+  late AppFamily _family;
   ScheduleDashboard? _dashboard;
   _CalendarMode _mode = _CalendarMode.week;
   DateTime _anchorDate = _dateOnly(DateTime.now());
+  final Set<String> _hiddenMemberIds = <String>{};
   String? _message;
   bool _isLoading = true;
 
   DateTime get _rangeStart => _startOfRange(_anchorDate, _mode);
   DateTime get _rangeEnd => _endOfRange(_anchorDate, _mode);
+  List<AppSchedule> get _filteredSchedules {
+    final dashboard = _dashboard;
+
+    if (dashboard == null) {
+      return const [];
+    }
+
+    if (_hiddenMemberIds.isEmpty) {
+      return dashboard.schedules;
+    }
+
+    return dashboard.schedules
+        .where(
+          (schedule) =>
+              schedule.familyMemberId == null ||
+              !_hiddenMemberIds.contains(schedule.familyMemberId),
+        )
+        .toList();
+  }
 
   @override
   void initState() {
     super.initState();
+    _family = widget.family;
     _loadSchedules();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScheduleScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.family.id != widget.family.id) {
+      _family = widget.family;
+      _hiddenMemberIds.clear();
+      _loadSchedules();
+    }
   }
 
   Future<void> _loadSchedules() async {
@@ -45,7 +82,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     try {
       final dashboard = await _apiClient.getScheduleDashboard(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: _family.id,
         rangeStart: _rangeStart,
         rangeEnd: _rangeEnd,
       );
@@ -53,6 +90,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       if (mounted) {
         setState(() {
           _dashboard = dashboard;
+          _hiddenMemberIds.removeWhere(
+            (memberId) =>
+                !dashboard.members.any((member) => member.id == memberId),
+          );
         });
       }
     } catch (error) {
@@ -119,6 +160,58 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     _loadSchedules();
   }
 
+  void _toggleMemberFilter(String memberId) {
+    setState(() {
+      if (_hiddenMemberIds.contains(memberId)) {
+        _hiddenMemberIds.remove(memberId);
+      } else {
+        _hiddenMemberIds.add(memberId);
+      }
+    });
+  }
+
+  Future<void> _switchFamily() async {
+    if (widget.families.length < 2) {
+      return;
+    }
+
+    final selectedFamilyId = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: const Text('가족 전환'),
+        actions: widget.families
+            .map(
+              (family) => CupertinoActionSheetAction(
+                isDefaultAction: family.id == _family.id,
+                onPressed: () => Navigator.of(context).pop(family.id),
+                child: Text(family.name),
+              ),
+            )
+            .toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (selectedFamilyId == null) {
+      return;
+    }
+
+    final selectedFamily = widget.families.firstWhere(
+      (family) => family.id == selectedFamilyId,
+    );
+
+    setState(() {
+      _family = selectedFamily;
+      _dashboard = null;
+      _hiddenMemberIds.clear();
+    });
+    await widget.onSelectFamily(selectedFamily);
+    await _loadSchedules();
+  }
+
   Future<void> _openScheduleForm({
     AppSchedule? schedule,
     DateTime? initialDate,
@@ -151,7 +244,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       if (schedule == null) {
         await _apiClient.createSchedule(
           widget.sessionToken,
-          familyId: widget.family.id,
+          familyId: _family.id,
           familyMemberId: input.familyMemberId,
           title: input.title,
           content: input.content,
@@ -163,7 +256,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       } else {
         await _apiClient.updateSchedule(
           widget.sessionToken,
-          familyId: widget.family.id,
+          familyId: _family.id,
           scheduleId: schedule.id,
           familyMemberId: input.familyMemberId,
           title: input.title,
@@ -206,7 +299,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     await _runTask(() async {
       await _apiClient.deleteSchedule(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: _family.id,
         scheduleId: schedule.id,
       );
       await _loadSchedules();
@@ -234,12 +327,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   @override
   Widget build(BuildContext context) {
     final dashboard = _dashboard;
-    final schedules = dashboard?.schedules ?? const <AppSchedule>[];
+    final schedules = _filteredSchedules;
 
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF5F5F7),
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('일정 관리'),
+        middle: _FeatureFamilyTitle(
+          family: _family,
+          canSwitch: widget.families.length > 1,
+          onPressed: _switchFamily,
+        ),
         trailing: dashboard?.canManage == true
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -256,10 +353,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _ScheduleHeader(
-                familyName: widget.family.name,
                 mode: _mode,
                 rangeLabel: _rangeLabel(_rangeStart, _rangeEnd, _mode),
                 canManage: dashboard?.canManage ?? false,
+                members: dashboard?.members ?? const [],
+                hiddenMemberIds: _hiddenMemberIds,
+                onToggleMemberFilter: _toggleMemberFilter,
                 onModeChanged: _setMode,
                 onPrevious: () => _moveRange(-1),
                 onNext: () => _moveRange(1),
@@ -318,21 +417,82 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 }
 
+class _FeatureFamilyTitle extends StatelessWidget {
+  const _FeatureFamilyTitle({
+    required this.family,
+    required this.canSwitch,
+    required this.onPressed,
+  });
+
+  final AppFamily family;
+  final bool canSwitch;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!canSwitch) {
+      return Text(
+        family.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          inherit: false,
+          color: Color(0xFF111111),
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+      );
+    }
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(44, 32),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              family.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                inherit: false,
+                color: Color(0xFF111111),
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(CupertinoIcons.chevron_down, size: 15),
+        ],
+      ),
+    );
+  }
+}
+
 class _ScheduleHeader extends StatelessWidget {
   const _ScheduleHeader({
-    required this.familyName,
     required this.mode,
     required this.rangeLabel,
     required this.canManage,
+    required this.members,
+    required this.hiddenMemberIds,
+    required this.onToggleMemberFilter,
     required this.onModeChanged,
     required this.onPrevious,
     required this.onNext,
   });
 
-  final String familyName;
   final _CalendarMode mode;
   final String rangeLabel;
   final bool canManage;
+  final List<FamilyMember> members;
+  final Set<String> hiddenMemberIds;
+  final ValueChanged<String> onToggleMemberFilter;
   final ValueChanged<_CalendarMode> onModeChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -349,18 +509,22 @@ class _ScheduleHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            familyName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFF111111),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0,
+          if (members.isNotEmpty) ...[
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: members
+                  .map(
+                    (member) => _MemberToggleButton(
+                      label: member.userNickname,
+                      isActive: !hiddenMemberIds.contains(member.id),
+                      onPressed: () => onToggleMemberFilter(member.id),
+                    ),
+                  )
+                  .toList(),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
           CupertinoSlidingSegmentedControl<_CalendarMode>(
             groupValue: mode,
             children: const {
@@ -383,7 +547,7 @@ class _ScheduleHeader extends StatelessWidget {
               }
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           Row(
             children: [
               CupertinoButton(
@@ -425,6 +589,64 @@ class _ScheduleHeader extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _MemberToggleButton extends StatelessWidget {
+  const _MemberToggleButton({
+    required this.label,
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 118),
+      child: SizedBox(
+        height: 30,
+        child: CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          color: isActive ? const Color(0xFFE6F3F1) : const Color(0xFFF5F5F7),
+          borderRadius: BorderRadius.circular(9),
+          onPressed: onPressed,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isActive
+                    ? CupertinoIcons.check_mark_circled_solid
+                    : CupertinoIcons.circle,
+                color: isActive
+                    ? CupertinoColors.systemTeal
+                    : CupertinoColors.systemGrey,
+                size: 15,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isActive
+                        ? const Color(0xFF006D68)
+                        : const Color(0xFF6E6E73),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
