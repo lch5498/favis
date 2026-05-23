@@ -1,15 +1,20 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../core/api_client.dart';
+
 class ScheduleScreen extends StatelessWidget {
-  const ScheduleScreen({super.key});
+  const ScheduleScreen({super.key, required this.family});
+
+  final AppFamily family;
 
   @override
   Widget build(BuildContext context) {
-    return const _FeaturePlaceholderScreen(
+    return _FeaturePlaceholderScreen(
       title: '학원 일정 관리',
+      family: family,
       icon: CupertinoIcons.calendar,
       accentColor: CupertinoColors.systemTeal,
-      backgroundColor: Color(0xFFE6F3F1),
+      backgroundColor: const Color(0xFFE6F3F1),
     );
   }
 }
@@ -17,12 +22,14 @@ class ScheduleScreen extends StatelessWidget {
 class _FeaturePlaceholderScreen extends StatelessWidget {
   const _FeaturePlaceholderScreen({
     required this.title,
+    required this.family,
     required this.icon,
     required this.accentColor,
     required this.backgroundColor,
   });
 
   final String title;
+  final AppFamily family;
   final IconData icon;
   final Color accentColor;
   final Color backgroundColor;
@@ -45,6 +52,18 @@ class _FeaturePlaceholderScreen extends StatelessWidget {
                 children: [
                   Icon(icon, color: accentColor, size: 48),
                   const SizedBox(height: 14),
+                  Text(
+                    family.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF5F6368),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
                     title,
                     style: const TextStyle(

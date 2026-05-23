@@ -53,6 +53,47 @@ import UIKit
           result(nil)
         }
       }
+
+      let preferencesChannel = FlutterMethodChannel(
+        name: "housekeeping/preferences",
+        binaryMessenger: controller.binaryMessenger
+      )
+
+      preferencesChannel.setMethodCallHandler { call, result in
+        guard
+          let arguments = call.arguments as? [String: Any],
+          let key = arguments["key"] as? String
+        else {
+          result(
+            FlutterError(
+              code: "invalid_arguments",
+              message: "key is required",
+              details: nil
+            )
+          )
+          return
+        }
+
+        switch call.method {
+        case "getString":
+          result(UserDefaults.standard.string(forKey: key))
+        case "setString":
+          guard let value = arguments["value"] as? String else {
+            result(
+              FlutterError(
+                code: "invalid_arguments",
+                message: "value is required",
+                details: nil
+              )
+            )
+            return
+          }
+          UserDefaults.standard.set(value, forKey: key)
+          result(nil)
+        default:
+          result(FlutterMethodNotImplemented)
+        }
+      }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
