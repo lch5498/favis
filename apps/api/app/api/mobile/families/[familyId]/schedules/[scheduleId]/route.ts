@@ -31,6 +31,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       endsAt: requiredString(payload, 'endsAt'),
       vehicleBoardingAt: optionalText(payload, 'vehicleBoardingAt'),
       vehicleDropoffAt: optionalText(payload, 'vehicleDropoffAt'),
+      educationProgramId:
+        optionalText(payload, 'educationTemplateId') ??
+        optionalText(payload, 'educationProgramId'),
     });
 
     return Response.json({ schedule });

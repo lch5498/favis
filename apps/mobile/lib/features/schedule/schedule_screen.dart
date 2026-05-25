@@ -10,12 +10,14 @@ class ScheduleScreen extends StatefulWidget {
     required this.family,
     required this.families,
     required this.sessionToken,
+    required this.refreshToken,
     required this.onSelectFamily,
   });
 
   final AppFamily family;
   final List<AppFamily> families;
   final String sessionToken;
+  final int refreshToken;
   final Future<void> Function(AppFamily family) onSelectFamily;
 
   @override
@@ -69,6 +71,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (oldWidget.family.id != widget.family.id) {
       _family = widget.family;
       _hiddenMemberIds.clear();
+      _loadSchedules();
+    } else if (oldWidget.refreshToken != widget.refreshToken) {
       _loadSchedules();
     }
   }
@@ -230,6 +234,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         fullscreenDialog: true,
         builder: (_) => _ScheduleFormScreen(
           members: dashboard.members,
+          educationPrograms: dashboard.educationPrograms,
           schedule: schedule,
           initialDate: initialDate ?? schedule?.startsAt ?? _anchorDate,
         ),
@@ -252,6 +257,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           endsAt: input.endsAt,
           vehicleBoardingAt: input.vehicleBoardingAt,
           vehicleDropoffAt: input.vehicleDropoffAt,
+          educationProgramId: input.educationProgramId,
         );
       } else {
         await _apiClient.updateSchedule(
@@ -265,6 +271,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           endsAt: input.endsAt,
           vehicleBoardingAt: input.vehicleBoardingAt,
           vehicleDropoffAt: input.vehicleDropoffAt,
+          educationProgramId: input.educationProgramId,
         );
       }
 
@@ -275,17 +282,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Future<void> _deleteSchedule(AppSchedule schedule) async {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
-      builder: (_) => CupertinoAlertDialog(
+      builder: (dialogContext) => CupertinoAlertDialog(
         title: const Text('일정 삭제'),
         content: Text('${schedule.title} 일정을 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('삭제'),
           ),
         ],
@@ -704,6 +711,11 @@ class _CalendarBoard extends StatelessWidget {
   }
 }
 
+const double _calendarHourRowHeight = 74.0;
+const double _dayTimeColumnWidth = 54.0;
+const double _weekTimeColumnWidth = 32.0;
+const String _educationProgramNoneValue = '__none__';
+
 class _DayCalendar extends StatefulWidget {
   const _DayCalendar({
     required this.date,
@@ -724,7 +736,6 @@ class _DayCalendar extends StatefulWidget {
 }
 
 class _DayCalendarState extends State<_DayCalendar> {
-  static const _hourRowHeight = 74.0;
   late final ScrollController _scrollController;
 
   @override
@@ -758,7 +769,10 @@ class _DayCalendarState extends State<_DayCalendar> {
   double _initialScrollOffset() {
     final targetHour = _initialDayHour(widget.date, widget.schedules);
 
-    return (targetHour * _hourRowHeight).clamp(0, 23 * _hourRowHeight);
+    return (targetHour * _calendarHourRowHeight).clamp(
+      0,
+      23 * _calendarHourRowHeight,
+    );
   }
 
   @override
@@ -773,104 +787,28 @@ class _DayCalendarState extends State<_DayCalendar> {
             height: 620,
             child: SingleChildScrollView(
               controller: _scrollController,
-              child: Column(
-                children: [
-                  for (var hour = 0; hour <= 23; hour++)
-                    _HourRow(
-                      hour: hour,
-                      schedules: widget.schedules
-                          .where(
-                            (schedule) =>
-                                _startsInHour(schedule, widget.date, hour),
-                          )
-                          .toList(),
-                      canManage: widget.canManage,
-                      onTapEmpty: () => widget.onTapDateTime(
-                        DateTime(
-                          widget.date.year,
-                          widget.date.month,
-                          widget.date.day,
-                          hour,
-                        ),
+              child: SizedBox(
+                height: _calendarHourRowHeight * 24,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _TimeAxis(width: _dayTimeColumnWidth),
+                    Expanded(
+                      child: _TimedDayColumn(
+                        date: widget.date,
+                        schedules: widget.schedules,
+                        canManage: widget.canManage,
+                        onTapDateTime: widget.onTapDateTime,
+                        onTapSchedule: widget.onTapSchedule,
+                        showLeftBorder: true,
                       ),
-                      onTapSchedule: widget.onTapSchedule,
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _HourRow extends StatelessWidget {
-  const _HourRow({
-    required this.hour,
-    required this.schedules,
-    required this.canManage,
-    required this.onTapEmpty,
-    required this.onTapSchedule,
-  });
-
-  final int hour;
-  final List<AppSchedule> schedules;
-  final bool canManage;
-  final VoidCallback onTapEmpty;
-  final ValueChanged<AppSchedule> onTapSchedule;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 74,
-      child: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Color(0xFFE5E5EA))),
-        ),
-        child: CupertinoButton(
-          padding: EdgeInsets.zero,
-          onPressed: canManage ? onTapEmpty : null,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 44,
-                  child: Text(
-                    _hourLabel(hour),
-                    style: const TextStyle(
-                      color: Color(0xFF8E8E93),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: schedules.isEmpty
-                      ? const SizedBox(height: 38)
-                      : Column(
-                          children: schedules
-                              .map(
-                                (schedule) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _CompactSchedulePill(
-                                    schedule: schedule,
-                                    canManage: canManage,
-                                    onTap: () => onTapSchedule(schedule),
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -896,7 +834,6 @@ class _WeekCalendar extends StatefulWidget {
 }
 
 class _WeekCalendarState extends State<_WeekCalendar> {
-  static const _hourRowHeight = 74.0;
   late final ScrollController _scrollController;
 
   @override
@@ -930,7 +867,10 @@ class _WeekCalendarState extends State<_WeekCalendar> {
   double _initialScrollOffset() {
     final targetHour = _initialWeekHour(widget.weekStart, widget.schedules);
 
-    return (targetHour * _hourRowHeight).clamp(0, 23 * _hourRowHeight);
+    return (targetHour * _calendarHourRowHeight).clamp(
+      0,
+      23 * _calendarHourRowHeight,
+    );
   }
 
   @override
@@ -947,7 +887,7 @@ class _WeekCalendarState extends State<_WeekCalendar> {
           Row(
             children: [
               Container(
-                width: 32,
+                width: _weekTimeColumnWidth,
                 height: 58,
                 decoration: const BoxDecoration(
                   border: Border(right: BorderSide(color: Color(0xFFE5E5EA))),
@@ -961,18 +901,25 @@ class _WeekCalendarState extends State<_WeekCalendar> {
             height: 620,
             child: SingleChildScrollView(
               controller: _scrollController,
-              child: Column(
-                children: [
-                  for (var hour = 0; hour <= 23; hour++)
-                    _WeekHourRow(
-                      hour: hour,
-                      days: days,
-                      schedules: widget.schedules,
-                      canManage: widget.canManage,
-                      onTapDateTime: widget.onTapDate,
-                      onTapSchedule: widget.onTapSchedule,
+              child: SizedBox(
+                height: _calendarHourRowHeight * 24,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _TimeAxis(width: _weekTimeColumnWidth),
+                    ...days.map(
+                      (day) => Expanded(
+                        child: _TimedDayColumn(
+                          date: day,
+                          schedules: widget.schedules,
+                          canManage: widget.canManage,
+                          onTapDateTime: widget.onTapDate,
+                          onTapSchedule: widget.onTapSchedule,
+                        ),
+                      ),
                     ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -982,115 +929,328 @@ class _WeekCalendarState extends State<_WeekCalendar> {
   }
 }
 
-class _WeekHourRow extends StatelessWidget {
-  const _WeekHourRow({
-    required this.hour,
-    required this.days,
-    required this.schedules,
-    required this.canManage,
-    required this.onTapDateTime,
-    required this.onTapSchedule,
-  });
+class _TimeAxis extends StatelessWidget {
+  const _TimeAxis({required this.width});
 
-  final int hour;
-  final List<DateTime> days;
-  final List<AppSchedule> schedules;
-  final bool canManage;
-  final ValueChanged<DateTime> onTapDateTime;
-  final ValueChanged<AppSchedule> onTapSchedule;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 74,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      width: width,
+      height: _calendarHourRowHeight * 24,
+      child: Stack(
         children: [
-          Container(
-            width: 32,
-            padding: const EdgeInsets.only(top: 8, right: 4),
-            alignment: Alignment.topRight,
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Color(0xFFE5E5EA)),
-                right: BorderSide(color: Color(0xFFE5E5EA)),
+          for (var hour = 0; hour <= 23; hour++)
+            Positioned(
+              top: hour * _calendarHourRowHeight,
+              left: 0,
+              right: 0,
+              height: _calendarHourRowHeight,
+              child: Container(
+                padding: const EdgeInsets.only(top: 8, right: 4),
+                alignment: Alignment.topRight,
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: Color(0xFFE5E5EA)),
+                    right: BorderSide(color: Color(0xFFE5E5EA)),
+                  ),
+                ),
+                child: Text(
+                  _hourLabel(hour),
+                  style: const TextStyle(
+                    color: Color(0xFF8E8E93),
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
               ),
             ),
-            child: Text(
-              _hourLabel(hour),
-              style: const TextStyle(
-                color: Color(0xFF8E8E93),
-                fontSize: 8,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ),
-          ),
-          ...days.map(
-            (day) => Expanded(
-              child: _WeekHourCell(
-                dateTime: DateTime(day.year, day.month, day.day, hour),
-                schedules: schedules
-                    .where((schedule) => _startsInHour(schedule, day, hour))
-                    .toList(),
-                canManage: canManage,
-                onTapDateTime: onTapDateTime,
-                onTapSchedule: onTapSchedule,
-              ),
-            ),
-          ),
         ],
       ),
     );
   }
 }
 
-class _WeekHourCell extends StatelessWidget {
-  const _WeekHourCell({
-    required this.dateTime,
+class _TimedDayColumn extends StatelessWidget {
+  const _TimedDayColumn({
+    required this.date,
     required this.schedules,
     required this.canManage,
     required this.onTapDateTime,
     required this.onTapSchedule,
+    this.showLeftBorder = false,
   });
 
-  final DateTime dateTime;
+  final DateTime date;
   final List<AppSchedule> schedules;
   final bool canManage;
   final ValueChanged<DateTime> onTapDateTime;
   final ValueChanged<AppSchedule> onTapSchedule;
+  final bool showLeftBorder;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: canManage ? () => onTapDateTime(dateTime) : null,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(5, 6, 5, 5),
-        decoration: const BoxDecoration(
-          border: Border(
-            top: BorderSide(color: Color(0xFFE5E5EA)),
-            right: BorderSide(color: Color(0xFFE5E5EA)),
-          ),
-        ),
-        child: Column(
-          children: schedules
-              .take(2)
-              .map(
-                (schedule) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _MiniScheduleChip(
-                    schedule: schedule,
-                    canManage: canManage,
-                    onTap: () => onTapSchedule(schedule),
+    final layouts = _buildTimedScheduleLayouts(schedules, date);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columnWidth = constraints.maxWidth;
+
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (var hour = 0; hour <= 23; hour++)
+              Positioned(
+                top: hour * _calendarHourRowHeight,
+                left: 0,
+                right: 0,
+                height: _calendarHourRowHeight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: canManage
+                      ? () => onTapDateTime(
+                          DateTime(date.year, date.month, date.day, hour),
+                        )
+                      : null,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: const BorderSide(color: Color(0xFFE5E5EA)),
+                        right: const BorderSide(color: Color(0xFFE5E5EA)),
+                        left: showLeftBorder
+                            ? const BorderSide(color: Color(0xFFE5E5EA))
+                            : BorderSide.none,
+                      ),
+                    ),
                   ),
                 ),
-              )
-              .toList(),
+              ),
+            ...layouts.map((layout) {
+              final left = (layout.leftFraction * columnWidth) + 3;
+              final width = (layout.widthFraction * columnWidth - 6)
+                  .clamp(12.0, columnWidth)
+                  .toDouble();
+              final height = (layout.height - 4)
+                  .clamp(24.0, layout.height)
+                  .toDouble();
+
+              return Positioned(
+                top: layout.top + 2,
+                left: left,
+                width: width,
+                height: height,
+                child: _TimedScheduleBlock(
+                  schedule: layout.schedule,
+                  onTap: () => onTapSchedule(layout.schedule),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TimedScheduleBlock extends StatelessWidget {
+  const _TimedScheduleBlock({required this.schedule, required this.onTap});
+
+  final AppSchedule schedule;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      onPressed: onTap,
+      child: Container(
+        width: double.infinity,
+        height: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE6F3F1),
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: const Color(0xFFD2E8E5)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x14000000),
+              blurRadius: 4,
+              offset: Offset(0, 1),
+            ),
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showMember = constraints.maxHeight >= 42;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _calendarTitleLabel(schedule.title),
+                  maxLines: showMember ? 2 : 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: true,
+                  style: const TextStyle(
+                    color: Color(0xFF006D68),
+                    fontSize: 9,
+                    height: 1.12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                if (showMember) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    schedule.memberNickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF45817D),
+                      fontSize: 8,
+                      height: 1.1,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _TimedScheduleLayout {
+  const _TimedScheduleLayout({
+    required this.schedule,
+    required this.top,
+    required this.height,
+    required this.leftFraction,
+    required this.widthFraction,
+  });
+
+  final AppSchedule schedule;
+  final double top;
+  final double height;
+  final double leftFraction;
+  final double widthFraction;
+}
+
+List<_TimedScheduleLayout> _buildTimedScheduleLayouts(
+  List<AppSchedule> schedules,
+  DateTime day,
+) {
+  final dayStart = _dateOnly(day);
+  final dayEnd = dayStart.add(const Duration(days: 1));
+  final daySchedules =
+      schedules
+          .where(
+            (schedule) =>
+                schedule.startsAt.isBefore(dayEnd) &&
+                schedule.endsAt.isAfter(dayStart),
+          )
+          .toList()
+        ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+
+  final layouts = <_TimedScheduleLayout>[];
+
+  for (var index = 0; index < daySchedules.length;) {
+    final group = <AppSchedule>[];
+    var groupEnd = _scheduleEndInDay(daySchedules[index], dayEnd);
+
+    while (index < daySchedules.length) {
+      final schedule = daySchedules[index];
+      final scheduleStart = _scheduleStartInDay(schedule, dayStart);
+
+      if (group.isNotEmpty && !scheduleStart.isBefore(groupEnd)) {
+        break;
+      }
+
+      group.add(schedule);
+      final scheduleEnd = _scheduleEndInDay(schedule, dayEnd);
+      if (scheduleEnd.isAfter(groupEnd)) {
+        groupEnd = scheduleEnd;
+      }
+      index += 1;
+    }
+
+    layouts.addAll(_buildTimedScheduleGroupLayouts(group, dayStart, dayEnd));
+  }
+
+  return layouts;
+}
+
+List<_TimedScheduleLayout> _buildTimedScheduleGroupLayouts(
+  List<AppSchedule> group,
+  DateTime dayStart,
+  DateTime dayEnd,
+) {
+  final columns = <DateTime>[];
+  final columnBySchedule = <AppSchedule, int>{};
+
+  for (final schedule in group) {
+    final start = _scheduleStartInDay(schedule, dayStart);
+    final end = _scheduleEndInDay(schedule, dayEnd);
+    var columnIndex = columns.indexWhere(
+      (columnEnd) => !start.isBefore(columnEnd),
+    );
+
+    if (columnIndex == -1) {
+      columnIndex = columns.length;
+      columns.add(end);
+    } else {
+      columns[columnIndex] = end;
+    }
+
+    columnBySchedule[schedule] = columnIndex;
+  }
+
+  final columnCount = columns.length.clamp(1, group.length).toInt();
+  final widthFraction = 1 / columnCount;
+
+  return group.map((schedule) {
+    final start = _scheduleStartInDay(schedule, dayStart);
+    final end = _scheduleEndInDay(schedule, dayEnd);
+    final startMinutes = start.difference(dayStart).inMinutes;
+    final durationMinutes = end
+        .difference(start)
+        .inMinutes
+        .clamp(15, 24 * 60)
+        .toInt();
+    final columnIndex = columnBySchedule[schedule] ?? 0;
+
+    return _TimedScheduleLayout(
+      schedule: schedule,
+      top: startMinutes / 60 * _calendarHourRowHeight,
+      height: (durationMinutes / 60 * _calendarHourRowHeight)
+          .clamp(28, _calendarHourRowHeight * 24)
+          .toDouble(),
+      leftFraction: columnIndex * widthFraction,
+      widthFraction: widthFraction,
+    );
+  }).toList();
+}
+
+DateTime _scheduleStartInDay(AppSchedule schedule, DateTime dayStart) {
+  if (schedule.startsAt.isBefore(dayStart)) {
+    return dayStart;
+  }
+
+  return schedule.startsAt;
+}
+
+DateTime _scheduleEndInDay(AppSchedule schedule, DateTime dayEnd) {
+  if (schedule.endsAt.isAfter(dayEnd)) {
+    return dayEnd;
+  }
+
+  return schedule.endsAt;
 }
 
 class _MonthCalendar extends StatelessWidget {
@@ -1415,49 +1575,6 @@ class _MiniScheduleChip extends StatelessWidget {
   }
 }
 
-class _CompactSchedulePill extends StatelessWidget {
-  const _CompactSchedulePill({
-    required this.schedule,
-    required this.canManage,
-    required this.onTap,
-  });
-
-  final AppSchedule schedule;
-  final bool canManage;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: canManage ? onTap : null,
-      child: Container(
-        width: double.infinity,
-        constraints: const BoxConstraints(minHeight: 44),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFE6F3F1),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFD2E8E5)),
-        ),
-        child: Text(
-          _calendarTitleLabel(schedule.title),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          softWrap: true,
-          style: const TextStyle(
-            color: Color(0xFF006D68),
-            fontSize: 12,
-            height: 1.15,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ScheduleDetailScreen extends StatelessWidget {
   const _ScheduleDetailScreen({
     required this.schedule,
@@ -1540,6 +1657,12 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   icon: CupertinoIcons.person_crop_circle,
                   label: '구성원',
                   value: schedule.memberNickname,
+                ),
+                _DetailDivider(),
+                _DetailRow(
+                  icon: CupertinoIcons.building_2_fill,
+                  label: '학교/학원',
+                  value: schedule.educationProgramName ?? '선택 안 함',
                 ),
                 _DetailDivider(),
                 _DetailRow(
@@ -1682,11 +1805,13 @@ class _DetailDivider extends StatelessWidget {
 class _ScheduleFormScreen extends StatefulWidget {
   const _ScheduleFormScreen({
     required this.members,
+    required this.educationPrograms,
     required this.initialDate,
     this.schedule,
   });
 
   final List<FamilyMember> members;
+  final List<EducationProgram> educationPrograms;
   final DateTime initialDate;
   final AppSchedule? schedule;
 
@@ -1702,6 +1827,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
   late DateTime _endsAt;
   DateTime? _vehicleBoardingAt;
   DateTime? _vehicleDropoffAt;
+  String? _educationProgramId;
   String? _message;
 
   @override
@@ -1715,6 +1841,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     _endsAt = schedule?.endsAt ?? _startsAt.add(const Duration(hours: 1));
     _vehicleBoardingAt = schedule?.vehicleBoardingAt;
     _vehicleDropoffAt = schedule?.vehicleDropoffAt;
+    _educationProgramId = schedule?.educationProgramId;
   }
 
   @override
@@ -1748,8 +1875,74 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     if (selectedId != null) {
       setState(() {
         _familyMemberId = selectedId;
+        if (!_educationProgramBelongsToMember(
+          _educationProgramId,
+          selectedId,
+        )) {
+          _educationProgramId = null;
+        }
       });
     }
+  }
+
+  Future<void> _pickEducationProgram() async {
+    final educationPrograms = _educationProgramsForSelectedMember();
+
+    final selectedId = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (popupContext) => CupertinoActionSheet(
+        title: const Text('학교/학원 템플릿'),
+        actions: [
+          CupertinoActionSheetAction(
+            isDefaultAction: _educationProgramId == null,
+            onPressed: () =>
+                Navigator.of(popupContext).pop(_educationProgramNoneValue),
+            child: const Text('선택 안 함'),
+          ),
+          ...educationPrograms.map(
+            (program) => CupertinoActionSheetAction(
+              isDefaultAction: program.id == _educationProgramId,
+              onPressed: () => Navigator.of(popupContext).pop(program.id),
+              child: Text(program.name),
+            ),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(popupContext).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (!mounted || selectedId == null) {
+      return;
+    }
+
+    setState(() {
+      _educationProgramId = selectedId == _educationProgramNoneValue
+          ? null
+          : selectedId;
+    });
+  }
+
+  List<EducationProgram> _educationProgramsForSelectedMember() {
+    return widget.educationPrograms
+        .where((program) => program.familyMemberId == _familyMemberId)
+        .toList();
+  }
+
+  bool _educationProgramBelongsToMember(
+    String? educationProgramId,
+    String familyMemberId,
+  ) {
+    if (educationProgramId == null) {
+      return true;
+    }
+
+    return widget.educationPrograms.any((program) {
+      return program.id == educationProgramId &&
+          program.familyMemberId == familyMemberId;
+    });
   }
 
   Future<void> _pickDateTime({required bool isStart}) async {
@@ -1865,6 +2058,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
         endsAt: _endsAt,
         vehicleBoardingAt: _vehicleBoardingAt,
         vehicleDropoffAt: _vehicleDropoffAt,
+        educationProgramId: _educationProgramId,
       ),
     );
   }
@@ -1875,6 +2069,15 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
       (member) => member.id == _familyMemberId,
       orElse: () => widget.members.first,
     );
+    final selectedMemberEducationPrograms =
+        _educationProgramsForSelectedMember();
+    EducationProgram? selectedEducationProgram;
+    for (final program in selectedMemberEducationPrograms) {
+      if (program.id == _educationProgramId) {
+        selectedEducationProgram = program;
+        break;
+      }
+    }
 
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF5F5F7),
@@ -1902,6 +2105,14 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                   value: selectedMember.userNickname,
                   onPressed: _pickMember,
                 ),
+                if (selectedMemberEducationPrograms.isNotEmpty) ...[
+                  _FormDivider(),
+                  _PickerRow(
+                    label: '학교/학원',
+                    value: selectedEducationProgram?.name ?? '선택 안 함',
+                    onPressed: _pickEducationProgram,
+                  ),
+                ],
                 _FormDivider(),
                 CupertinoTextField.borderless(
                   controller: _titleController,
@@ -2230,6 +2441,7 @@ class _ScheduleInput {
     required this.endsAt,
     required this.vehicleBoardingAt,
     required this.vehicleDropoffAt,
+    required this.educationProgramId,
   });
 
   final String familyMemberId;
@@ -2239,6 +2451,7 @@ class _ScheduleInput {
   final DateTime endsAt;
   final DateTime? vehicleBoardingAt;
   final DateTime? vehicleDropoffAt;
+  final String? educationProgramId;
 }
 
 DateTime _startOfRange(DateTime date, _CalendarMode mode) {
@@ -2288,11 +2501,6 @@ List<AppSchedule> _schedulesForDay(List<AppSchedule> schedules, DateTime day) {
   return schedules
       .where((schedule) => _dateOnly(schedule.startsAt) == _dateOnly(day))
       .toList();
-}
-
-bool _startsInHour(AppSchedule schedule, DateTime day, int hour) {
-  return _dateOnly(schedule.startsAt) == _dateOnly(day) &&
-      schedule.startsAt.hour == hour;
 }
 
 int _initialDayHour(DateTime date, List<AppSchedule> schedules) {

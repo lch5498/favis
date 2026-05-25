@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
+import '../education/education_screen.dart';
 import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
 import '../profile/profile_screen.dart';
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _message;
   bool _isLoadingFamilies = true;
   int _homeRefreshToken = 0;
+  int _scheduleRefreshToken = 0;
 
   AppFamily? get _selectedFamily {
     if (_families.isEmpty) {
@@ -68,13 +70,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _handleTabChange() {
-    if (_tabController.index != 0) {
-      return;
+    if (_tabController.index == 0) {
+      setState(() {
+        _homeRefreshToken += 1;
+      });
+    } else if (_tabController.index == 1) {
+      setState(() {
+        _scheduleRefreshToken += 1;
+      });
     }
-
-    setState(() {
-      _homeRefreshToken += 1;
-    });
   }
 
   void _openScheduleTab() {
@@ -82,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openParkingTab() {
-    _tabController.index = 2;
+    _tabController.index = 3;
   }
 
   Future<void> _loadFamilies() async {
@@ -240,6 +244,11 @@ class _HomeScreenState extends State<HomeScreen> {
               label: '일정',
             ),
             BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.book),
+              activeIcon: Icon(CupertinoIcons.book_fill),
+              label: '학교/학원',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(CupertinoIcons.car_detailed),
               activeIcon: Icon(CupertinoIcons.car_detailed),
               label: '주차',
@@ -255,9 +264,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     family: selectedFamily,
                     families: families,
                     sessionToken: widget.sessionToken,
+                    refreshToken: _scheduleRefreshToken,
                     onSelectFamily: _selectFamily,
                   );
                 case 2:
+                  return EducationScreen(
+                    family: selectedFamily,
+                    families: families,
+                    sessionToken: widget.sessionToken,
+                    onSelectFamily: _selectFamily,
+                  );
+                case 3:
                   return ParkingScreen(
                     family: selectedFamily,
                     families: families,

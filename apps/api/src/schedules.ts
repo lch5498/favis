@@ -3,6 +3,7 @@ import {
   requireFamilyManager,
   requireMembership,
 } from './families';
+import { listEducationPrograms } from './education-programs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -16,6 +17,7 @@ export type Schedule = {
   ends_at: string;
   vehicle_boarding_at: string | null;
   vehicle_dropoff_at: string | null;
+  education_program_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -29,6 +31,10 @@ export type Schedule = {
       nickname: string;
     };
   } | null;
+  education_program?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type ScheduleInput = {
@@ -39,6 +45,7 @@ export type ScheduleInput = {
   endsAt: string;
   vehicleBoardingAt?: string;
   vehicleDropoffAt?: string;
+  educationProgramId?: string;
 };
 
 export async function getScheduleDashboard(
@@ -48,15 +55,17 @@ export async function getScheduleDashboard(
   rangeEnd: string,
 ) {
   const membership = await requireMembership(userId, familyId);
-  const [members, schedules] = await Promise.all([
+  const [members, schedules, educationPrograms] = await Promise.all([
     listFamilyMembers(userId, familyId),
     listSchedules(userId, familyId, rangeStart, rangeEnd),
+    listEducationPrograms(userId, familyId),
   ]);
 
   return {
     canManage: membership.role === 'owner' || membership.role === 'co_owner',
     members,
     schedules,
+    educationPrograms,
   };
 }
 
@@ -77,23 +86,7 @@ export async function listSchedules(
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('schedules')
-    .select(
-      `
-        *,
-        family_member:family_members (
-          id,
-          family_id,
-          user_id,
-          role,
-          created_at,
-          updated_at,
-          user:users (
-            id,
-            nickname
-          )
-        )
-      `,
-    )
+    .select(scheduleSelect)
     .eq('family_id', familyId)
     .lt('starts_at', endsAt)
     .gt('ends_at', startsAt)
@@ -126,25 +119,10 @@ export async function createSchedule(
       ends_at: normalized.endsAt,
       vehicle_boarding_at: normalized.vehicleBoardingAt,
       vehicle_dropoff_at: normalized.vehicleDropoffAt,
+      education_program_id: normalized.educationProgramId,
       created_by_user_id: userId,
     })
-    .select(
-      `
-        *,
-        family_member:family_members (
-          id,
-          family_id,
-          user_id,
-          role,
-          created_at,
-          updated_at,
-          user:users (
-            id,
-            nickname
-          )
-        )
-      `,
-    )
+    .select(scheduleSelect)
     .single();
 
   if (error) {
@@ -174,26 +152,11 @@ export async function updateSchedule(
       ends_at: normalized.endsAt,
       vehicle_boarding_at: normalized.vehicleBoardingAt,
       vehicle_dropoff_at: normalized.vehicleDropoffAt,
+      education_program_id: normalized.educationProgramId,
     })
     .eq('id', scheduleId)
     .eq('family_id', familyId)
-    .select(
-      `
-        *,
-        family_member:family_members (
-          id,
-          family_id,
-          user_id,
-          role,
-          created_at,
-          updated_at,
-          user:users (
-            id,
-            nickname
-          )
-        )
-      `,
-    )
+    .select(scheduleSelect)
     .maybeSingle();
 
   if (error) {
@@ -234,10 +197,18 @@ async function normalizeScheduleInput(familyId: string, input: ScheduleInput) {
     throw new HttpError(400, { error: 'invalid_payload', field: 'endsAt' });
   }
 
-  await getFamilyMemberOrThrow(familyId, input.familyMemberId);
+  const familyMemberId = await getFamilyMemberOrThrow(
+    familyId,
+    input.familyMemberId,
+  );
+  const educationProgramId = await normalizeEducationProgramId(
+    familyId,
+    familyMemberId,
+    input.educationProgramId,
+  );
 
   return {
-    familyMemberId: input.familyMemberId.trim(),
+    familyMemberId,
     title: normalizeText(input.title, 'title', 80),
     content: normalizeOptionalText(input.content, 'content', 1000),
     startsAt,
@@ -250,7 +221,44 @@ async function normalizeScheduleInput(familyId: string, input: ScheduleInput) {
       input.vehicleDropoffAt,
       'vehicleDropoffAt',
     ),
+    educationProgramId,
   };
+}
+
+async function normalizeEducationProgramId(
+  familyId: string,
+  familyMemberId: string,
+  educationProgramId: string | undefined,
+) {
+  if (educationProgramId === undefined || !educationProgramId.trim()) {
+    return null;
+  }
+
+  const normalized = educationProgramId.trim();
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('education_programs')
+    .select('id, family_member_id')
+    .eq('id', normalized)
+    .eq('family_id', familyId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new HttpError(404, { error: 'education_program_not_found' });
+  }
+
+  if (data.family_member_id !== familyMemberId) {
+    throw new HttpError(400, {
+      error: 'education_program_member_mismatch',
+      field: 'educationProgramId',
+    });
+  }
+
+  return normalized;
 }
 
 async function getFamilyMemberOrThrow(familyId: string, familyMemberId: string) {
@@ -275,6 +283,8 @@ async function getFamilyMemberOrThrow(familyId: string, familyMemberId: string) 
   if (!data) {
     throw new HttpError(404, { error: 'family_member_not_found' });
   }
+
+  return normalized;
 }
 
 function normalizeText(value: string, field: string, maxLength: number) {
@@ -331,3 +341,23 @@ function normalizeOptionalDateTime(value: string | undefined, field: string) {
 
   return normalizeDateTime(value, field);
 }
+
+const scheduleSelect = `
+  *,
+  family_member:family_members (
+    id,
+    family_id,
+    user_id,
+    role,
+    created_at,
+    updated_at,
+    user:users (
+      id,
+      nickname
+    )
+  ),
+  education_program:education_programs (
+    id,
+    name
+  )
+`;

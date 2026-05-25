@@ -326,6 +326,7 @@ class ApiClient {
     required DateTime endsAt,
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
+    String? educationProgramId,
   }) async {
     final json = await _requestJson(
       'POST',
@@ -339,6 +340,7 @@ class ApiClient {
         endsAt: endsAt,
         vehicleBoardingAt: vehicleBoardingAt,
         vehicleDropoffAt: vehicleDropoffAt,
+        educationProgramId: educationProgramId,
       ),
     );
 
@@ -356,6 +358,7 @@ class ApiClient {
     required DateTime endsAt,
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
+    String? educationProgramId,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -369,6 +372,7 @@ class ApiClient {
         endsAt: endsAt,
         vehicleBoardingAt: vehicleBoardingAt,
         vehicleDropoffAt: vehicleDropoffAt,
+        educationProgramId: educationProgramId,
       ),
     );
 
@@ -387,6 +391,62 @@ class ApiClient {
     );
   }
 
+  Future<EducationProgramDashboard> getEducationProgramDashboard(
+    String sessionToken, {
+    required String familyId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      '/api/mobile/families/$familyId/education-programs',
+      bearerToken: sessionToken,
+    );
+
+    return EducationProgramDashboard.fromJson(json);
+  }
+
+  Future<EducationProgramMutationResult> createEducationProgram(
+    String sessionToken, {
+    required String familyId,
+    required EducationProgramInput input,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/education-programs',
+      bearerToken: sessionToken,
+      body: input.toJson(),
+    );
+
+    return EducationProgramMutationResult.fromJson(json);
+  }
+
+  Future<EducationProgramMutationResult> updateEducationProgram(
+    String sessionToken, {
+    required String familyId,
+    required String programId,
+    required EducationProgramInput input,
+  }) async {
+    final json = await _requestJson(
+      'PATCH',
+      '/api/mobile/families/$familyId/education-programs/$programId',
+      bearerToken: sessionToken,
+      body: input.toJson(),
+    );
+
+    return EducationProgramMutationResult.fromJson(json);
+  }
+
+  Future<void> deleteEducationProgram(
+    String sessionToken, {
+    required String familyId,
+    required String programId,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/families/$familyId/education-programs/$programId',
+      bearerToken: sessionToken,
+    );
+  }
+
   Map<String, Object?> _scheduleBody({
     required String familyMemberId,
     required String title,
@@ -395,6 +455,7 @@ class ApiClient {
     required DateTime endsAt,
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
+    String? educationProgramId,
   }) {
     final body = <String, Object?>{
       'familyMemberId': familyMemberId,
@@ -413,6 +474,10 @@ class ApiClient {
 
     if (vehicleDropoffAt != null) {
       body['vehicleDropoffAt'] = vehicleDropoffAt.toUtc().toIso8601String();
+    }
+
+    if (educationProgramId != null) {
+      body['educationTemplateId'] = educationProgramId;
     }
 
     return body;
@@ -795,15 +860,19 @@ class ScheduleDashboard {
     required this.canManage,
     required this.members,
     required this.schedules,
+    required this.educationPrograms,
   });
 
   final bool canManage;
   final List<FamilyMember> members;
   final List<AppSchedule> schedules;
+  final List<EducationProgram> educationPrograms;
 
   factory ScheduleDashboard.fromJson(Map<String, Object?> json) {
     final members = json['members'] as List<Object?>;
     final schedules = json['schedules'] as List<Object?>;
+    final educationPrograms =
+        json['educationPrograms'] as List<Object?>? ?? const <Object?>[];
 
     return ScheduleDashboard(
       canManage: json['canManage'] as bool,
@@ -818,8 +887,203 @@ class ScheduleDashboard {
                 AppSchedule.fromJson(schedule as Map<String, Object?>),
           )
           .toList(),
+      educationPrograms: educationPrograms
+          .map(
+            (program) =>
+                EducationProgram.fromJson(program as Map<String, Object?>),
+          )
+          .toList(),
     );
   }
+}
+
+class EducationProgramDashboard {
+  const EducationProgramDashboard({
+    required this.canManage,
+    required this.members,
+    required this.programs,
+  });
+
+  final bool canManage;
+  final List<FamilyMember> members;
+  final List<EducationProgram> programs;
+
+  factory EducationProgramDashboard.fromJson(Map<String, Object?> json) {
+    final members = json['members'] as List<Object?>;
+    final programs = json['programs'] as List<Object?>;
+
+    return EducationProgramDashboard(
+      canManage: json['canManage'] as bool,
+      members: members
+          .map(
+            (member) => FamilyMember.fromJson(member as Map<String, Object?>),
+          )
+          .toList(),
+      programs: programs
+          .map(
+            (program) =>
+                EducationProgram.fromJson(program as Map<String, Object?>),
+          )
+          .toList(),
+    );
+  }
+}
+
+class EducationProgramMutationResult {
+  const EducationProgramMutationResult({
+    required this.program,
+    required this.generatedScheduleCount,
+  });
+
+  final EducationProgram program;
+  final int generatedScheduleCount;
+
+  factory EducationProgramMutationResult.fromJson(Map<String, Object?> json) {
+    return EducationProgramMutationResult(
+      program: EducationProgram.fromJson(
+        json['program'] as Map<String, Object?>,
+      ),
+      generatedScheduleCount: json['generatedScheduleCount'] as int,
+    );
+  }
+}
+
+class EducationProgramInput {
+  const EducationProgramInput({
+    required this.familyMemberId,
+    required this.name,
+    required this.startsOn,
+    required this.endsOn,
+    required this.weeklySchedules,
+  });
+
+  final String familyMemberId;
+  final String name;
+  final DateTime startsOn;
+  final DateTime endsOn;
+  final List<EducationWeeklySchedule> weeklySchedules;
+
+  Map<String, Object?> toJson() {
+    return {
+      'familyMemberId': familyMemberId,
+      'name': name,
+      'startsOn': _dateOnlyString(startsOn),
+      'endsOn': _dateOnlyString(endsOn),
+      'weeklySchedules': weeklySchedules
+          .map((schedule) => schedule.toJson())
+          .toList(),
+      'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+    };
+  }
+}
+
+class EducationProgram {
+  const EducationProgram({
+    required this.id,
+    required this.familyId,
+    required this.familyMemberId,
+    required this.name,
+    required this.startsOn,
+    required this.endsOn,
+    required this.weeklySchedules,
+    required this.memberNickname,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String familyId;
+  final String? familyMemberId;
+  final String name;
+  final DateTime startsOn;
+  final DateTime endsOn;
+  final List<EducationWeeklySchedule> weeklySchedules;
+  final String memberNickname;
+  final String createdAt;
+  final String updatedAt;
+
+  factory EducationProgram.fromJson(Map<String, Object?> json) {
+    final familyMember = json['family_member'] as Map<String, Object?>?;
+    final user = familyMember?['user'] as Map<String, Object?>?;
+    final weeklySchedules = json['weekly_schedules'] as List<Object?>;
+
+    return EducationProgram(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      familyMemberId: json['family_member_id'] as String?,
+      name: json['name'] as String,
+      startsOn: DateTime.parse(json['starts_on'] as String),
+      endsOn: DateTime.parse(json['ends_on'] as String),
+      weeklySchedules: weeklySchedules
+          .map(
+            (schedule) => EducationWeeklySchedule.fromJson(
+              schedule as Map<String, Object?>,
+            ),
+          )
+          .toList(),
+      memberNickname: user?['nickname'] as String? ?? '담당자 없음',
+      createdAt: json['created_at'] as String,
+      updatedAt: json['updated_at'] as String,
+    );
+  }
+}
+
+class EducationWeeklySchedule {
+  const EducationWeeklySchedule({
+    required this.weekday,
+    required this.startsAt,
+    required this.endsAt,
+    required this.vehicleBoardingTime,
+    required this.vehicleDropoffTime,
+  });
+
+  final int weekday;
+  final TimeOfDayValue startsAt;
+  final TimeOfDayValue endsAt;
+  final TimeOfDayValue? vehicleBoardingTime;
+  final TimeOfDayValue? vehicleDropoffTime;
+
+  factory EducationWeeklySchedule.fromJson(Map<String, Object?> json) {
+    return EducationWeeklySchedule(
+      weekday: json['weekday'] as int,
+      startsAt: TimeOfDayValue.parse(json['startsAt'] as String),
+      endsAt: TimeOfDayValue.parse(json['endsAt'] as String),
+      vehicleBoardingTime: _parseOptionalTimeOfDayValue(
+        json['vehicleBoardingTime'] as String?,
+      ),
+      vehicleDropoffTime: _parseOptionalTimeOfDayValue(
+        json['vehicleDropoffTime'] as String?,
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'weekday': weekday,
+      'startsAt': startsAt.toApiString(),
+      'endsAt': endsAt.toApiString(),
+      'vehicleBoardingTime': vehicleBoardingTime?.toApiString(),
+      'vehicleDropoffTime': vehicleDropoffTime?.toApiString(),
+    };
+  }
+}
+
+class TimeOfDayValue {
+  const TimeOfDayValue({required this.hour, required this.minute});
+
+  final int hour;
+  final int minute;
+
+  factory TimeOfDayValue.parse(String value) {
+    final parts = value.split(':');
+
+    return TimeOfDayValue(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
+    );
+  }
+
+  String toApiString() => '${_twoDigits(hour)}:${_twoDigits(minute)}';
 }
 
 class AppSchedule {
@@ -833,6 +1097,8 @@ class AppSchedule {
     required this.endsAt,
     required this.vehicleBoardingAt,
     required this.vehicleDropoffAt,
+    required this.educationProgramId,
+    required this.educationProgramName,
     required this.memberNickname,
   });
 
@@ -845,11 +1111,14 @@ class AppSchedule {
   final DateTime endsAt;
   final DateTime? vehicleBoardingAt;
   final DateTime? vehicleDropoffAt;
+  final String? educationProgramId;
+  final String? educationProgramName;
   final String memberNickname;
 
   factory AppSchedule.fromJson(Map<String, Object?> json) {
     final familyMember = json['family_member'] as Map<String, Object?>?;
     final user = familyMember?['user'] as Map<String, Object?>?;
+    final educationProgram = json['education_program'] as Map<String, Object?>?;
 
     return AppSchedule(
       id: json['id'] as String,
@@ -865,6 +1134,8 @@ class AppSchedule {
       vehicleDropoffAt: _parseOptionalLocalDateTime(
         json['vehicle_dropoff_at'] as String?,
       ),
+      educationProgramId: json['education_program_id'] as String?,
+      educationProgramName: educationProgram?['name'] as String?,
       memberNickname: user?['nickname'] as String? ?? '담당자 없음',
     );
   }
@@ -877,6 +1148,22 @@ DateTime? _parseOptionalLocalDateTime(String? value) {
 
   return DateTime.parse(value).toLocal();
 }
+
+TimeOfDayValue? _parseOptionalTimeOfDayValue(String? value) {
+  if (value == null) {
+    return null;
+  }
+
+  return TimeOfDayValue.parse(value.substring(0, 5));
+}
+
+String _dateOnlyString(DateTime value) {
+  return '${value.year.toString().padLeft(4, '0')}-'
+      '${_twoDigits(value.month)}-'
+      '${_twoDigits(value.day)}';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
 class ApiException implements Exception {
   const ApiException(this.statusCode, this.body);
