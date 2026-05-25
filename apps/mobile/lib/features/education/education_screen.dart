@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
+import '../../shared/member_filter.dart';
 
 const _weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -27,8 +28,29 @@ class _EducationScreenState extends State<EducationScreen> {
 
   late AppFamily _family;
   EducationProgramDashboard? _dashboard;
+  final Set<String> _hiddenMemberIds = <String>{};
   String? _message;
   bool _isLoading = true;
+
+  List<EducationProgram> get _filteredPrograms {
+    final dashboard = _dashboard;
+
+    if (dashboard == null) {
+      return const [];
+    }
+
+    if (_hiddenMemberIds.isEmpty) {
+      return dashboard.programs;
+    }
+
+    return dashboard.programs
+        .where(
+          (program) =>
+              program.familyMemberId == null ||
+              !_hiddenMemberIds.contains(program.familyMemberId),
+        )
+        .toList();
+  }
 
   @override
   void initState() {
@@ -43,6 +65,7 @@ class _EducationScreenState extends State<EducationScreen> {
 
     if (oldWidget.family.id != widget.family.id) {
       _family = widget.family;
+      _hiddenMemberIds.clear();
       _loadPrograms();
     }
   }
@@ -62,6 +85,10 @@ class _EducationScreenState extends State<EducationScreen> {
       if (mounted) {
         setState(() {
           _dashboard = dashboard;
+          _hiddenMemberIds.removeWhere(
+            (memberId) =>
+                !dashboard.members.any((member) => member.id == memberId),
+          );
         });
       }
     } catch (error) {
@@ -77,6 +104,16 @@ class _EducationScreenState extends State<EducationScreen> {
         });
       }
     }
+  }
+
+  void _toggleMemberFilter(String memberId) {
+    setState(() {
+      if (_hiddenMemberIds.contains(memberId)) {
+        _hiddenMemberIds.remove(memberId);
+      } else {
+        _hiddenMemberIds.add(memberId);
+      }
+    });
   }
 
   Future<void> _runTask(Future<void> Function() task) async {
@@ -223,6 +260,7 @@ class _EducationScreenState extends State<EducationScreen> {
   @override
   Widget build(BuildContext context) {
     final dashboard = _dashboard;
+    final programs = _filteredPrograms;
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -253,10 +291,22 @@ class _EducationScreenState extends State<EducationScreen> {
                 padding: EdgeInsets.only(top: 80),
                 child: Center(child: CupertinoActivityIndicator()),
               )
+            else if (dashboard != null && dashboard.members.isNotEmpty) ...[
+              _EducationFilterCard(
+                members: dashboard.members,
+                hiddenMemberIds: _hiddenMemberIds,
+                onToggleMember: _toggleMemberFilter,
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_isLoading && dashboard == null)
+              const SizedBox.shrink()
             else if ((dashboard?.programs ?? const []).isEmpty)
               _EmptyPrograms(canManage: dashboard?.canManage ?? false)
+            else if (programs.isEmpty)
+              const _EmptyFilteredPrograms()
             else
-              ...(dashboard?.programs ?? const <EducationProgram>[]).map(
+              ...programs.map(
                 (program) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _EducationProgramCard(
@@ -356,6 +406,35 @@ class _EducationProgramCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EducationFilterCard extends StatelessWidget {
+  const _EducationFilterCard({
+    required this.members,
+    required this.hiddenMemberIds,
+    required this.onToggleMember,
+  });
+
+  final List<FamilyMember> members;
+  final Set<String> hiddenMemberIds;
+  final ValueChanged<String> onToggleMember;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      child: MemberFilterBar(
+        members: members,
+        hiddenMemberIds: hiddenMemberIds,
+        onToggleMember: onToggleMember,
       ),
     );
   }
@@ -1235,6 +1314,32 @@ class _EmptyPrograms extends StatelessWidget {
       child: Text(
         canManage ? '등록된 학교/학원이 없습니다. + 버튼으로 추가해 주세요.' : '등록된 학교/학원이 없습니다.',
         style: const TextStyle(
+          color: Color(0xFF6E6E73),
+          fontSize: 15,
+          height: 1.35,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyFilteredPrograms extends StatelessWidget {
+  const _EmptyFilteredPrograms();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      child: const Text(
+        '선택한 구성원의 학교/학원이 없습니다.',
+        style: TextStyle(
           color: Color(0xFF6E6E73),
           fontSize: 15,
           height: 1.35,

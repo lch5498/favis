@@ -10,6 +10,7 @@ create table if not exists public.vehicles (
 create table if not exists public.parking_location_presets (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,
+  preset_type text not null check (preset_type in ('floor', 'spot')),
   name text not null,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
@@ -20,7 +21,10 @@ create table if not exists public.parking_records (
   id uuid primary key default gen_random_uuid(),
   family_id uuid not null references public.families(id) on delete cascade,
   vehicle_id uuid not null references public.vehicles(id) on delete cascade,
-  preset_id uuid references public.parking_location_presets(id) on delete set null,
+  floor_preset_id uuid references public.parking_location_presets(id) on delete set null,
+  spot_preset_id uuid references public.parking_location_presets(id) on delete set null,
+  floor_text text not null,
+  spot_text text not null,
   location_text text not null,
   created_by_user_id uuid references public.users(id) on delete set null,
   parked_at timestamptz not null default now(),
@@ -33,6 +37,9 @@ create index if not exists vehicles_family_id_idx
 
 create index if not exists parking_location_presets_family_id_idx
   on public.parking_location_presets (family_id);
+
+create index if not exists parking_location_presets_family_type_sort_idx
+  on public.parking_location_presets (family_id, preset_type, sort_order, created_at);
 
 create index if not exists parking_records_family_vehicle_parked_at_idx
   on public.parking_records (family_id, vehicle_id, parked_at desc);

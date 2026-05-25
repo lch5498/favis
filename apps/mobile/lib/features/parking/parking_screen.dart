@@ -2,6 +2,11 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
 
+const _parkingPresetTypeFloor = 'floor';
+const _parkingPresetTypeSpot = 'spot';
+const _defaultFloorChoices = ['B1', 'B2', 'B3', 'B4'];
+const _defaultSpotChoices = ['101동', '107동', '가운데'];
+
 class ParkingScreen extends StatefulWidget {
   const ParkingScreen({
     super.key,
@@ -199,8 +204,10 @@ class _ParkingScreenState extends State<ParkingScreen> {
         widget.sessionToken,
         familyId: _family.id,
         vehicleId: vehicle.id,
-        presetId: selected.presetId,
-        locationText: selected.locationText,
+        floorPresetId: selected.floorPresetId,
+        spotPresetId: selected.spotPresetId,
+        floorText: selected.floorText,
+        spotText: selected.spotText,
       );
       await _loadParking();
     });
@@ -429,6 +436,12 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
   final _apiClient = ApiClient();
 
   List<ParkingLocationPreset> _presets = const [];
+  List<ParkingLocationPreset> get _floorPresets => _presets
+      .where((preset) => preset.presetType == _parkingPresetTypeFloor)
+      .toList();
+  List<ParkingLocationPreset> get _spotPresets => _presets
+      .where((preset) => preset.presetType == _parkingPresetTypeSpot)
+      .toList();
   String? _message;
   bool _isLoading = true;
 
@@ -493,11 +506,16 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
     }
   }
 
-  Future<void> _openPresetForm({ParkingLocationPreset? preset}) async {
-    final name = await showCupertinoDialog<String>(
-      context: context,
-      builder: (_) => _PresetDialog(preset: preset),
-    );
+  Future<void> _openPresetForm({
+    required String presetType,
+    ParkingLocationPreset? preset,
+  }) async {
+    final name = preset == null
+        ? await _pickPresetName(presetType)
+        : await showCupertinoDialog<String>(
+            context: context,
+            builder: (_) => _PresetDialog(preset: preset),
+          );
 
     if (name == null) {
       return;
@@ -508,6 +526,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
         await _apiClient.createParkingLocationPreset(
           widget.sessionToken,
           familyId: widget.family.id,
+          presetType: presetType,
           name: name,
         );
       } else {
@@ -515,6 +534,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
           widget.sessionToken,
           familyId: widget.family.id,
           presetId: preset.id,
+          presetType: presetType,
           name: name,
         );
       }
@@ -523,12 +543,87 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
     });
   }
 
+  Future<void> _openPresetTypePicker() async {
+    final presetType = await showCupertinoModalPopup<String>(
+      context: context,
+      builder: (_) => CupertinoActionSheet(
+        title: const Text('즐겨찾기 추가'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(context).pop(_parkingPresetTypeFloor),
+            child: const Text('자주 쓰는 층수'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(context).pop(_parkingPresetTypeSpot),
+            child: const Text('자주 쓰는 위치'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (presetType == null) {
+      return;
+    }
+
+    await _openPresetForm(presetType: presetType);
+  }
+
+  Future<String?> _pickPresetName(String presetType) async {
+    final defaults = presetType == _parkingPresetTypeFloor
+        ? _defaultFloorChoices
+        : _defaultSpotChoices;
+    final title = presetType == _parkingPresetTypeFloor
+        ? '자주 쓰는 층수'
+        : '자주 쓰는 위치';
+
+    return showCupertinoModalPopup<String>(
+      context: context,
+      builder: (popupContext) => CupertinoActionSheet(
+        title: Text(title),
+        actions: [
+          for (final value in defaults)
+            CupertinoActionSheetAction(
+              onPressed: () => Navigator.of(popupContext).pop(value),
+              child: Text(value),
+            ),
+          CupertinoActionSheetAction(
+            onPressed: () async {
+              final custom = await showCupertinoDialog<String>(
+                context: popupContext,
+                builder: (_) => _TextInputDialog(
+                  title: '$title 직접 입력',
+                  placeholder: presetType == _parkingPresetTypeFloor
+                      ? '예: B5'
+                      : '예: 105동',
+                  maxLength: 40,
+                ),
+              );
+
+              if (custom != null && popupContext.mounted) {
+                Navigator.of(popupContext).pop(custom);
+              }
+            },
+            child: const Text('직접 입력'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(popupContext).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+  }
+
   Future<void> _deletePreset(ParkingLocationPreset preset) async {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (_) => CupertinoAlertDialog(
         title: const Text('즐겨찾기 삭제'),
-        content: Text('${preset.name} 위치를 삭제할까요?'),
+        content: Text('${preset.name} 즐겨찾기를 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
@@ -567,7 +662,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(32, 32),
-                onPressed: _isLoading ? null : () => _openPresetForm(),
+                onPressed: _isLoading ? null : _openPresetTypePicker,
                 child: const Icon(CupertinoIcons.plus),
               )
             : null,
@@ -588,7 +683,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
             ),
             const SizedBox(height: 10),
             const Text(
-              '예: 지하1층, 지하2층, 101동 앞처럼 자주 쓰는 위치를 등록해 둡니다.',
+              '층수와 위치를 나눠 등록해 두면 주차 위치를 빠르게 기록할 수 있습니다.',
               style: TextStyle(
                 color: Color(0xFF6E6E73),
                 fontSize: 16,
@@ -607,29 +702,125 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
                 padding: EdgeInsets.only(top: 56),
                 child: Center(child: CupertinoActivityIndicator()),
               )
-            else if (_presets.isEmpty)
-              _EmptyState(
-                title: '등록된 즐겨찾기가 없습니다.',
-                subtitle: widget.canManage
-                    ? '오른쪽 위 + 버튼으로 위치를 추가해 주세요.'
-                    : '대표 또는 공동대표가 위치를 등록하면 볼 수 있습니다.',
-                actionLabel: '위치 추가',
-                onPressed: widget.canManage ? () => _openPresetForm() : null,
-              )
-            else
-              ..._presets.map(
-                (preset) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _PresetTile(
-                    preset: preset,
-                    canManage: widget.canManage,
-                    onEdit: () => _openPresetForm(preset: preset),
-                    onDelete: () => _deletePreset(preset),
+            else ...[
+              _PresetSection(
+                title: '자주 쓰는 층수',
+                presets: _floorPresets,
+                canManage: widget.canManage,
+                emptyText: '등록된 층수가 없습니다.',
+                onAdd: () =>
+                    _openPresetForm(presetType: _parkingPresetTypeFloor),
+                onEdit: (preset) => _openPresetForm(
+                  presetType: _parkingPresetTypeFloor,
+                  preset: preset,
+                ),
+                onDelete: _deletePreset,
+              ),
+              const SizedBox(height: 14),
+              _PresetSection(
+                title: '자주 쓰는 위치',
+                presets: _spotPresets,
+                canManage: widget.canManage,
+                emptyText: '등록된 위치가 없습니다.',
+                onAdd: () =>
+                    _openPresetForm(presetType: _parkingPresetTypeSpot),
+                onEdit: (preset) => _openPresetForm(
+                  presetType: _parkingPresetTypeSpot,
+                  preset: preset,
+                ),
+                onDelete: _deletePreset,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PresetSection extends StatelessWidget {
+  const _PresetSection({
+    required this.title,
+    required this.presets,
+    required this.canManage,
+    required this.emptyText,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String title;
+  final List<ParkingLocationPreset> presets;
+  final bool canManage;
+  final String emptyText;
+  final VoidCallback onAdd;
+  final ValueChanged<ParkingLocationPreset> onEdit;
+  final ValueChanged<ParkingLocationPreset> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFFFF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
                   ),
                 ),
               ),
-          ],
-        ),
+              if (canManage)
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(34, 34),
+                  onPressed: onAdd,
+                  child: const Icon(CupertinoIcons.plus_circle_fill, size: 22),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (presets.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F5F7),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                emptyText,
+                style: const TextStyle(
+                  color: Color(0xFF8E8E93),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            )
+          else
+            for (final preset in presets) ...[
+              _PresetTile(
+                preset: preset,
+                canManage: canManage,
+                onEdit: () => onEdit(preset),
+                onDelete: () => onDelete(preset),
+              ),
+              if (preset != presets.last) const SizedBox(height: 8),
+            ],
+        ],
       ),
     );
   }
@@ -942,54 +1133,234 @@ class _PresetTile extends StatelessWidget {
   }
 }
 
-class _LocationPickerSheet extends StatelessWidget {
+class _LocationPickerSheet extends StatefulWidget {
   const _LocationPickerSheet({required this.presets});
 
   final List<ParkingLocationPreset> presets;
 
-  Future<void> _openDirectInput(BuildContext context) async {
-    final locationText = await showCupertinoDialog<String>(
+  @override
+  State<_LocationPickerSheet> createState() => _LocationPickerSheetState();
+}
+
+class _LocationPickerSheetState extends State<_LocationPickerSheet> {
+  _ParkingLocationChoice? _floor;
+  _ParkingLocationChoice? _spot;
+
+  List<_ParkingLocationChoice> _choicesFor(String presetType) {
+    final presets = widget.presets
+        .where((preset) => preset.presetType == presetType)
+        .map(
+          (preset) =>
+              _ParkingLocationChoice(presetId: preset.id, text: preset.name),
+        )
+        .toList();
+    final defaults = presetType == _parkingPresetTypeFloor
+        ? _defaultFloorChoices
+        : _defaultSpotChoices;
+    final presetNames = presets.map((choice) => choice.text).toSet();
+
+    return [
+      ...presets,
+      for (final value in defaults)
+        if (!presetNames.contains(value)) _ParkingLocationChoice(text: value),
+    ];
+  }
+
+  Future<void> _openDirectInput({required bool isFloor}) async {
+    final title = isFloor ? '층 직접 입력' : '위치 직접 입력';
+    final value = await showCupertinoDialog<String>(
       context: context,
-      builder: (_) => const _TextInputDialog(
-        title: '직접 입력',
-        placeholder: '예: 지하2층 A-12',
-        maxLength: 80,
+      builder: (_) => _TextInputDialog(
+        title: title,
+        placeholder: isFloor ? '예: B5' : '예: 105동',
+        maxLength: 40,
       ),
     );
 
-    if (locationText == null || !context.mounted) {
+    if (value == null || !mounted) {
       return;
     }
 
-    Navigator.of(
-      context,
-    ).pop(_ParkingLocationInput(locationText: locationText));
+    setState(() {
+      final choice = _ParkingLocationChoice(text: value);
+
+      if (isFloor) {
+        _floor = choice;
+      } else {
+        _spot = choice;
+      }
+    });
+  }
+
+  void _submit() {
+    final floor = _floor;
+    final spot = _spot;
+
+    if (floor == null || spot == null) {
+      return;
+    }
+
+    Navigator.of(context).pop(
+      _ParkingLocationInput(
+        floorPresetId: floor.presetId,
+        spotPresetId: spot.presetId,
+        floorText: floor.text,
+        spotText: spot.text,
+      ),
+    );
+  }
+
+  Widget _buildChoiceSection({
+    required String title,
+    required String presetType,
+    required _ParkingLocationChoice? selected,
+    required ValueChanged<_ParkingLocationChoice> onSelected,
+  }) {
+    final choices = _choicesFor(presetType);
+    final isFloor = presetType == _parkingPresetTypeFloor;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Color(0xFF111111),
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final choice in choices)
+              _LocationChoiceButton(
+                label: choice.text,
+                isSelected:
+                    selected?.presetId == choice.presetId &&
+                    selected?.text == choice.text,
+                onPressed: () => onSelected(choice),
+              ),
+            _LocationChoiceButton(
+              label: '직접 입력',
+              isSelected:
+                  selected?.presetId == null &&
+                  selected != null &&
+                  !choices.any((choice) => choice.text == selected.text),
+              onPressed: () => _openDirectInput(isFloor: isFloor),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoActionSheet(
-      title: const Text('주차 위치 등록'),
-      message: const Text('즐겨찾기 위치를 고르거나 직접 입력하세요.'),
-      actions: [
-        for (final preset in presets)
-          CupertinoActionSheetAction(
-            onPressed: () => Navigator.of(context).pop(
-              _ParkingLocationInput(
-                presetId: preset.id,
-                locationText: preset.name,
+    final canSubmit = _floor != null && _spot != null;
+
+    return SafeArea(
+      top: false,
+      child: CupertinoPopupSurface(
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 14),
+          color: CupertinoColors.systemBackground.resolveFrom(context),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      '주차 위치 등록',
+                      style: TextStyle(
+                        color: Color(0xFF111111),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                  CupertinoButton(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(34, 34),
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Icon(CupertinoIcons.xmark_circle_fill),
+                  ),
+                ],
               ),
-            ),
-            child: Text(preset.name),
+              const SizedBox(height: 16),
+              _buildChoiceSection(
+                title: '층',
+                presetType: _parkingPresetTypeFloor,
+                selected: _floor,
+                onSelected: (choice) => setState(() => _floor = choice),
+              ),
+              const SizedBox(height: 18),
+              _buildChoiceSection(
+                title: '위치',
+                presetType: _parkingPresetTypeSpot,
+                selected: _spot,
+                onSelected: (choice) => setState(() => _spot = choice),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: CupertinoButton.filled(
+                  borderRadius: BorderRadius.circular(12),
+                  onPressed: canSubmit ? _submit : null,
+                  child: const Text(
+                    '등록',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        CupertinoActionSheetAction(
-          onPressed: () => _openDirectInput(context),
-          child: const Text('직접 입력'),
         ),
-      ],
-      cancelButton: CupertinoActionSheetAction(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('취소'),
+      ),
+    );
+  }
+}
+
+class _LocationChoiceButton extends StatelessWidget {
+  const _LocationChoiceButton({
+    required this.label,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      minimumSize: Size.zero,
+      color: isSelected ? CupertinoColors.activeBlue : const Color(0xFFF2F2F7),
+      borderRadius: BorderRadius.circular(999),
+      onPressed: onPressed,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? CupertinoColors.white : const Color(0xFF111111),
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
       ),
     );
   }
@@ -1302,8 +1673,22 @@ class _VehicleInput {
 }
 
 class _ParkingLocationInput {
-  const _ParkingLocationInput({this.presetId, required this.locationText});
+  const _ParkingLocationInput({
+    this.floorPresetId,
+    this.spotPresetId,
+    required this.floorText,
+    required this.spotText,
+  });
+
+  final String? floorPresetId;
+  final String? spotPresetId;
+  final String floorText;
+  final String spotText;
+}
+
+class _ParkingLocationChoice {
+  const _ParkingLocationChoice({this.presetId, required this.text});
 
   final String? presetId;
-  final String locationText;
+  final String text;
 }

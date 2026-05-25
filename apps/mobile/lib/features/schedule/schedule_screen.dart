@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
+import '../../shared/member_filter.dart';
 
 enum _CalendarMode { day, week, month }
 
@@ -335,6 +336,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   Widget build(BuildContext context) {
     final dashboard = _dashboard;
     final schedules = _filteredSchedules;
+    final memberColors = _memberFilterColors(dashboard?.members ?? const []);
 
     return CupertinoPageScaffold(
       backgroundColor: const Color(0xFFF5F5F7),
@@ -365,6 +367,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 canManage: dashboard?.canManage ?? false,
                 members: dashboard?.members ?? const [],
                 hiddenMemberIds: _hiddenMemberIds,
+                memberColors: memberColors,
                 onToggleMemberFilter: _toggleMemberFilter,
                 onModeChanged: _setMode,
                 onPrevious: () => _moveRange(-1),
@@ -413,6 +416,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 rangeEnd: _rangeEnd,
                 anchorDate: _anchorDate,
                 schedules: schedules,
+                memberColors: memberColors,
                 canManage: dashboard.canManage,
                 onTapDate: (date) => _openScheduleForm(initialDate: date),
                 onTapSchedule: _openScheduleDetail,
@@ -488,6 +492,7 @@ class _ScheduleHeader extends StatelessWidget {
     required this.canManage,
     required this.members,
     required this.hiddenMemberIds,
+    required this.memberColors,
     required this.onToggleMemberFilter,
     required this.onModeChanged,
     required this.onPrevious,
@@ -499,6 +504,7 @@ class _ScheduleHeader extends StatelessWidget {
   final bool canManage;
   final List<FamilyMember> members;
   final Set<String> hiddenMemberIds;
+  final Map<String, MemberFilterColor> memberColors;
   final ValueChanged<String> onToggleMemberFilter;
   final ValueChanged<_CalendarMode> onModeChanged;
   final VoidCallback onPrevious;
@@ -517,18 +523,11 @@ class _ScheduleHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (members.isNotEmpty) ...[
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: members
-                  .map(
-                    (member) => _MemberToggleButton(
-                      label: member.userNickname,
-                      isActive: !hiddenMemberIds.contains(member.id),
-                      onPressed: () => onToggleMemberFilter(member.id),
-                    ),
-                  )
-                  .toList(),
+            MemberFilterBar(
+              members: members,
+              hiddenMemberIds: hiddenMemberIds,
+              memberColors: memberColors,
+              onToggleMember: onToggleMemberFilter,
             ),
             const SizedBox(height: 16),
           ],
@@ -601,64 +600,6 @@ class _ScheduleHeader extends StatelessWidget {
   }
 }
 
-class _MemberToggleButton extends StatelessWidget {
-  const _MemberToggleButton({
-    required this.label,
-    required this.isActive,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool isActive;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 118),
-      child: SizedBox(
-        height: 30,
-        child: CupertinoButton(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          color: isActive ? const Color(0xFFE6F3F1) : const Color(0xFFF5F5F7),
-          borderRadius: BorderRadius.circular(9),
-          onPressed: onPressed,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isActive
-                    ? CupertinoIcons.check_mark_circled_solid
-                    : CupertinoIcons.circle,
-                color: isActive
-                    ? CupertinoColors.systemTeal
-                    : CupertinoColors.systemGrey,
-                size: 15,
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isActive
-                        ? const Color(0xFF006D68)
-                        : const Color(0xFF6E6E73),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CalendarBoard extends StatelessWidget {
   const _CalendarBoard({
     required this.mode,
@@ -666,6 +607,7 @@ class _CalendarBoard extends StatelessWidget {
     required this.rangeEnd,
     required this.anchorDate,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.onTapDate,
     required this.onTapSchedule,
@@ -676,6 +618,7 @@ class _CalendarBoard extends StatelessWidget {
   final DateTime rangeEnd;
   final DateTime anchorDate;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final ValueChanged<DateTime> onTapDate;
   final ValueChanged<AppSchedule> onTapSchedule;
@@ -687,6 +630,7 @@ class _CalendarBoard extends StatelessWidget {
         return _DayCalendar(
           date: rangeStart,
           schedules: schedules,
+          memberColors: memberColors,
           canManage: canManage,
           onTapDateTime: onTapDate,
           onTapSchedule: onTapSchedule,
@@ -695,6 +639,7 @@ class _CalendarBoard extends StatelessWidget {
         return _WeekCalendar(
           weekStart: rangeStart,
           schedules: schedules,
+          memberColors: memberColors,
           canManage: canManage,
           onTapDate: onTapDate,
           onTapSchedule: onTapSchedule,
@@ -703,6 +648,7 @@ class _CalendarBoard extends StatelessWidget {
         return _MonthCalendar(
           monthStart: DateTime(anchorDate.year, anchorDate.month),
           schedules: schedules,
+          memberColors: memberColors,
           canManage: canManage,
           onTapDate: onTapDate,
           onTapSchedule: onTapSchedule,
@@ -720,6 +666,7 @@ class _DayCalendar extends StatefulWidget {
   const _DayCalendar({
     required this.date,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.onTapDateTime,
     required this.onTapSchedule,
@@ -727,6 +674,7 @@ class _DayCalendar extends StatefulWidget {
 
   final DateTime date;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final ValueChanged<DateTime> onTapDateTime;
   final ValueChanged<AppSchedule> onTapSchedule;
@@ -797,6 +745,7 @@ class _DayCalendarState extends State<_DayCalendar> {
                       child: _TimedDayColumn(
                         date: widget.date,
                         schedules: widget.schedules,
+                        memberColors: widget.memberColors,
                         canManage: widget.canManage,
                         onTapDateTime: widget.onTapDateTime,
                         onTapSchedule: widget.onTapSchedule,
@@ -818,6 +767,7 @@ class _WeekCalendar extends StatefulWidget {
   const _WeekCalendar({
     required this.weekStart,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.onTapDate,
     required this.onTapSchedule,
@@ -825,6 +775,7 @@ class _WeekCalendar extends StatefulWidget {
 
   final DateTime weekStart;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final ValueChanged<DateTime> onTapDate;
   final ValueChanged<AppSchedule> onTapSchedule;
@@ -912,6 +863,7 @@ class _WeekCalendarState extends State<_WeekCalendar> {
                         child: _TimedDayColumn(
                           date: day,
                           schedules: widget.schedules,
+                          memberColors: widget.memberColors,
                           canManage: widget.canManage,
                           onTapDateTime: widget.onTapDate,
                           onTapSchedule: widget.onTapSchedule,
@@ -977,6 +929,7 @@ class _TimedDayColumn extends StatelessWidget {
   const _TimedDayColumn({
     required this.date,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.onTapDateTime,
     required this.onTapSchedule,
@@ -985,6 +938,7 @@ class _TimedDayColumn extends StatelessWidget {
 
   final DateTime date;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final ValueChanged<DateTime> onTapDateTime;
   final ValueChanged<AppSchedule> onTapSchedule;
@@ -1043,6 +997,7 @@ class _TimedDayColumn extends StatelessWidget {
                 height: height,
                 child: _TimedScheduleBlock(
                   schedule: layout.schedule,
+                  color: _scheduleMemberColor(layout.schedule, memberColors),
                   onTap: () => onTapSchedule(layout.schedule),
                 ),
               );
@@ -1055,13 +1010,20 @@ class _TimedDayColumn extends StatelessWidget {
 }
 
 class _TimedScheduleBlock extends StatelessWidget {
-  const _TimedScheduleBlock({required this.schedule, required this.onTap});
+  const _TimedScheduleBlock({
+    required this.schedule,
+    required this.color,
+    required this.onTap,
+  });
 
   final AppSchedule schedule;
+  final MemberFilterColor color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final style = MemberFilterColorStyle.from(color);
+
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: Size.zero,
@@ -1069,11 +1031,11 @@ class _TimedScheduleBlock extends StatelessWidget {
       child: Container(
         width: double.infinity,
         height: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         decoration: BoxDecoration(
-          color: const Color(0xFFE6F3F1),
+          color: style.background,
           borderRadius: BorderRadius.circular(7),
-          border: Border.all(color: const Color(0xFFD2E8E5)),
+          border: Border.all(color: style.border),
           boxShadow: const [
             BoxShadow(
               color: Color(0x14000000),
@@ -1084,22 +1046,31 @@ class _TimedScheduleBlock extends StatelessWidget {
         ),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final showMember = constraints.maxHeight >= 42;
+            final maxHeight = constraints.maxHeight;
+            final isNarrow = constraints.maxWidth < 38;
+            final showMember = maxHeight >= 46 && !isNarrow;
+            final titleLines = _timedScheduleTitleLines(
+              height: maxHeight,
+              showMember: showMember,
+            );
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _calendarTitleLabel(schedule.title),
-                  maxLines: showMember ? 2 : 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: true,
-                  style: const TextStyle(
-                    color: Color(0xFF006D68),
-                    fontSize: 9,
-                    height: 1.12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+                Flexible(
+                  child: Text(
+                    _calendarTitleLabel(schedule.title),
+                    maxLines: titleLines,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: true,
+                    style: TextStyle(
+                      color: style.foreground,
+                      fontSize: 9,
+                      height: 1.08,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
                 if (showMember) ...[
@@ -1108,8 +1079,8 @@ class _TimedScheduleBlock extends StatelessWidget {
                     schedule.memberNickname,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFF45817D),
+                    style: TextStyle(
+                      color: style.foreground,
                       fontSize: 8,
                       height: 1.1,
                       fontWeight: FontWeight.w700,
@@ -1124,6 +1095,16 @@ class _TimedScheduleBlock extends StatelessWidget {
       ),
     );
   }
+}
+
+int _timedScheduleTitleLines({
+  required double height,
+  required bool showMember,
+}) {
+  final usableHeight = showMember ? height - 18 : height - 8;
+  final lineCount = (usableHeight / 10).floor();
+
+  return lineCount.clamp(1, 6).toInt();
 }
 
 class _TimedScheduleLayout {
@@ -1257,6 +1238,7 @@ class _MonthCalendar extends StatelessWidget {
   const _MonthCalendar({
     required this.monthStart,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.onTapDate,
     required this.onTapSchedule,
@@ -1264,6 +1246,7 @@ class _MonthCalendar extends StatelessWidget {
 
   final DateTime monthStart;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final ValueChanged<DateTime> onTapDate;
   final ValueChanged<AppSchedule> onTapSchedule;
@@ -1305,6 +1288,7 @@ class _MonthCalendar extends StatelessWidget {
               return _DateCell(
                 date: day,
                 schedules: _schedulesForDay(schedules, day),
+                memberColors: memberColors,
                 canManage: canManage,
                 isInCurrentMonth: day.month == monthStart.month,
                 maxVisibleSchedules: 2,
@@ -1441,6 +1425,7 @@ class _DateCell extends StatelessWidget {
   const _DateCell({
     required this.date,
     required this.schedules,
+    required this.memberColors,
     required this.canManage,
     required this.isInCurrentMonth,
     required this.maxVisibleSchedules,
@@ -1451,6 +1436,7 @@ class _DateCell extends StatelessWidget {
 
   final DateTime date;
   final List<AppSchedule> schedules;
+  final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
   final bool isInCurrentMonth;
   final int maxVisibleSchedules;
@@ -1510,6 +1496,7 @@ class _DateCell extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 4),
                 child: _MiniScheduleChip(
                   schedule: schedule,
+                  color: _scheduleMemberColor(schedule, memberColors),
                   canManage: canManage,
                   onTap: () => onTapSchedule(schedule),
                 ),
@@ -1537,16 +1524,20 @@ class _DateCell extends StatelessWidget {
 class _MiniScheduleChip extends StatelessWidget {
   const _MiniScheduleChip({
     required this.schedule,
+    required this.color,
     required this.canManage,
     required this.onTap,
   });
 
   final AppSchedule schedule;
+  final MemberFilterColor color;
   final bool canManage;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final style = MemberFilterColorStyle.from(color);
+
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: Size.zero,
@@ -1555,16 +1546,17 @@ class _MiniScheduleChip extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
         decoration: BoxDecoration(
-          color: const Color(0xFFE6F3F1),
+          color: style.background,
           borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: style.border),
         ),
         child: Text(
           _calendarTitleLabel(schedule.title),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           softWrap: true,
-          style: const TextStyle(
-            color: Color(0xFF006D68),
+          style: TextStyle(
+            color: style.foreground,
             fontSize: 9,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
@@ -2501,6 +2493,27 @@ List<AppSchedule> _schedulesForDay(List<AppSchedule> schedules, DateTime day) {
   return schedules
       .where((schedule) => _dateOnly(schedule.startsAt) == _dateOnly(day))
       .toList();
+}
+
+Map<String, MemberFilterColor> _memberFilterColors(List<FamilyMember> members) {
+  return {
+    for (var index = 0; index < members.length; index++)
+      members[index].id:
+          MemberFilterColor.values[index % MemberFilterColor.values.length],
+  };
+}
+
+MemberFilterColor _scheduleMemberColor(
+  AppSchedule schedule,
+  Map<String, MemberFilterColor> memberColors,
+) {
+  final familyMemberId = schedule.familyMemberId;
+
+  if (familyMemberId == null) {
+    return MemberFilterColor.gray;
+  }
+
+  return memberColors[familyMemberId] ?? MemberFilterColor.gray;
 }
 
 int _initialDayHour(DateTime date, List<AppSchedule> schedules) {

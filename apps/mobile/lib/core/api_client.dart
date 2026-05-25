@@ -228,13 +228,14 @@ class ApiClient {
   Future<ParkingLocationPreset> createParkingLocationPreset(
     String sessionToken, {
     required String familyId,
+    required String presetType,
     required String name,
   }) async {
     final json = await _requestJson(
       'POST',
       '/api/mobile/families/$familyId/parking/presets',
       bearerToken: sessionToken,
-      body: {'name': name},
+      body: {'presetType': presetType, 'name': name},
     );
 
     return ParkingLocationPreset.fromJson(
@@ -246,13 +247,14 @@ class ApiClient {
     String sessionToken, {
     required String familyId,
     required String presetId,
+    required String presetType,
     required String name,
   }) async {
     final json = await _requestJson(
       'PATCH',
       '/api/mobile/families/$familyId/parking/presets/$presetId',
       bearerToken: sessionToken,
-      body: {'name': name},
+      body: {'presetType': presetType, 'name': name},
     );
 
     return ParkingLocationPreset.fromJson(
@@ -276,16 +278,23 @@ class ApiClient {
     String sessionToken, {
     required String familyId,
     required String vehicleId,
-    String? presetId,
-    required String locationText,
+    String? floorPresetId,
+    String? spotPresetId,
+    required String floorText,
+    required String spotText,
   }) async {
     final body = <String, Object?>{
       'vehicleId': vehicleId,
-      'locationText': locationText,
+      'floorText': floorText,
+      'spotText': spotText,
     };
 
-    if (presetId != null) {
-      body['presetId'] = presetId;
+    if (floorPresetId != null) {
+      body['floorPresetId'] = floorPresetId;
+    }
+
+    if (spotPresetId != null) {
+      body['spotPresetId'] = spotPresetId;
     }
 
     final json = await _requestJson(
@@ -801,6 +810,7 @@ class ParkingLocationPreset {
   const ParkingLocationPreset({
     required this.id,
     required this.familyId,
+    required this.presetType,
     required this.name,
     required this.sortOrder,
     required this.createdAt,
@@ -809,6 +819,7 @@ class ParkingLocationPreset {
 
   final String id;
   final String familyId;
+  final String presetType;
   final String name;
   final int sortOrder;
   final String createdAt;
@@ -818,6 +829,7 @@ class ParkingLocationPreset {
     return ParkingLocationPreset(
       id: json['id'] as String,
       familyId: json['family_id'] as String,
+      presetType: json['preset_type'] as String,
       name: json['name'] as String,
       sortOrder: json['sort_order'] as int,
       createdAt: json['created_at'] as String,
@@ -831,7 +843,10 @@ class ParkingRecord {
     required this.id,
     required this.familyId,
     required this.vehicleId,
-    required this.presetId,
+    required this.floorPresetId,
+    required this.spotPresetId,
+    required this.floorText,
+    required this.spotText,
     required this.locationText,
     required this.parkedAt,
   });
@@ -839,7 +854,10 @@ class ParkingRecord {
   final String id;
   final String familyId;
   final String vehicleId;
-  final String? presetId;
+  final String? floorPresetId;
+  final String? spotPresetId;
+  final String floorText;
+  final String spotText;
   final String locationText;
   final String parkedAt;
 
@@ -848,7 +866,10 @@ class ParkingRecord {
       id: json['id'] as String,
       familyId: json['family_id'] as String,
       vehicleId: json['vehicle_id'] as String,
-      presetId: json['preset_id'] as String?,
+      floorPresetId: json['floor_preset_id'] as String?,
+      spotPresetId: json['spot_preset_id'] as String?,
+      floorText: json['floor_text'] as String,
+      spotText: json['spot_text'] as String,
       locationText: json['location_text'] as String,
       parkedAt: json['parked_at'] as String,
     );

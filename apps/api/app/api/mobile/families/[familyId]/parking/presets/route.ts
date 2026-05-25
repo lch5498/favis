@@ -35,7 +35,11 @@ export async function POST(request: Request, context: RouteContext) {
     const { familyId } = await context.params;
     const payload = await readJsonObject(request);
     const name = requiredString(payload, 'name', { maxLength: 40 });
-    const preset = await createParkingLocationPreset(userId, familyId, { name });
+    const presetType = requiredString(payload, 'presetType');
+    const preset = await createParkingLocationPreset(userId, familyId, {
+      presetType,
+      name,
+    });
 
     return Response.json({ preset }, { status: 201 });
   } catch (error) {

@@ -2,6 +2,8 @@ import { requireFamilyManager, requireMembership } from './families';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
+export type ParkingPresetType = 'floor' | 'spot';
+
 export type Vehicle = {
   id: string;
   family_id: string;
@@ -14,6 +16,7 @@ export type Vehicle = {
 export type ParkingLocationPreset = {
   id: string;
   family_id: string;
+  preset_type: ParkingPresetType;
   name: string;
   sort_order: number;
   created_at: string;
@@ -24,7 +27,10 @@ export type ParkingRecord = {
   id: string;
   family_id: string;
   vehicle_id: string;
-  preset_id: string | null;
+  floor_preset_id: string | null;
+  spot_preset_id: string | null;
+  floor_text: string;
+  spot_text: string;
   location_text: string;
   created_by_user_id: string | null;
   parked_at: string;
@@ -164,7 +170,7 @@ export async function listParkingLocationPresets(
 export async function createParkingLocationPreset(
   userId: string,
   familyId: string,
-  input: { name: string },
+  input: { presetType: string; name: string },
 ) {
   await requireFamilyManager(userId, familyId);
 
@@ -173,6 +179,7 @@ export async function createParkingLocationPreset(
     .from('parking_location_presets')
     .insert({
       family_id: familyId,
+      preset_type: normalizePresetType(input.presetType),
       name: normalizeText(input.name, 'name', 40),
     })
     .select('*')
@@ -189,14 +196,17 @@ export async function updateParkingLocationPreset(
   userId: string,
   familyId: string,
   presetId: string,
-  input: { name: string },
+  input: { presetType: string; name: string },
 ) {
   await requireFamilyManager(userId, familyId);
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('parking_location_presets')
-    .update({ name: normalizeText(input.name, 'name', 40) })
+    .update({
+      preset_type: normalizePresetType(input.presetType),
+      name: normalizeText(input.name, 'name', 40),
+    })
     .eq('id', presetId)
     .eq('family_id', familyId)
     .select('*')
@@ -235,16 +245,29 @@ export async function deleteParkingLocationPreset(
 export async function createParkingRecord(
   userId: string,
   familyId: string,
-  input: { vehicleId: string; presetId?: string; locationText: string },
+  input: {
+    vehicleId: string;
+    floorPresetId?: string;
+    spotPresetId?: string;
+    floorText: string;
+    spotText: string;
+  },
 ) {
   await requireFamilyManager(userId, familyId);
 
   const vehicle = await getVehicleOrThrow(familyId, input.vehicleId);
-  const presetId = input.presetId?.trim() || null;
-
-  if (presetId) {
-    await getPresetOrThrow(familyId, presetId);
-  }
+  const floorPresetId = await normalizePresetId(
+    familyId,
+    input.floorPresetId,
+    'floor',
+  );
+  const spotPresetId = await normalizePresetId(
+    familyId,
+    input.spotPresetId,
+    'spot',
+  );
+  const floorText = normalizeText(input.floorText, 'floorText', 40);
+  const spotText = normalizeText(input.spotText, 'spotText', 40);
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -252,8 +275,11 @@ export async function createParkingRecord(
     .insert({
       family_id: familyId,
       vehicle_id: vehicle.id,
-      preset_id: presetId,
-      location_text: normalizeText(input.locationText, 'location_text', 80),
+      floor_preset_id: floorPresetId,
+      spot_preset_id: spotPresetId,
+      floor_text: floorText,
+      spot_text: spotText,
+      location_text: `${floorText} / ${spotText}`,
       created_by_user_id: userId,
     })
     .select('*')
@@ -327,6 +353,37 @@ async function getPresetOrThrow(familyId: string, presetId: string) {
   }
 
   return data as ParkingLocationPreset;
+}
+
+async function normalizePresetId(
+  familyId: string,
+  presetId: string | undefined,
+  presetType: ParkingPresetType,
+) {
+  const normalized = presetId?.trim() || null;
+
+  if (!normalized) {
+    return null;
+  }
+
+  const preset = await getPresetOrThrow(familyId, normalized);
+
+  if (preset.preset_type !== presetType) {
+    throw new HttpError(400, {
+      error: 'parking_preset_type_mismatch',
+      field: presetType === 'floor' ? 'floorPresetId' : 'spotPresetId',
+    });
+  }
+
+  return preset.id;
+}
+
+function normalizePresetType(value: string): ParkingPresetType {
+  if (value === 'floor' || value === 'spot') {
+    return value;
+  }
+
+  throw new HttpError(400, { error: 'invalid_payload', field: 'presetType' });
 }
 
 function normalizeText(value: string, field: string, maxLength: number) {

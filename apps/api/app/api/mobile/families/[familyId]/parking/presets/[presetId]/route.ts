@@ -24,7 +24,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { familyId, presetId } = await context.params;
     const payload = await readJsonObject(request);
     const name = requiredString(payload, 'name', { maxLength: 40 });
+    const presetType = requiredString(payload, 'presetType');
     const preset = await updateParkingLocationPreset(userId, familyId, presetId, {
+      presetType,
       name,
     });
 
