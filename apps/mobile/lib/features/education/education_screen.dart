@@ -31,6 +31,7 @@ class _EducationScreenState extends State<EducationScreen> {
   final Set<String> _hiddenMemberIds = <String>{};
   String? _message;
   bool _isLoading = true;
+  bool _isApplyingCalendarChanges = false;
 
   List<EducationProgram> get _filteredPrograms {
     final dashboard = _dashboard;
@@ -200,25 +201,41 @@ class _EducationScreenState extends State<EducationScreen> {
     }
 
     await _runTask(() async {
-      final result = program == null
-          ? await _apiClient.createEducationProgram(
-              widget.sessionToken,
-              familyId: _family.id,
-              input: input,
-            )
-          : await _apiClient.updateEducationProgram(
-              widget.sessionToken,
-              familyId: _family.id,
-              programId: program.id,
-              input: input,
-            );
+      final shouldShowCalendarOverlay = program != null;
 
-      await _loadPrograms();
-
-      if (mounted) {
+      if (shouldShowCalendarOverlay && mounted) {
         setState(() {
-          _message = '${result.generatedScheduleCount}개 일정이 캘린더에 반영되었습니다.';
+          _isApplyingCalendarChanges = true;
         });
+      }
+
+      try {
+        final result = program == null
+            ? await _apiClient.createEducationProgram(
+                widget.sessionToken,
+                familyId: _family.id,
+                input: input,
+              )
+            : await _apiClient.updateEducationProgram(
+                widget.sessionToken,
+                familyId: _family.id,
+                programId: program.id,
+                input: input,
+              );
+
+        await _loadPrograms();
+
+        if (mounted) {
+          setState(() {
+            _message = '${result.generatedScheduleCount}개 일정이 캘린더에 반영되었습니다.';
+          });
+        }
+      } finally {
+        if (shouldShowCalendarOverlay && mounted) {
+          setState(() {
+            _isApplyingCalendarChanges = false;
+          });
+        }
       }
     });
   }
@@ -278,46 +295,105 @@ class _EducationScreenState extends State<EducationScreen> {
               )
             : null,
       ),
-      child: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
-          children: [
-            if (_message != null) ...[
-              _InlineMessage(message: _message!),
-              const SizedBox(height: 12),
-            ],
-            if (_isLoading && dashboard == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 80),
-                child: Center(child: CupertinoActivityIndicator()),
-              )
-            else if (dashboard != null && dashboard.members.isNotEmpty) ...[
-              _EducationFilterCard(
-                members: dashboard.members,
-                hiddenMemberIds: _hiddenMemberIds,
-                onToggleMember: _toggleMemberFilter,
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (_isLoading && dashboard == null)
-              const SizedBox.shrink()
-            else if ((dashboard?.programs ?? const []).isEmpty)
-              _EmptyPrograms(canManage: dashboard?.canManage ?? false)
-            else if (programs.isEmpty)
-              const _EmptyFilteredPrograms()
-            else
-              ...programs.map(
-                (program) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _EducationProgramCard(
-                    program: program,
-                    canManage: dashboard?.canManage ?? false,
-                    onEdit: () => _openProgramForm(program: program),
-                    onDelete: () => _deleteProgram(program),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+              children: [
+                if (_message != null) ...[
+                  _InlineMessage(message: _message!),
+                  const SizedBox(height: 12),
+                ],
+                if (_isLoading && dashboard == null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 80),
+                    child: Center(child: CupertinoActivityIndicator()),
+                  )
+                else if (dashboard != null && dashboard.members.isNotEmpty) ...[
+                  _EducationFilterCard(
+                    members: dashboard.members,
+                    hiddenMemberIds: _hiddenMemberIds,
+                    onToggleMember: _toggleMemberFilter,
                   ),
+                  const SizedBox(height: 12),
+                ],
+                if (_isLoading && dashboard == null)
+                  const SizedBox.shrink()
+                else if ((dashboard?.programs ?? const []).isEmpty)
+                  _EmptyPrograms(canManage: dashboard?.canManage ?? false)
+                else if (programs.isEmpty)
+                  const _EmptyFilteredPrograms()
+                else
+                  ...programs.map(
+                    (program) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _EducationProgramCard(
+                        program: program,
+                        canManage: dashboard?.canManage ?? false,
+                        onEdit: () => _openProgramForm(program: program),
+                        onDelete: () => _deleteProgram(program),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (_isApplyingCalendarChanges)
+            const _FullScreenProgressOverlay(message: '캘린더에 반영 중입니다'),
+        ],
+      ),
+    );
+  }
+}
+
+class _FullScreenProgressOverlay extends StatelessWidget {
+  const _FullScreenProgressOverlay({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: AbsorbPointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: CupertinoColors.systemBackground
+                .resolveFrom(context)
+                .withValues(alpha: 0.78),
+          ),
+          child: Center(
+            child: Container(
+              width: 210,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
+              decoration: BoxDecoration(
+                color: CupertinoColors.secondarySystemBackground.resolveFrom(
+                  context,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: CupertinoColors.separator.resolveFrom(context),
                 ),
               ),
-          ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CupertinoActivityIndicator(radius: 15),
+                  const SizedBox(height: 12),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
