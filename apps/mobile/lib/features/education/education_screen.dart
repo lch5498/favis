@@ -278,6 +278,7 @@ class _EducationScreenState extends State<EducationScreen> {
   Widget build(BuildContext context) {
     final dashboard = _dashboard;
     final programs = _filteredPrograms;
+    final memberColors = _memberFilterColors(dashboard?.members ?? const []);
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -314,6 +315,7 @@ class _EducationScreenState extends State<EducationScreen> {
                   _EducationFilterCard(
                     members: dashboard.members,
                     hiddenMemberIds: _hiddenMemberIds,
+                    memberColors: memberColors,
                     onToggleMember: _toggleMemberFilter,
                   ),
                   const SizedBox(height: 12),
@@ -326,14 +328,12 @@ class _EducationScreenState extends State<EducationScreen> {
                   const _EmptyFilteredPrograms()
                 else
                   ...programs.map(
-                    (program) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _EducationProgramCard(
-                        program: program,
-                        canManage: dashboard?.canManage ?? false,
-                        onEdit: () => _openProgramForm(program: program),
-                        onDelete: () => _deleteProgram(program),
-                      ),
+                    (program) => _EducationProgramCard(
+                      program: program,
+                      memberColor: _programMemberColor(program, memberColors),
+                      canManage: dashboard?.canManage ?? false,
+                      onEdit: () => _openProgramForm(program: program),
+                      onDelete: () => _deleteProgram(program),
                     ),
                   ),
               ],
@@ -403,12 +403,14 @@ class _FullScreenProgressOverlay extends StatelessWidget {
 class _EducationProgramCard extends StatelessWidget {
   const _EducationProgramCard({
     required this.program,
+    required this.memberColor,
     required this.canManage,
     required this.onEdit,
     required this.onDelete,
   });
 
   final EducationProgram program;
+  final MemberFilterColor memberColor;
   final bool canManage;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -418,18 +420,9 @@ class _EducationProgramCard extends StatelessWidget {
     final scheduleSummaries = _weeklyScheduleSummaries(program.weeklySchedules);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
-        boxShadow: [
-          BoxShadow(
-            color: CupertinoColors.black.withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E5EA))),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -437,52 +430,23 @@ class _EducationProgramCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF4F2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(
-                  CupertinoIcons.book_fill,
-                  color: CupertinoColors.systemTeal,
-                  size: 21,
-                ),
-              ),
+              _MemberNameIcon(name: program.memberNickname, color: memberColor),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      program.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF111111),
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0,
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Text(
+                    program.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF111111),
+                      fontSize: 18,
+                      height: 1.15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
                     ),
-                    const SizedBox(height: 5),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _ProgramMetaPill(
-                          icon: CupertinoIcons.person_fill,
-                          label: program.memberNickname,
-                        ),
-                        _ProgramMetaPill(
-                          icon: CupertinoIcons.calendar,
-                          label:
-                              '${_dateText(program.startsOn)} - ${_dateText(program.endsOn)}',
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
               ),
               if (canManage) ...[
@@ -505,14 +469,11 @@ class _EducationProgramCard extends StatelessWidget {
               ],
             ],
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final summary in scheduleSummaries)
-                _WeeklyScheduleChip(summary: summary),
-            ],
+          const SizedBox(height: 12),
+          _EducationScheduleGroup(
+            dateText:
+                '${_dateText(program.startsOn)} - ${_dateText(program.endsOn)}',
+            scheduleSummaries: scheduleSummaries,
           ),
         ],
       ),
@@ -520,39 +481,87 @@ class _EducationProgramCard extends StatelessWidget {
   }
 }
 
-class _ProgramMetaPill extends StatelessWidget {
-  const _ProgramMetaPill({required this.icon, required this.label});
+class _MemberNameIcon extends StatelessWidget {
+  const _MemberNameIcon({required this.name, required this.color});
 
-  final IconData icon;
-  final String label;
+  final String name;
+  final MemberFilterColor color;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MemberFilterColorStyle.from(color);
+
+    return Container(
+      width: 42,
+      height: 42,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: style.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: style.border),
+      ),
+      child: Center(
+        child: Text(
+          name,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: style.foreground,
+            fontSize: 11,
+            height: 1.05,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EducationScheduleGroup extends StatelessWidget {
+  const _EducationScheduleGroup({
+    required this.dateText,
+    required this.scheduleSummaries,
+  });
+
+  final String dateText;
+  final List<_WeeklyScheduleSummary> scheduleSummaries;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF2F2F7),
-        borderRadius: BorderRadius.circular(999),
+        color: const Color(0xFFFAFAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFE5E5EA)),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 12, color: const Color(0xFF6E6E73)),
-          const SizedBox(width: 4),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 220),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xFF6E6E73),
-                fontSize: 12,
-                height: 1.1,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
+          Text(
+            dateText,
+            textAlign: TextAlign.left,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF111111),
+              fontSize: 13,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final summary in scheduleSummaries)
+                _WeeklyScheduleChip(summary: summary),
+            ],
           ),
         ],
       ),
@@ -571,11 +580,11 @@ class _WeeklyScheduleChip extends StatelessWidget {
 
     return Container(
       constraints: const BoxConstraints(minHeight: 34),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FBFA),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFD6E8E4)),
+        color: CupertinoColors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE0EEEB)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -614,25 +623,26 @@ class _EducationFilterCard extends StatelessWidget {
   const _EducationFilterCard({
     required this.members,
     required this.hiddenMemberIds,
+    required this.memberColors,
     required this.onToggleMember,
   });
 
   final List<FamilyMember> members;
   final Set<String> hiddenMemberIds;
+  final Map<String, MemberFilterColor> memberColors;
   final ValueChanged<String> onToggleMember;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE5E5EA)),
+      padding: const EdgeInsets.fromLTRB(0, 0, 0, 14),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFFE5E5EA))),
       ),
       child: MemberFilterBar(
         members: members,
         hiddenMemberIds: hiddenMemberIds,
+        memberColors: memberColors,
         onToggleMember: onToggleMember,
       ),
     );
@@ -1633,6 +1643,27 @@ DateTime _clampDate(
 
 String _dateText(DateTime value) {
   return '${value.year}.${_twoDigits(value.month)}.${_twoDigits(value.day)}';
+}
+
+Map<String, MemberFilterColor> _memberFilterColors(List<FamilyMember> members) {
+  return {
+    for (var index = 0; index < members.length; index++)
+      members[index].id:
+          MemberFilterColor.values[index % MemberFilterColor.values.length],
+  };
+}
+
+MemberFilterColor _programMemberColor(
+  EducationProgram program,
+  Map<String, MemberFilterColor> memberColors,
+) {
+  final familyMemberId = program.familyMemberId;
+
+  if (familyMemberId == null) {
+    return MemberFilterColor.gray;
+  }
+
+  return memberColors[familyMemberId] ?? MemberFilterColor.gray;
 }
 
 List<_WeeklyScheduleSummary> _weeklyScheduleSummaries(
