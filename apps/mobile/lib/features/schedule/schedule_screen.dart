@@ -1295,7 +1295,7 @@ class _MonthCalendar extends StatelessWidget {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              mainAxisExtent: 112,
+              mainAxisExtent: 116,
             ),
             itemCount: days.length,
             itemBuilder: (context, index) {
@@ -1307,8 +1307,8 @@ class _MonthCalendar extends StatelessWidget {
                 memberColors: memberColors,
                 canManage: canManage,
                 isInCurrentMonth: day.month == monthStart.month,
-                maxVisibleSchedules: 2,
-                minHeight: 112,
+                maxVisibleSchedules: 3,
+                minHeight: 116,
                 onTapDate: () => onTapDate(day),
                 onTapSchedule: onTapSchedule,
               );
@@ -1471,7 +1471,7 @@ class _DateCell extends StatelessWidget {
       onPressed: canManage ? onTapDate : null,
       child: Container(
         constraints: BoxConstraints(minHeight: minHeight),
-        padding: const EdgeInsets.fromLTRB(5, 7, 5, 7),
+        padding: const EdgeInsets.fromLTRB(5, 6, 5, 6),
         decoration: const BoxDecoration(
           border: Border(
             right: BorderSide(color: Color(0xFFE5E5EA)),
@@ -1506,10 +1506,10 @@ class _DateCell extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 5),
+            const SizedBox(height: 4),
             ...visibleSchedules.map(
               (schedule) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
+                padding: const EdgeInsets.only(bottom: 2),
                 child: _MiniScheduleChip(
                   schedule: schedule,
                   color: _scheduleMemberColor(schedule, memberColors),
@@ -1525,7 +1525,7 @@ class _DateCell extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF6E6E73),
-                  fontSize: 10,
+                  fontSize: 9,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0,
                 ),
@@ -1560,7 +1560,7 @@ class _MiniScheduleChip extends StatelessWidget {
       onPressed: canManage ? onTap : null,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         decoration: BoxDecoration(
           color: style.background,
           borderRadius: BorderRadius.circular(6),
@@ -1568,12 +1568,13 @@ class _MiniScheduleChip extends StatelessWidget {
         ),
         child: Text(
           _calendarTitleLabel(schedule.title),
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          softWrap: true,
+          softWrap: false,
           style: TextStyle(
             color: style.foreground,
-            fontSize: 9,
+            fontSize: 8,
+            height: 1.15,
             fontWeight: FontWeight.w800,
             letterSpacing: 0,
           ),

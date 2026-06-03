@@ -32,7 +32,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         name: requiredString(payload, 'name', { maxLength: 80 }),
         startsOn: requiredString(payload, 'startsOn'),
         endsOn: requiredString(payload, 'endsOn'),
-        weeklySchedules: requiredWeeklySchedules(payload),
+        recurrenceType: optionalRecurrenceType(payload),
+        weeklySchedules: optionalList(payload, 'weeklySchedules'),
+        monthlySchedules: optionalList(payload, 'monthlySchedules'),
         timeZoneOffsetMinutes: optionalNumber(payload, 'timeZoneOffsetMinutes'),
       },
       {
@@ -62,13 +64,34 @@ export async function DELETE(request: Request, context: RouteContext) {
   }
 }
 
-function requiredWeeklySchedules(payload: Record<string, unknown>) {
-  const value = payload.weeklySchedules;
+function optionalRecurrenceType(payload: Record<string, unknown>) {
+  const value = payload.recurrenceType;
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (value !== 'weekly' && value !== 'monthly') {
+    throw new HttpError(400, {
+      error: 'invalid_payload',
+      field: 'recurrenceType',
+    });
+  }
+
+  return value;
+}
+
+function optionalList(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
 
   if (!Array.isArray(value)) {
     throw new HttpError(400, {
       error: 'invalid_payload',
-      field: 'weeklySchedules',
+      field: key,
     });
   }
 

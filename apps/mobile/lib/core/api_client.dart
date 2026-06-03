@@ -1020,20 +1020,43 @@ enum CalendarApplyScope {
   }
 }
 
+enum EducationRecurrenceType {
+  weekly,
+  monthly;
+
+  String toApiString() {
+    return switch (this) {
+      EducationRecurrenceType.weekly => 'weekly',
+      EducationRecurrenceType.monthly => 'monthly',
+    };
+  }
+
+  static EducationRecurrenceType fromJson(Object? value) {
+    return switch (value) {
+      'monthly' => EducationRecurrenceType.monthly,
+      _ => EducationRecurrenceType.weekly,
+    };
+  }
+}
+
 class EducationProgramInput {
   const EducationProgramInput({
     required this.familyMemberId,
     required this.name,
     required this.startsOn,
     required this.endsOn,
+    required this.recurrenceType,
     required this.weeklySchedules,
+    required this.monthlySchedules,
   });
 
   final String familyMemberId;
   final String name;
   final DateTime startsOn;
   final DateTime endsOn;
+  final EducationRecurrenceType recurrenceType;
   final List<EducationWeeklySchedule> weeklySchedules;
+  final List<EducationMonthlySchedule> monthlySchedules;
 
   Map<String, Object?> toJson() {
     return {
@@ -1041,7 +1064,11 @@ class EducationProgramInput {
       'name': name,
       'startsOn': _dateOnlyString(startsOn),
       'endsOn': _dateOnlyString(endsOn),
+      'recurrenceType': recurrenceType.toApiString(),
       'weeklySchedules': weeklySchedules
+          .map((schedule) => schedule.toJson())
+          .toList(),
+      'monthlySchedules': monthlySchedules
           .map((schedule) => schedule.toJson())
           .toList(),
       'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
@@ -1057,7 +1084,9 @@ class EducationProgram {
     required this.name,
     required this.startsOn,
     required this.endsOn,
+    required this.recurrenceType,
     required this.weeklySchedules,
+    required this.monthlySchedules,
     required this.memberNickname,
     required this.createdAt,
     required this.updatedAt,
@@ -1069,7 +1098,9 @@ class EducationProgram {
   final String name;
   final DateTime startsOn;
   final DateTime endsOn;
+  final EducationRecurrenceType recurrenceType;
   final List<EducationWeeklySchedule> weeklySchedules;
+  final List<EducationMonthlySchedule> monthlySchedules;
   final String memberNickname;
   final String createdAt;
   final String updatedAt;
@@ -1078,7 +1109,10 @@ class EducationProgram {
     final familyMember = json['family_member'] as Map<String, Object?>?;
     final user = familyMember?['user'] as Map<String, Object?>?;
     final memberNickname = familyMember?['nickname'] as String?;
-    final weeklySchedules = json['weekly_schedules'] as List<Object?>;
+    final weeklySchedules =
+        json['weekly_schedules'] as List<Object?>? ?? const [];
+    final monthlySchedules =
+        json['monthly_schedules'] as List<Object?>? ?? const [];
 
     return EducationProgram(
       id: json['id'] as String,
@@ -1087,9 +1121,17 @@ class EducationProgram {
       name: json['name'] as String,
       startsOn: DateTime.parse(json['starts_on'] as String),
       endsOn: DateTime.parse(json['ends_on'] as String),
+      recurrenceType: EducationRecurrenceType.fromJson(json['recurrence_type']),
       weeklySchedules: weeklySchedules
           .map(
             (schedule) => EducationWeeklySchedule.fromJson(
+              schedule as Map<String, Object?>,
+            ),
+          )
+          .toList(),
+      monthlySchedules: monthlySchedules
+          .map(
+            (schedule) => EducationMonthlySchedule.fromJson(
               schedule as Map<String, Object?>,
             ),
           )
@@ -1133,6 +1175,50 @@ class EducationWeeklySchedule {
 
   Map<String, Object?> toJson() {
     return {
+      'weekday': weekday,
+      'startsAt': startsAt.toApiString(),
+      'endsAt': endsAt.toApiString(),
+      'vehicleBoardingTime': vehicleBoardingTime?.toApiString(),
+      'vehicleDropoffTime': vehicleDropoffTime?.toApiString(),
+    };
+  }
+}
+
+class EducationMonthlySchedule {
+  const EducationMonthlySchedule({
+    required this.weekOfMonth,
+    required this.weekday,
+    required this.startsAt,
+    required this.endsAt,
+    required this.vehicleBoardingTime,
+    required this.vehicleDropoffTime,
+  });
+
+  final int weekOfMonth;
+  final int weekday;
+  final TimeOfDayValue startsAt;
+  final TimeOfDayValue endsAt;
+  final TimeOfDayValue? vehicleBoardingTime;
+  final TimeOfDayValue? vehicleDropoffTime;
+
+  factory EducationMonthlySchedule.fromJson(Map<String, Object?> json) {
+    return EducationMonthlySchedule(
+      weekOfMonth: json['weekOfMonth'] as int,
+      weekday: json['weekday'] as int,
+      startsAt: TimeOfDayValue.parse(json['startsAt'] as String),
+      endsAt: TimeOfDayValue.parse(json['endsAt'] as String),
+      vehicleBoardingTime: _parseOptionalTimeOfDayValue(
+        json['vehicleBoardingTime'] as String?,
+      ),
+      vehicleDropoffTime: _parseOptionalTimeOfDayValue(
+        json['vehicleDropoffTime'] as String?,
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() {
+    return {
+      'weekOfMonth': weekOfMonth,
       'weekday': weekday,
       'startsAt': startsAt.toApiString(),
       'endsAt': endsAt.toApiString(),

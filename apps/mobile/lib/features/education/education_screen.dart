@@ -4,6 +4,8 @@ import '../../core/api_client.dart';
 import '../../shared/member_filter.dart';
 
 const _weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
+const _weekdayPickerOrder = [1, 2, 3, 4, 5, 6, 0];
+const _weekOfMonthLabels = {1: '첫째주', 2: '둘째주', 3: '셋째주', 4: '넷째주'};
 
 class EducationScreen extends StatefulWidget {
   const EducationScreen({
@@ -447,7 +449,7 @@ class _EducationProgramCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheduleSummaries = _weeklyScheduleSummaries(program.weeklySchedules);
+    final scheduleSummaries = _educationScheduleSummaries(program);
 
     final content = Container(
       padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
@@ -548,7 +550,7 @@ class _EducationScheduleGroup extends StatelessWidget {
   });
 
   final String dateText;
-  final List<_WeeklyScheduleSummary> scheduleSummaries;
+  final List<_EducationScheduleSummary> scheduleSummaries;
 
   @override
   Widget build(BuildContext context) {
@@ -582,7 +584,7 @@ class _EducationScheduleGroup extends StatelessWidget {
             runSpacing: 7,
             children: [
               for (final summary in scheduleSummaries)
-                _WeeklyScheduleChip(summary: summary),
+                _EducationScheduleChip(summary: summary),
             ],
           ),
         ],
@@ -591,10 +593,10 @@ class _EducationScheduleGroup extends StatelessWidget {
   }
 }
 
-class _WeeklyScheduleChip extends StatelessWidget {
-  const _WeeklyScheduleChip({required this.summary});
+class _EducationScheduleChip extends StatelessWidget {
+  const _EducationScheduleChip({required this.summary});
 
-  final _WeeklyScheduleSummary summary;
+  final _EducationScheduleSummary summary;
 
   @override
   Widget build(BuildContext context) {
@@ -613,7 +615,7 @@ class _WeeklyScheduleChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '${summary.weekdayText} ${summary.startsAt}-${summary.endsAt}',
+            summary.title,
             style: const TextStyle(
               color: Color(0xFF111111),
               fontSize: 13,
@@ -712,7 +714,9 @@ class _EducationProgramFormScreenState
   late final TextEditingController _nameController;
   late DateTime _startsOn;
   late DateTime _endsOn;
+  late EducationRecurrenceType _recurrenceType;
   late final Map<int, _DayRule> _dayRules;
+  late final Map<int, _MonthlyRule> _monthlyRules;
   String? _message;
 
   @override
@@ -724,6 +728,7 @@ class _EducationProgramFormScreenState
     _nameController = TextEditingController(text: program?.name);
     _startsOn = _dateOnly(program?.startsOn ?? now);
     _endsOn = _dateOnly(program?.endsOn ?? now.add(const Duration(days: 30)));
+    _recurrenceType = program?.recurrenceType ?? EducationRecurrenceType.weekly;
     _dayRules = {
       for (var weekday = 0; weekday < 7; weekday++)
         weekday: _DayRule(
@@ -734,10 +739,32 @@ class _EducationProgramFormScreenState
           vehicleDropoffTime: null,
         ),
     };
+    _monthlyRules = {
+      for (var weekOfMonth = 1; weekOfMonth <= 4; weekOfMonth++)
+        weekOfMonth: _MonthlyRule(
+          enabled: false,
+          weekday: 1,
+          startsAt: const TimeOfDayValue(hour: 15, minute: 0),
+          endsAt: const TimeOfDayValue(hour: 16, minute: 0),
+          vehicleBoardingTime: null,
+          vehicleDropoffTime: null,
+        ),
+    };
 
     for (final schedule in program?.weeklySchedules ?? const []) {
       _dayRules[schedule.weekday] = _DayRule(
         enabled: true,
+        startsAt: schedule.startsAt,
+        endsAt: schedule.endsAt,
+        vehicleBoardingTime: schedule.vehicleBoardingTime,
+        vehicleDropoffTime: schedule.vehicleDropoffTime,
+      );
+    }
+
+    for (final schedule in program?.monthlySchedules ?? const []) {
+      _monthlyRules[schedule.weekOfMonth] = _MonthlyRule(
+        enabled: true,
+        weekday: schedule.weekday,
         startsAt: schedule.startsAt,
         endsAt: schedule.endsAt,
         vehicleBoardingTime: schedule.vehicleBoardingTime,
@@ -778,6 +805,37 @@ class _EducationProgramFormScreenState
         _familyMemberId = selectedId;
       });
     }
+  }
+
+  Future<void> _pickMonthlyWeekday(int weekOfMonth) async {
+    final rule = _monthlyRules[weekOfMonth]!;
+    final selectedWeekday = await showCupertinoModalPopup<int>(
+      context: context,
+      builder: (popupContext) => CupertinoActionSheet(
+        title: Text(_weekOfMonthLabels[weekOfMonth] ?? '$weekOfMonth주차'),
+        actions: _weekdayPickerOrder
+            .map(
+              (weekday) => CupertinoActionSheetAction(
+                isDefaultAction: weekday == rule.weekday,
+                onPressed: () => Navigator.of(popupContext).pop(weekday),
+                child: Text('${_weekdayLabels[weekday]}요일'),
+              ),
+            )
+            .toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(popupContext).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (selectedWeekday == null) {
+      return;
+    }
+
+    setState(() {
+      _monthlyRules[weekOfMonth] = rule.copyWith(weekday: selectedWeekday);
+    });
   }
 
   Future<void> _pickDate({required bool isStart}) async {
@@ -850,6 +908,67 @@ class _EducationProgramFormScreenState
     setState(() {
       final rule = _dayRules[weekday]!;
       _dayRules[weekday] = isBoarding
+          ? rule.copyWith(vehicleBoardingTime: const _OptionalTimeUpdate(null))
+          : rule.copyWith(vehicleDropoffTime: const _OptionalTimeUpdate(null));
+    });
+  }
+
+  Future<void> _pickMonthlyRuleTime(
+    int weekOfMonth, {
+    required bool isStart,
+  }) async {
+    final rule = _monthlyRules[weekOfMonth]!;
+    final picked = await _showTimePicker(isStart ? rule.startsAt : rule.endsAt);
+
+    if (picked == null) {
+      return;
+    }
+
+    setState(() {
+      _monthlyRules[weekOfMonth] = rule.copyWith(
+        startsAt: isStart ? picked : rule.startsAt,
+        endsAt: isStart ? rule.endsAt : picked,
+      );
+    });
+  }
+
+  Future<void> _pickMonthlyRuleVehicleTime(
+    int weekOfMonth, {
+    required bool isBoarding,
+  }) async {
+    final rule = _monthlyRules[weekOfMonth]!;
+    final current = isBoarding
+        ? rule.vehicleBoardingTime
+        : rule.vehicleDropoffTime;
+    final picked = await _showTimePicker(
+      current ?? const TimeOfDayValue(hour: 8, minute: 0),
+    );
+
+    if (picked == null) {
+      return;
+    }
+
+    setState(() {
+      final currentRule = _monthlyRules[weekOfMonth]!;
+      if (isBoarding) {
+        _monthlyRules[weekOfMonth] = currentRule.copyWith(
+          vehicleBoardingTime: _OptionalTimeUpdate(picked),
+        );
+      } else {
+        _monthlyRules[weekOfMonth] = currentRule.copyWith(
+          vehicleDropoffTime: _OptionalTimeUpdate(picked),
+        );
+      }
+    });
+  }
+
+  void _clearMonthlyRuleVehicleTime(
+    int weekOfMonth, {
+    required bool isBoarding,
+  }) {
+    setState(() {
+      final rule = _monthlyRules[weekOfMonth]!;
+      _monthlyRules[weekOfMonth] = isBoarding
           ? rule.copyWith(vehicleBoardingTime: const _OptionalTimeUpdate(null))
           : rule.copyWith(vehicleDropoffTime: const _OptionalTimeUpdate(null));
     });
@@ -944,6 +1063,19 @@ class _EducationProgramFormScreenState
           ),
         )
         .toList();
+    final monthlySchedules = _monthlyRules.entries
+        .where((entry) => entry.value.enabled)
+        .map(
+          (entry) => EducationMonthlySchedule(
+            weekOfMonth: entry.key,
+            weekday: entry.value.weekday,
+            startsAt: entry.value.startsAt,
+            endsAt: entry.value.endsAt,
+            vehicleBoardingTime: entry.value.vehicleBoardingTime,
+            vehicleDropoffTime: entry.value.vehicleDropoffTime,
+          ),
+        )
+        .toList();
 
     if (name.isEmpty) {
       setState(() {
@@ -967,17 +1099,46 @@ class _EducationProgramFormScreenState
       return;
     }
 
-    if (weeklySchedules.isEmpty) {
+    if (_recurrenceType == EducationRecurrenceType.weekly &&
+        weeklySchedules.isEmpty) {
       setState(() {
         _message = '하나 이상의 요일 일정을 선택해 주세요.';
       });
       return;
     }
 
-    for (final schedule in weeklySchedules) {
+    if (_recurrenceType == EducationRecurrenceType.monthly &&
+        monthlySchedules.isEmpty) {
+      setState(() {
+        _message = '하나 이상의 월간 일정을 선택해 주세요.';
+      });
+      return;
+    }
+
+    final ruleTimes = [
+      if (_recurrenceType == EducationRecurrenceType.weekly)
+        ...weeklySchedules.map(
+          (schedule) => _RuleTimeCheck(
+            label: '${_weekdayLabels[schedule.weekday]}요일',
+            startsAt: schedule.startsAt,
+            endsAt: schedule.endsAt,
+          ),
+        ),
+      if (_recurrenceType == EducationRecurrenceType.monthly)
+        ...monthlySchedules.map(
+          (schedule) => _RuleTimeCheck(
+            label:
+                '${_weekOfMonthLabels[schedule.weekOfMonth]} ${_weekdayLabels[schedule.weekday]}요일',
+            startsAt: schedule.startsAt,
+            endsAt: schedule.endsAt,
+          ),
+        ),
+    ];
+
+    for (final schedule in ruleTimes) {
       if (_minutes(schedule.endsAt) < _minutes(schedule.startsAt)) {
         setState(() {
-          _message = '${_weekdayLabels[schedule.weekday]}요일 종료 시각을 확인해 주세요.';
+          _message = '${schedule.label} 종료 시각을 확인해 주세요.';
         });
         return;
       }
@@ -1001,7 +1162,13 @@ class _EducationProgramFormScreenState
           name: name,
           startsOn: _startsOn,
           endsOn: _endsOn,
-          weeklySchedules: weeklySchedules,
+          recurrenceType: _recurrenceType,
+          weeklySchedules: _recurrenceType == EducationRecurrenceType.weekly
+              ? weeklySchedules
+              : const [],
+          monthlySchedules: _recurrenceType == EducationRecurrenceType.monthly
+              ? monthlySchedules
+              : const [],
         ),
         calendarApplyScope,
       ),
@@ -1144,32 +1311,85 @@ class _EducationProgramFormScreenState
             const SizedBox(height: 14),
             _FormSection(
               children: [
-                for (var weekday = 0; weekday < 7; weekday++)
-                  _WeekdayRuleRow(
-                    weekday: weekday,
-                    rule: _dayRules[weekday]!,
-                    copyLabel: _copyPreviousLabel(weekday),
-                    onToggle: (value) {
-                      setState(() {
-                        _dayRules[weekday] = _dayRules[weekday]!.copyWith(
-                          enabled: value,
-                        );
-                      });
-                    },
-                    onPickStart: () => _pickRuleTime(weekday, isStart: true),
-                    onPickEnd: () => _pickRuleTime(weekday, isStart: false),
-                    onPickBoarding: () =>
-                        _pickRuleVehicleTime(weekday, isBoarding: true),
-                    onPickDropoff: () =>
-                        _pickRuleVehicleTime(weekday, isBoarding: false),
-                    onClearBoarding: () =>
-                        _clearRuleVehicleTime(weekday, isBoarding: true),
-                    onClearDropoff: () =>
-                        _clearRuleVehicleTime(weekday, isBoarding: false),
-                    onCopyPrevious: () => _copyPreviousEnabledRule(weekday),
-                  ),
+                _RecurrenceTypeRow(
+                  value: _recurrenceType,
+                  onChanged: (value) {
+                    setState(() {
+                      _recurrenceType = value;
+                    });
+                  },
+                ),
               ],
             ),
+            const SizedBox(height: 14),
+            if (_recurrenceType == EducationRecurrenceType.weekly)
+              _FormSection(
+                children: [
+                  for (var weekday = 0; weekday < 7; weekday++)
+                    _WeekdayRuleRow(
+                      weekday: weekday,
+                      rule: _dayRules[weekday]!,
+                      copyLabel: _copyPreviousLabel(weekday),
+                      onToggle: (value) {
+                        setState(() {
+                          _dayRules[weekday] = _dayRules[weekday]!.copyWith(
+                            enabled: value,
+                          );
+                        });
+                      },
+                      onPickStart: () => _pickRuleTime(weekday, isStart: true),
+                      onPickEnd: () => _pickRuleTime(weekday, isStart: false),
+                      onPickBoarding: () =>
+                          _pickRuleVehicleTime(weekday, isBoarding: true),
+                      onPickDropoff: () =>
+                          _pickRuleVehicleTime(weekday, isBoarding: false),
+                      onClearBoarding: () =>
+                          _clearRuleVehicleTime(weekday, isBoarding: true),
+                      onClearDropoff: () =>
+                          _clearRuleVehicleTime(weekday, isBoarding: false),
+                      onCopyPrevious: () => _copyPreviousEnabledRule(weekday),
+                    ),
+                ],
+              )
+            else
+              _FormSection(
+                children: [
+                  for (var weekOfMonth = 1; weekOfMonth <= 4; weekOfMonth++)
+                    _MonthlyRuleRow(
+                      weekOfMonth: weekOfMonth,
+                      rule: _monthlyRules[weekOfMonth]!,
+                      onToggle: (value) {
+                        setState(() {
+                          _monthlyRules[weekOfMonth] =
+                              _monthlyRules[weekOfMonth]!.copyWith(
+                                enabled: value,
+                              );
+                        });
+                      },
+                      onPickWeekday: () => _pickMonthlyWeekday(weekOfMonth),
+                      onPickStart: () =>
+                          _pickMonthlyRuleTime(weekOfMonth, isStart: true),
+                      onPickEnd: () =>
+                          _pickMonthlyRuleTime(weekOfMonth, isStart: false),
+                      onPickBoarding: () => _pickMonthlyRuleVehicleTime(
+                        weekOfMonth,
+                        isBoarding: true,
+                      ),
+                      onPickDropoff: () => _pickMonthlyRuleVehicleTime(
+                        weekOfMonth,
+                        isBoarding: false,
+                      ),
+                      onClearBoarding: () => _clearMonthlyRuleVehicleTime(
+                        weekOfMonth,
+                        isBoarding: true,
+                      ),
+                      onClearDropoff: () => _clearMonthlyRuleVehicleTime(
+                        weekOfMonth,
+                        isBoarding: false,
+                      ),
+                    ),
+                ],
+              ),
             if (widget.program != null) ...[
               const SizedBox(height: 18),
               _DeleteProgramButton(onPressed: _confirmDelete),
@@ -1359,6 +1579,56 @@ class _PickerRow extends StatelessWidget {
   }
 }
 
+class _RecurrenceTypeRow extends StatelessWidget {
+  const _RecurrenceTypeRow({required this.value, required this.onChanged});
+
+  final EducationRecurrenceType value;
+  final ValueChanged<EducationRecurrenceType> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 82,
+            child: Text(
+              '반복',
+              style: TextStyle(
+                color: Color(0xFF111111),
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Expanded(
+            child: CupertinoSlidingSegmentedControl<EducationRecurrenceType>(
+              groupValue: value,
+              children: const {
+                EducationRecurrenceType.weekly: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 7),
+                  child: Text('주'),
+                ),
+                EducationRecurrenceType.monthly: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 7),
+                  child: Text('월'),
+                ),
+              },
+              onValueChanged: (nextValue) {
+                if (nextValue != null) {
+                  onChanged(nextValue);
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _WeekdayRuleRow extends StatelessWidget {
   const _WeekdayRuleRow({
     required this.weekday,
@@ -1457,6 +1727,101 @@ class _WeekdayRuleRow extends StatelessWidget {
                     ),
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _RuleTimeLine(
+            label: '일정',
+            startValue: rule.startsAt.toApiString(),
+            endValue: rule.endsAt.toApiString(),
+            onPickStart: rule.enabled ? onPickStart : null,
+            onPickEnd: rule.enabled ? onPickEnd : null,
+          ),
+          const SizedBox(height: 6),
+          _RuleTimeLine(
+            label: '차량',
+            startValue: rule.vehicleBoardingTime?.toApiString() ?? '탑승',
+            endValue: rule.vehicleDropoffTime?.toApiString() ?? '하차',
+            onPickStart: rule.enabled ? onPickBoarding : null,
+            onPickEnd: rule.enabled ? onPickDropoff : null,
+            onClearStart: rule.vehicleBoardingTime != null
+                ? onClearBoarding
+                : null,
+            onClearEnd: rule.vehicleDropoffTime != null ? onClearDropoff : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthlyRuleRow extends StatelessWidget {
+  const _MonthlyRuleRow({
+    required this.weekOfMonth,
+    required this.rule,
+    required this.onToggle,
+    required this.onPickWeekday,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onPickBoarding,
+    required this.onPickDropoff,
+    required this.onClearBoarding,
+    required this.onClearDropoff,
+  });
+
+  final int weekOfMonth;
+  final _MonthlyRule rule;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback onPickWeekday;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final VoidCallback onPickBoarding;
+  final VoidCallback onPickDropoff;
+  final VoidCallback onClearBoarding;
+  final VoidCallback onClearDropoff;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 58,
+                child: Text(
+                  _weekOfMonthLabels[weekOfMonth] ?? '$weekOfMonth주',
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              CupertinoSwitch(value: rule.enabled, onChanged: onToggle),
+              const Spacer(),
+              SizedBox(
+                height: 34,
+                child: CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  color: const Color(0xFFF2F2F7),
+                  borderRadius: BorderRadius.circular(9),
+                  onPressed: rule.enabled ? onPickWeekday : null,
+                  child: Text(
+                    '${_weekdayLabels[rule.weekday]}요일',
+                    style: TextStyle(
+                      color: rule.enabled
+                          ? CupertinoColors.systemBlue
+                          : CupertinoColors.systemGrey,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1620,6 +1985,58 @@ class _DayRule {
           : vehicleDropoffTime.value,
     );
   }
+}
+
+class _MonthlyRule {
+  const _MonthlyRule({
+    required this.enabled,
+    required this.weekday,
+    required this.startsAt,
+    required this.endsAt,
+    required this.vehicleBoardingTime,
+    required this.vehicleDropoffTime,
+  });
+
+  final bool enabled;
+  final int weekday;
+  final TimeOfDayValue startsAt;
+  final TimeOfDayValue endsAt;
+  final TimeOfDayValue? vehicleBoardingTime;
+  final TimeOfDayValue? vehicleDropoffTime;
+
+  _MonthlyRule copyWith({
+    bool? enabled,
+    int? weekday,
+    TimeOfDayValue? startsAt,
+    TimeOfDayValue? endsAt,
+    _OptionalTimeUpdate? vehicleBoardingTime,
+    _OptionalTimeUpdate? vehicleDropoffTime,
+  }) {
+    return _MonthlyRule(
+      enabled: enabled ?? this.enabled,
+      weekday: weekday ?? this.weekday,
+      startsAt: startsAt ?? this.startsAt,
+      endsAt: endsAt ?? this.endsAt,
+      vehicleBoardingTime: vehicleBoardingTime == null
+          ? this.vehicleBoardingTime
+          : vehicleBoardingTime.value,
+      vehicleDropoffTime: vehicleDropoffTime == null
+          ? this.vehicleDropoffTime
+          : vehicleDropoffTime.value,
+    );
+  }
+}
+
+class _RuleTimeCheck {
+  const _RuleTimeCheck({
+    required this.label,
+    required this.startsAt,
+    required this.endsAt,
+  });
+
+  final String label;
+  final TimeOfDayValue startsAt;
+  final TimeOfDayValue endsAt;
 }
 
 class _OptionalTimeUpdate {
@@ -1833,7 +2250,20 @@ MemberFilterColor _programMemberColor(
   return memberColors[familyMemberId] ?? MemberFilterColor.gray;
 }
 
-List<_WeeklyScheduleSummary> _weeklyScheduleSummaries(
+List<_EducationScheduleSummary> _educationScheduleSummaries(
+  EducationProgram program,
+) {
+  return switch (program.recurrenceType) {
+    EducationRecurrenceType.monthly => _monthlyScheduleSummaries(
+      program.monthlySchedules,
+    ),
+    EducationRecurrenceType.weekly => _weeklyScheduleSummaries(
+      program.weeklySchedules,
+    ),
+  };
+}
+
+List<_EducationScheduleSummary> _weeklyScheduleSummaries(
   List<EducationWeeklySchedule> schedules,
 ) {
   final sorted = [...schedules]..sort((a, b) => a.weekday.compareTo(b.weekday));
@@ -1853,14 +2283,51 @@ List<_WeeklyScheduleSummary> _weeklyScheduleSummaries(
   return groupOrder.map((key) {
     final group = groupedSchedules[key]!;
 
-    return _WeeklyScheduleSummary.fromSchedules(
+    return _EducationScheduleSummary.fromWeeklySchedules(
       weekdays: group.map((schedule) => schedule.weekday).toList(),
       schedule: group.first,
     );
   }).toList();
 }
 
+List<_EducationScheduleSummary> _monthlyScheduleSummaries(
+  List<EducationMonthlySchedule> schedules,
+) {
+  final sorted = [...schedules]
+    ..sort((a, b) => a.weekOfMonth.compareTo(b.weekOfMonth));
+  final groupedSchedules = <String, List<EducationMonthlySchedule>>{};
+  final groupOrder = <String>[];
+
+  for (final schedule in sorted) {
+    final key = _monthlyScheduleTimeKey(schedule);
+    groupedSchedules
+        .putIfAbsent(key, () {
+          groupOrder.add(key);
+          return [];
+        })
+        .add(schedule);
+  }
+
+  return groupOrder.map((key) {
+    final group = groupedSchedules[key]!;
+
+    return _EducationScheduleSummary.fromMonthlySchedules(
+      schedules: group,
+      schedule: group.first,
+    );
+  }).toList();
+}
+
 String _scheduleTimeKey(EducationWeeklySchedule schedule) {
+  return [
+    schedule.startsAt.toApiString(),
+    schedule.endsAt.toApiString(),
+    schedule.vehicleBoardingTime?.toApiString() ?? '',
+    schedule.vehicleDropoffTime?.toApiString() ?? '',
+  ].join('|');
+}
+
+String _monthlyScheduleTimeKey(EducationMonthlySchedule schedule) {
   return [
     schedule.startsAt.toApiString(),
     schedule.endsAt.toApiString(),
@@ -1893,20 +2360,16 @@ String _weekdayGroupText(List<int> weekdays) {
   return parts.join(',');
 }
 
-class _WeeklyScheduleSummary {
-  const _WeeklyScheduleSummary({
-    required this.weekdayText,
-    required this.startsAt,
-    required this.endsAt,
+class _EducationScheduleSummary {
+  const _EducationScheduleSummary({
+    required this.title,
     required this.vehicleText,
   });
 
-  final String weekdayText;
-  final String startsAt;
-  final String endsAt;
+  final String title;
   final String? vehicleText;
 
-  factory _WeeklyScheduleSummary.fromSchedules({
+  factory _EducationScheduleSummary.fromWeeklySchedules({
     required List<int> weekdays,
     required EducationWeeklySchedule schedule,
   }) {
@@ -1917,10 +2380,33 @@ class _WeeklyScheduleSummary {
       if (dropoffTime != null) '하차 $dropoffTime',
     ];
 
-    return _WeeklyScheduleSummary(
-      weekdayText: _weekdayGroupText(weekdays),
-      startsAt: schedule.startsAt.toApiString(),
-      endsAt: schedule.endsAt.toApiString(),
+    return _EducationScheduleSummary(
+      title:
+          '${_weekdayGroupText(weekdays)} ${schedule.startsAt.toApiString()}-${schedule.endsAt.toApiString()}',
+      vehicleText: vehicleParts.isEmpty ? null : vehicleParts.join(' · '),
+    );
+  }
+
+  factory _EducationScheduleSummary.fromMonthlySchedules({
+    required List<EducationMonthlySchedule> schedules,
+    required EducationMonthlySchedule schedule,
+  }) {
+    final boardingTime = schedule.vehicleBoardingTime?.toApiString();
+    final dropoffTime = schedule.vehicleDropoffTime?.toApiString();
+    final vehicleParts = [
+      if (boardingTime != null) '승차 $boardingTime',
+      if (dropoffTime != null) '하차 $dropoffTime',
+    ];
+    final scheduleText = schedules
+        .map(
+          (entry) =>
+              '${_weekOfMonthLabels[entry.weekOfMonth]} ${_weekdayLabels[entry.weekday]}',
+        )
+        .join(',');
+
+    return _EducationScheduleSummary(
+      title:
+          '매월 $scheduleText ${schedule.startsAt.toApiString()}-${schedule.endsAt.toApiString()}',
       vehicleText: vehicleParts.isEmpty ? null : vehicleParts.join(' · '),
     );
   }

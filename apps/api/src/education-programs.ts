@@ -17,6 +17,17 @@ export type EducationWeeklySchedule = {
   vehicleDropoffTime: string | null;
 };
 
+export type EducationRecurrenceType = 'weekly' | 'monthly';
+
+export type EducationMonthlySchedule = {
+  weekOfMonth: number;
+  weekday: number;
+  startsAt: string;
+  endsAt: string;
+  vehicleBoardingTime: string | null;
+  vehicleDropoffTime: string | null;
+};
+
 export type EducationProgram = {
   id: string;
   family_id: string;
@@ -24,7 +35,9 @@ export type EducationProgram = {
   name: string;
   starts_on: string;
   ends_on: string;
+  recurrence_type: EducationRecurrenceType;
   weekly_schedules: EducationWeeklySchedule[];
+  monthly_schedules: EducationMonthlySchedule[];
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -45,7 +58,9 @@ export type EducationProgramInput = {
   name: string;
   startsOn: string;
   endsOn: string;
-  weeklySchedules: EducationWeeklySchedule[];
+  recurrenceType?: EducationRecurrenceType;
+  weeklySchedules?: EducationWeeklySchedule[];
+  monthlySchedules?: EducationMonthlySchedule[];
   timeZoneOffsetMinutes?: number;
 };
 
@@ -56,7 +71,9 @@ type NormalizedEducationProgramInput = {
   name: string;
   startsOn: string;
   endsOn: string;
+  recurrenceType: EducationRecurrenceType;
   weeklySchedules: EducationWeeklySchedule[];
+  monthlySchedules: EducationMonthlySchedule[];
   timeZoneOffsetMinutes: number;
 };
 
@@ -111,7 +128,9 @@ export async function createEducationProgram(
       name: normalized.name,
       starts_on: normalized.startsOn,
       ends_on: normalized.endsOn,
+      recurrence_type: normalized.recurrenceType,
       weekly_schedules: normalized.weeklySchedules,
+      monthly_schedules: normalized.monthlySchedules,
       created_by_user_id: userId,
     })
     .select(programSelect)
@@ -157,7 +176,9 @@ export async function updateEducationProgram(
       name: normalized.name,
       starts_on: normalized.startsOn,
       ends_on: normalized.endsOn,
+      recurrence_type: normalized.recurrenceType,
       weekly_schedules: normalized.weeklySchedules,
+      monthly_schedules: normalized.monthlySchedules,
     })
     .eq('id', programId)
     .eq('family_id', familyId)
@@ -292,9 +313,20 @@ function generateSchedules(
   const weeklySchedulesByWeekday = new Map(
     input.weeklySchedules.map((schedule) => [schedule.weekday, schedule]),
   );
+  const monthlySchedulesByDateKey = new Map(
+    input.monthlySchedules.map((schedule) => [
+      monthlyScheduleDateKey(schedule.weekOfMonth, schedule.weekday),
+      schedule,
+    ]),
+  );
 
   for (let cursor = new Date(start); cursor.getTime() <= end.getTime(); cursor = addDays(cursor, 1)) {
-    const rule = weeklySchedulesByWeekday.get(cursor.getUTCDay());
+    const rule =
+      input.recurrenceType === 'monthly'
+        ? monthlySchedulesByDateKey.get(
+            monthlyScheduleDateKey(weekOfMonth(cursor), cursor.getUTCDay()),
+          )
+        : weeklySchedulesByWeekday.get(cursor.getUTCDay());
 
     if (!rule) {
       continue;
@@ -347,19 +379,41 @@ async function normalizeEducationProgramInput(
     throw new HttpError(400, { error: 'invalid_payload', field: 'endsOn' });
   }
 
-  const weeklySchedules = normalizeWeeklySchedules(input.weeklySchedules);
+  const recurrenceType = normalizeRecurrenceType(input.recurrenceType);
+  const weeklySchedules =
+    recurrenceType === 'weekly'
+      ? normalizeWeeklySchedules(input.weeklySchedules)
+      : [];
+  const monthlySchedules =
+    recurrenceType === 'monthly'
+      ? normalizeMonthlySchedules(input.monthlySchedules)
+      : [];
 
   return {
     familyMemberId,
     name: normalizeText(input.name, 'name', 80),
     startsOn,
     endsOn,
+    recurrenceType,
     weeklySchedules,
+    monthlySchedules,
     timeZoneOffsetMinutes,
   };
 }
 
-function normalizeWeeklySchedules(value: EducationWeeklySchedule[]) {
+function normalizeRecurrenceType(value: EducationRecurrenceType | undefined) {
+  if (value === undefined || value === null) {
+    return 'weekly';
+  }
+
+  if (value !== 'weekly' && value !== 'monthly') {
+    throw new HttpError(400, { error: 'invalid_payload', field: 'recurrenceType' });
+  }
+
+  return value;
+}
+
+function normalizeWeeklySchedules(value: EducationWeeklySchedule[] | undefined) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new HttpError(400, { error: 'invalid_payload', field: 'weeklySchedules' });
   }
@@ -397,6 +451,63 @@ function normalizeWeeklySchedules(value: EducationWeeklySchedule[]) {
       return { weekday, startsAt, endsAt, vehicleBoardingTime, vehicleDropoffTime };
     })
     .sort((left, right) => left.weekday - right.weekday);
+}
+
+function normalizeMonthlySchedules(value: EducationMonthlySchedule[] | undefined) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new HttpError(400, { error: 'invalid_payload', field: 'monthlySchedules' });
+  }
+
+  if (value.length > 4) {
+    throw new HttpError(400, { error: 'invalid_payload', field: 'monthlySchedules' });
+  }
+
+  const seen = new Set<number>();
+
+  return value
+    .map((schedule) => {
+      const weekOfMonth = Number(schedule.weekOfMonth);
+      const weekday = Number(schedule.weekday);
+      const startsAt = normalizeTime(schedule.startsAt, 'startsAt');
+      const endsAt = normalizeTime(schedule.endsAt, 'endsAt');
+      const vehicleBoardingTime = normalizeOptionalTime(
+        schedule.vehicleBoardingTime,
+        'vehicleBoardingTime',
+      );
+      const vehicleDropoffTime = normalizeOptionalTime(
+        schedule.vehicleDropoffTime,
+        'vehicleDropoffTime',
+      );
+
+      if (
+        !Number.isInteger(weekOfMonth) ||
+        weekOfMonth < 1 ||
+        weekOfMonth > 4 ||
+        seen.has(weekOfMonth)
+      ) {
+        throw new HttpError(400, { error: 'invalid_payload', field: 'weekOfMonth' });
+      }
+
+      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+        throw new HttpError(400, { error: 'invalid_payload', field: 'weekday' });
+      }
+
+      if (timeToMinutes(endsAt) < timeToMinutes(startsAt)) {
+        throw new HttpError(400, { error: 'invalid_payload', field: 'endsAt' });
+      }
+
+      seen.add(weekOfMonth);
+
+      return {
+        weekOfMonth,
+        weekday,
+        startsAt,
+        endsAt,
+        vehicleBoardingTime,
+        vehicleDropoffTime,
+      };
+    })
+    .sort((left, right) => left.weekOfMonth - right.weekOfMonth);
 }
 
 async function getFamilyMemberOrThrow(familyId: string, familyMemberId: string) {
@@ -531,6 +642,14 @@ function addYears(value: Date, years: number) {
   next.setUTCFullYear(next.getUTCFullYear() + years);
 
   return next;
+}
+
+function weekOfMonth(value: Date) {
+  return Math.floor((value.getUTCDate() - 1) / 7) + 1;
+}
+
+function monthlyScheduleDateKey(weekOfMonthValue: number, weekday: number) {
+  return `${weekOfMonthValue}:${weekday}`;
 }
 
 function dateOnlyInTimeZone(value: Date, offsetMinutes: number) {
