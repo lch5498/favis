@@ -36,6 +36,10 @@ export type ParkingRecord = {
   parked_at: string;
   created_at: string;
   updated_at: string;
+  created_by_user?: {
+    id: string;
+    nickname: string;
+  } | null;
 };
 
 export async function getParkingDashboard(userId: string, familyId: string) {
@@ -282,7 +286,7 @@ export async function createParkingRecord(
       location_text: `${floorText} / ${spotText}`,
       created_by_user_id: userId,
     })
-    .select('*')
+    .select(parkingRecordSelect)
     .single();
 
   if (error) {
@@ -296,7 +300,7 @@ async function listCurrentParkingRecords(familyId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('parking_records')
-    .select('*')
+    .select(parkingRecordSelect)
     .eq('family_id', familyId)
     .order('parked_at', { ascending: false });
 
@@ -385,6 +389,14 @@ function normalizePresetType(value: string): ParkingPresetType {
 
   throw new HttpError(400, { error: 'invalid_payload', field: 'presetType' });
 }
+
+const parkingRecordSelect = `
+  *,
+  created_by_user:users (
+    id,
+    nickname
+  )
+`;
 
 function normalizeText(value: string, field: string, maxLength: number) {
   const normalized = value.trim();

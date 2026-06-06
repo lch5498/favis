@@ -986,6 +986,20 @@ class _VehicleCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (currentLocation != null && !isRegisteringLocation) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '마지막 등록: ${currentLocation.createdByNickname} · ${_parkingUpdatedAtLabel(currentLocation.updatedAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF6E6E73),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1706,3 +1720,12 @@ class _ParkingLocationChoice {
   final String? presetId;
   final String text;
 }
+
+String _parkingUpdatedAtLabel(String value) {
+  final updatedAt = DateTime.parse(value).toLocal();
+
+  return '${updatedAt.year}-${_twoDigits(updatedAt.month)}-${_twoDigits(updatedAt.day)} '
+      '${_twoDigits(updatedAt.hour)}:${_twoDigits(updatedAt.minute)}:${_twoDigits(updatedAt.second)}';
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');

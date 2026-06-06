@@ -887,7 +887,10 @@ class ParkingRecord {
     required this.floorText,
     required this.spotText,
     required this.locationText,
+    required this.createdByUserId,
+    required this.createdByNickname,
     required this.parkedAt,
+    required this.updatedAt,
   });
 
   final String id;
@@ -898,9 +901,14 @@ class ParkingRecord {
   final String floorText;
   final String spotText;
   final String locationText;
+  final String? createdByUserId;
+  final String createdByNickname;
   final String parkedAt;
+  final String updatedAt;
 
   factory ParkingRecord.fromJson(Map<String, Object?> json) {
+    final createdByUser = json['created_by_user'] as Map<String, Object?>?;
+
     return ParkingRecord(
       id: json['id'] as String,
       familyId: json['family_id'] as String,
@@ -910,7 +918,10 @@ class ParkingRecord {
       floorText: json['floor_text'] as String,
       spotText: json['spot_text'] as String,
       locationText: json['location_text'] as String,
+      createdByUserId: json['created_by_user_id'] as String?,
+      createdByNickname: createdByUser?['nickname'] as String? ?? '알 수 없음',
       parkedAt: json['parked_at'] as String,
+      updatedAt: json['updated_at'] as String,
     );
   }
 }
