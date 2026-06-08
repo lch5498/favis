@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
 import '../../shared/member_filter.dart';
+import '../../shared/refreshable_scroll_view.dart';
 
 const _weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 const _weekdayPickerOrder = [1, 2, 3, 4, 5, 6, 0];
@@ -334,7 +335,8 @@ class _EducationScreenState extends State<EducationScreen> {
       child: Stack(
         children: [
           SafeArea(
-            child: ListView(
+            child: RefreshableScrollView(
+              onRefresh: _loadPrograms,
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
               children: [
                 if (_message != null) ...[

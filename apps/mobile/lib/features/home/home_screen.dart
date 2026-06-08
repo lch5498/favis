@@ -7,6 +7,7 @@ import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
 import '../profile/profile_screen.dart';
 import '../schedule/schedule_screen.dart';
+import '../../shared/refreshable_scroll_view.dart';
 
 const _preferencesChannel = MethodChannel('housekeeping/preferences');
 const _selectedFamilyPreferenceKey = 'selectedFamilyId';
@@ -581,7 +582,8 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
         ),
       ),
       child: SafeArea(
-        child: ListView(
+        child: RefreshableScrollView(
+          onRefresh: _loadBriefing,
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
           children: [
             if (widget.message != null) ...[
@@ -930,7 +932,8 @@ class _FamilyRequiredIntro extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return RefreshableScrollView(
+      onRefresh: onReloadFamilies,
       children: [
         const SizedBox(height: 24),
         Container(

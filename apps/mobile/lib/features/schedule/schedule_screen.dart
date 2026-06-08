@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
 import '../../shared/member_filter.dart';
+import '../../shared/refreshable_scroll_view.dart';
 
 enum _CalendarMode { day, week, month }
 
@@ -370,7 +371,8 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             : null,
       ),
       child: SafeArea(
-        child: ListView(
+        child: RefreshableScrollView(
+          onRefresh: _loadSchedules,
           padding: const EdgeInsets.fromLTRB(0, 18, 0, 32),
           children: [
             Padding(

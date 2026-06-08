@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
+import '../../shared/refreshable_scroll_view.dart';
 
 const _parkingPresetTypeFloor = 'floor';
 const _parkingPresetTypeSpot = 'spot';
@@ -338,7 +339,8 @@ class _ParkingScreenState extends State<ParkingScreen> {
             : null,
       ),
       child: SafeArea(
-        child: ListView(
+        child: RefreshableScrollView(
+          onRefresh: _loadParking,
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
             if (_message != null) ...[
