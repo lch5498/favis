@@ -48,6 +48,10 @@ export type ScheduleInput = {
   educationProgramId?: string;
 };
 
+type MembershipCheckOptions = {
+  skipMembershipCheck?: boolean;
+};
+
 export async function getScheduleDashboard(
   userId: string,
   familyId: string,
@@ -56,9 +60,11 @@ export async function getScheduleDashboard(
 ) {
   const membership = await requireMembership(userId, familyId);
   const [members, schedules, educationPrograms] = await Promise.all([
-    listFamilyMembers(userId, familyId),
-    listSchedules(userId, familyId, rangeStart, rangeEnd),
-    listEducationPrograms(userId, familyId),
+    listFamilyMembers(userId, familyId, { skipMembershipCheck: true }),
+    listSchedules(userId, familyId, rangeStart, rangeEnd, {
+      skipMembershipCheck: true,
+    }),
+    listEducationPrograms(userId, familyId, { skipMembershipCheck: true }),
   ]);
 
   return {
@@ -74,8 +80,12 @@ export async function listSchedules(
   familyId: string,
   rangeStart: string,
   rangeEnd: string,
+  options: MembershipCheckOptions = {},
 ) {
-  await requireMembership(userId, familyId);
+  if (!options.skipMembershipCheck) {
+    await requireMembership(userId, familyId);
+  }
+
   const startsAt = normalizeDateTime(rangeStart, 'rangeStart');
   const endsAt = normalizeDateTime(rangeEnd, 'rangeEnd');
 

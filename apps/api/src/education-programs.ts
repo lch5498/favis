@@ -66,6 +66,10 @@ export type EducationProgramInput = {
 
 export type CalendarApplyScope = 'all' | 'future';
 
+type MembershipCheckOptions = {
+  skipMembershipCheck?: boolean;
+};
+
 type NormalizedEducationProgramInput = {
   familyMemberId: string;
   name: string;
@@ -83,8 +87,8 @@ export async function getEducationProgramDashboard(
 ) {
   const membership = await requireMembership(userId, familyId);
   const [members, programs] = await Promise.all([
-    listFamilyMembers(userId, familyId),
-    listEducationPrograms(userId, familyId),
+    listFamilyMembers(userId, familyId, { skipMembershipCheck: true }),
+    listEducationPrograms(userId, familyId, { skipMembershipCheck: true }),
   ]);
 
   return {
@@ -94,8 +98,14 @@ export async function getEducationProgramDashboard(
   };
 }
 
-export async function listEducationPrograms(userId: string, familyId: string) {
-  await requireMembership(userId, familyId);
+export async function listEducationPrograms(
+  userId: string,
+  familyId: string,
+  options: MembershipCheckOptions = {},
+) {
+  if (!options.skipMembershipCheck) {
+    await requireMembership(userId, familyId);
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

@@ -42,13 +42,19 @@ export type ParkingRecord = {
   } | null;
 };
 
+type MembershipCheckOptions = {
+  skipMembershipCheck?: boolean;
+};
+
 export async function getParkingDashboard(userId: string, familyId: string) {
   const membership = await requireMembership(userId, familyId);
-  const [vehicles, presets] = await Promise.all([
-    listVehicles(userId, familyId),
-    listParkingLocationPresets(userId, familyId),
+  const [vehicles, presets, currentLocations] = await Promise.all([
+    listVehicles(userId, familyId, { skipMembershipCheck: true }),
+    listParkingLocationPresets(userId, familyId, {
+      skipMembershipCheck: true,
+    }),
+    listCurrentParkingRecords(familyId),
   ]);
-  const currentLocations = await listCurrentParkingRecords(familyId);
 
   return {
     canManage: membership.role === 'owner' || membership.role === 'co_owner',
@@ -58,8 +64,14 @@ export async function getParkingDashboard(userId: string, familyId: string) {
   };
 }
 
-export async function listVehicles(userId: string, familyId: string) {
-  await requireMembership(userId, familyId);
+export async function listVehicles(
+  userId: string,
+  familyId: string,
+  options: MembershipCheckOptions = {},
+) {
+  if (!options.skipMembershipCheck) {
+    await requireMembership(userId, familyId);
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -153,8 +165,11 @@ export async function deleteVehicle(
 export async function listParkingLocationPresets(
   userId: string,
   familyId: string,
+  options: MembershipCheckOptions = {},
 ) {
-  await requireMembership(userId, familyId);
+  if (!options.skipMembershipCheck) {
+    await requireMembership(userId, familyId);
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -259,19 +274,13 @@ export async function createParkingRecord(
 ) {
   await requireFamilyManager(userId, familyId);
 
-  const vehicle = await getVehicleOrThrow(familyId, input.vehicleId);
-  const floorPresetId = await normalizePresetId(
-    familyId,
-    input.floorPresetId,
-    'floor',
-  );
-  const spotPresetId = await normalizePresetId(
-    familyId,
-    input.spotPresetId,
-    'spot',
-  );
   const floorText = normalizeText(input.floorText, 'floorText', 40);
   const spotText = normalizeText(input.spotText, 'spotText', 40);
+  const [vehicle, floorPresetId, spotPresetId] = await Promise.all([
+    getVehicleOrThrow(familyId, input.vehicleId),
+    normalizePresetId(familyId, input.floorPresetId, 'floor'),
+    normalizePresetId(familyId, input.spotPresetId, 'spot'),
+  ]);
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -299,24 +308,13 @@ export async function createParkingRecord(
 async function listCurrentParkingRecords(familyId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
-    .from('parking_records')
-    .select(parkingRecordSelect)
-    .eq('family_id', familyId)
-    .order('parked_at', { ascending: false });
+    .rpc('list_current_parking_records', { target_family_id: familyId });
 
   if (error) {
     throw error;
   }
 
-  const records = new Map<string, ParkingRecord>();
-
-  for (const record of (data ?? []) as ParkingRecord[]) {
-    if (!records.has(record.vehicle_id)) {
-      records.set(record.vehicle_id, record);
-    }
-  }
-
-  return Array.from(records.values());
+  return (data ?? []) as ParkingRecord[];
 }
 
 async function getVehicleOrThrow(familyId: string, vehicleId: string) {

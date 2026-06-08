@@ -47,6 +47,10 @@ export type FamilyInvitation = {
 const WRITER_ROLES: FamilyRole[] = ['owner', 'co_owner'];
 const INVITATION_TTL_DAYS = 7;
 
+type MembershipCheckOptions = {
+  skipMembershipCheck?: boolean;
+};
+
 export async function listFamilies(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -117,8 +121,12 @@ export async function createFamily(userId: string, name: string) {
 
 export async function getFamilyDetail(userId: string, familyId: string) {
   const membership = await requireMembership(userId, familyId);
-  const family = await getFamilyOrThrow(familyId);
-  const members = await listFamilyMembers(userId, familyId);
+  const [family, members] = await Promise.all([
+    getFamilyOrThrow(familyId),
+    listFamilyMembers(userId, familyId, {
+      skipMembershipCheck: true,
+    }),
+  ]);
 
   return {
     family,
@@ -157,8 +165,14 @@ export async function deleteFamily(userId: string, familyId: string) {
   }
 }
 
-export async function listFamilyMembers(userId: string, familyId: string) {
-  await requireMembership(userId, familyId);
+export async function listFamilyMembers(
+  userId: string,
+  familyId: string,
+  options: MembershipCheckOptions = {},
+) {
+  if (!options.skipMembershipCheck) {
+    await requireMembership(userId, familyId);
+  }
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
