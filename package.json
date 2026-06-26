@@ -1,8 +1,8 @@
 {
-  "name": "family-house-keeping",
+  "name": "favis",
   "private": true,
   "version": "0.1.0",
-  "description": "Family-only housekeeping app monorepo with Flutter iOS, Vercel Functions, and Supabase.",
+  "description": "Favis family assistant app monorepo with Flutter iOS, Vercel Functions, and Supabase.",
   "workspaces": [
     "apps/api",
     "packages/contracts"

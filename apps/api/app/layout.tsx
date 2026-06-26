@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'House Keeping API',
-  description: 'Family housekeeping API server and Kakao login test page.',
+  title: 'Favis API',
+  description: 'Favis API server and Kakao login test page.',
 };
 
 type RootLayoutProps = {

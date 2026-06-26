@@ -1,5 +1,5 @@
-name: house_keeping_mobile
-description: "Family-only house keeping app for academy schedules and parking."
+name: favis_mobile
+description: "Family-only Favis app for academy schedules and parking."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

@@ -9,7 +9,7 @@ import UIKit
   ) -> Bool {
     if let controller = window?.rootViewController as? FlutterViewController {
       let shareChannel = FlutterMethodChannel(
-        name: "housekeeping/share",
+        name: "favis/share",
         binaryMessenger: controller.binaryMessenger
       )
 
@@ -55,7 +55,7 @@ import UIKit
       }
 
       let preferencesChannel = FlutterMethodChannel(
-        name: "housekeeping/preferences",
+        name: "favis/preferences",
         binaryMessenger: controller.binaryMessenger
       )
 

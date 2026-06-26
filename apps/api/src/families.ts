@@ -413,7 +413,7 @@ export async function acceptFamilyInvitation(userId: string, inviteToken: string
 }
 
 export function getInviteUrl(inviteToken: string) {
-  const baseUrl = process.env.MOBILE_INVITE_BASE_URL ?? 'housekeeping://family-invite';
+  const baseUrl = process.env.MOBILE_INVITE_BASE_URL ?? 'favis://family-invite';
 
   return `${baseUrl.replace(/\/$/, '')}/${inviteToken}`;
 }

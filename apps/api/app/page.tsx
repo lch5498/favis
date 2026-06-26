@@ -23,7 +23,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <main className="page-shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">House Keeping API</p>
+          <p className="eyebrow">Favis API</p>
           <h1>카카오 로그인 테스트</h1>
           <p className="description">
             Next.js API 서버에서 카카오 OAuth 로그인을 처리하고, 서버에서
