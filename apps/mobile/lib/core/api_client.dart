@@ -59,6 +59,14 @@ class ApiClient {
     return AppUser.fromJson(json['user'] as Map<String, Object?>);
   }
 
+  Future<void> deleteMyAccount(String sessionToken) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/auth/me',
+      bearerToken: sessionToken,
+    );
+  }
+
   Future<List<FamilySummary>> listFamilies(String sessionToken) async {
     final json = await _requestJson(
       'GET',

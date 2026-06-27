@@ -141,6 +141,56 @@ export async function updateUserNickname(userId: string, nickname: string) {
   return data as AppUser;
 }
 
+export async function deleteUserAccount(userId: string) {
+  const supabase = getSupabaseAdmin();
+
+  const { data: memberships, error: membershipsError } = await supabase
+    .from('family_members')
+    .select('family_id, role')
+    .eq('user_id', userId);
+
+  if (membershipsError) {
+    throw membershipsError;
+  }
+
+  const ownerFamilyIds = [
+    ...new Set(
+      (memberships ?? [])
+        .filter((membership) => membership.role === 'owner')
+        .map((membership) => membership.family_id as string),
+    ),
+  ];
+
+  if (ownerFamilyIds.length > 0) {
+    const { error: familiesDeleteError } = await supabase
+      .from('families')
+      .delete()
+      .in('id', ownerFamilyIds);
+
+    if (familiesDeleteError) {
+      throw familiesDeleteError;
+    }
+  }
+
+  const { error: membershipsDeleteError } = await supabase
+    .from('family_members')
+    .delete()
+    .eq('user_id', userId);
+
+  if (membershipsDeleteError) {
+    throw membershipsDeleteError;
+  }
+
+  const { error: userDeleteError } = await supabase
+    .from('users')
+    .delete()
+    .eq('id', userId);
+
+  if (userDeleteError) {
+    throw userDeleteError;
+  }
+}
+
 function normalizeNickname(nickname: string | undefined) {
   const normalized = nickname?.trim();
 

@@ -1,6 +1,10 @@
 import { jsonFromError } from '../../../../../src/http';
 import { getBearerToken, verifySessionToken } from '../../../../../src/session';
-import { getUserById, updateUserNickname } from '../../../../../src/users';
+import {
+  deleteUserAccount,
+  getUserById,
+  updateUserNickname,
+} from '../../../../../src/users';
 import {
   readJsonObject,
   requiredString,
@@ -42,6 +46,21 @@ export async function PATCH(request: Request) {
     }
 
     return jsonFromError(error, 'profile_update_failed');
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const session = authenticateRequest(request);
+    await deleteUserAccount(session.sub);
+
+    return new Response(null, { status: 204 });
+  } catch (error) {
+    if (error instanceof Response) {
+      return error;
+    }
+
+    return jsonFromError(error, 'account_delete_failed');
   }
 }
 

@@ -8,11 +8,13 @@ class ProfileScreen extends StatefulWidget {
     super.key,
     required this.user,
     required this.onSave,
+    required this.onDeleteAccount,
     this.onLogout,
   });
 
   final AppUser user;
   final Future<AppUser> Function(String nickname) onSave;
+  final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
 
   @override
@@ -116,6 +118,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await onLogout();
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final shouldDelete = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return CupertinoAlertDialog(
+          title: const Text('탈퇴할까요?'),
+          content: const Text('모든 데이터가 삭제되며 복구되지 않습니다. 정말 탈퇴할까요?'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('탈퇴하기'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _message = null;
+    });
+
+    try {
+      await widget.onDeleteAccount();
+
+      if (mounted) {
+        final navigator = Navigator.of(context);
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -188,51 +245,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 14),
               _ProfileMessage(message: _message!),
             ],
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 54,
-              child: CupertinoButton.filled(
-                borderRadius: BorderRadius.circular(14),
-                onPressed: _isSaving ? null : _save,
-                child: _isSaving
-                    ? const CupertinoActivityIndicator(
-                        color: CupertinoColors.white,
-                      )
-                    : const Text(
-                        '변경사항 저장',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-              ),
-            ),
+            const SizedBox(height: 34),
             if (widget.onLogout != null) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 52,
-                child: CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  color: AppColors.darkSurfaceElevated,
-                  borderRadius: BorderRadius.circular(14),
-                  onPressed: _isSaving ? null : _confirmLogout,
-                  child: const Center(
-                    child: Text(
-                      '로그아웃',
-                      style: TextStyle(
-                        color: AppColors.darkDanger,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                  ),
-                ),
+              _ProfileTextAction(
+                label: '로그아웃',
+                onPressed: _isSaving ? null : _confirmLogout,
               ),
+              const SizedBox(height: 8),
             ],
+            _ProfileTextAction(
+              label: '탈퇴하기',
+              isDestructive: true,
+              onPressed: _isSaving ? null : _confirmDeleteAccount,
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileTextAction extends StatelessWidget {
+  const _ProfileTextAction({
+    required this.label,
+    required this.onPressed,
+    this.isDestructive = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isDestructive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.center,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        minimumSize: Size.zero,
+        onPressed: onPressed,
+        child: Text(
+          label,
+          style: TextStyle(
+            color:
+                (isDestructive
+                        ? CupertinoColors.destructiveRed
+                        : AppColors.darkTextMuted)
+                    .withValues(alpha: onPressed == null ? 0.35 : 0.78),
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
         ),
       ),
     );

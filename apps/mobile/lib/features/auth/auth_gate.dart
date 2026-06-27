@@ -165,6 +165,27 @@ class _AuthGateState extends State<AuthGate> {
     return user;
   }
 
+  Future<void> _deleteAccount() async {
+    final auth = _auth;
+
+    if (auth == null) {
+      throw const ApiConnectionException('로그인 정보가 없습니다.');
+    }
+
+    await _apiClient.deleteMyAccount(auth.accessToken);
+    await _sessionStore.clear();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _auth = null;
+      _pendingKakaoAccessToken = null;
+      _message = null;
+    });
+  }
+
   Future<void> _run(Future<void> Function() task) async {
     setState(() {
       _isLoading = true;
@@ -202,6 +223,7 @@ class _AuthGateState extends State<AuthGate> {
         user: auth.user,
         sessionToken: auth.accessToken,
         onUpdateProfile: _updateProfile,
+        onDeleteAccount: _deleteAccount,
         onLogout: () async {
           await _sessionStore.clear();
 

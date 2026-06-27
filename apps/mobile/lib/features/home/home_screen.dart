@@ -19,12 +19,14 @@ class HomeScreen extends StatefulWidget {
     required this.user,
     required this.sessionToken,
     required this.onUpdateProfile,
+    required this.onDeleteAccount,
     this.onLogout,
   });
 
   final AppUser user;
   final String sessionToken;
   final Future<AppUser> Function(String nickname) onUpdateProfile;
+  final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
 
   @override
@@ -308,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onOpenSchedule: _openScheduleTab,
                     onOpenParking: _openParkingTab,
                     onUpdateProfile: widget.onUpdateProfile,
+                    onDeleteAccount: widget.onDeleteAccount,
                     onLogout: widget.onLogout,
                   );
               }
@@ -333,6 +336,7 @@ class _HomeScreenState extends State<HomeScreen> {
         trailing: _HomeNavigationTrailing(
           user: widget.user,
           onUpdateProfile: widget.onUpdateProfile,
+          onDeleteAccount: widget.onDeleteAccount,
           onLogout: widget.onLogout,
         ),
       ),
@@ -422,11 +426,13 @@ class _HomeNavigationTrailing extends StatelessWidget {
   const _HomeNavigationTrailing({
     required this.user,
     required this.onUpdateProfile,
+    required this.onDeleteAccount,
     required this.onLogout,
   });
 
   final AppUser user;
   final Future<AppUser> Function(String nickname) onUpdateProfile;
+  final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
 
   @override
@@ -440,6 +446,7 @@ class _HomeNavigationTrailing extends StatelessWidget {
             builder: (_) => ProfileScreen(
               user: user,
               onSave: onUpdateProfile,
+              onDeleteAccount: onDeleteAccount,
               onLogout: onLogout,
             ),
           ),
@@ -463,6 +470,7 @@ class _HomeDashboardTab extends StatefulWidget {
     required this.onOpenSchedule,
     required this.onOpenParking,
     required this.onUpdateProfile,
+    required this.onDeleteAccount,
     required this.onLogout,
   });
 
@@ -477,6 +485,7 @@ class _HomeDashboardTab extends StatefulWidget {
   final VoidCallback onOpenSchedule;
   final VoidCallback onOpenParking;
   final Future<AppUser> Function(String nickname) onUpdateProfile;
+  final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
 
   @override
@@ -571,6 +580,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
         trailing: _HomeNavigationTrailing(
           user: widget.user,
           onUpdateProfile: widget.onUpdateProfile,
+          onDeleteAccount: widget.onDeleteAccount,
           onLogout: widget.onLogout,
         ),
       ),
