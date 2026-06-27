@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
@@ -1765,7 +1766,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                 _DetailDivider(),
                 _DetailRow(
                   icon: CupertinoIcons.location,
-                  label: '하차시각',
+                  label: '차량하차시각',
                   value: schedule.vehicleDropoffAt == null
                       ? '선택 안 함'
                       : _fullDateTimeLabel(schedule.vehicleDropoffAt!),
@@ -2063,47 +2064,12 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
   }
 
   Future<DateTime?> _showDateTimePicker(DateTime initial) async {
-    DateTime selected = initial;
-
     return showCupertinoModalPopup<DateTime>(
       context: context,
-      builder: (popupContext) => Container(
-        height: 320,
-        color: CupertinoColors.systemBackground.resolveFrom(context),
-        child: SafeArea(
-          top: false,
-          child: Column(
-            children: [
-              SizedBox(
-                height: 52,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    CupertinoButton(
-                      onPressed: () => Navigator.of(popupContext).pop(),
-                      child: const Text('취소'),
-                    ),
-                    CupertinoButton(
-                      onPressed: () => Navigator.of(popupContext).pop(selected),
-                      child: const Text('완료'),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: CupertinoDatePicker(
-                  initialDateTime: initial,
-                  mode: CupertinoDatePickerMode.dateAndTime,
-                  minuteInterval: 5,
-                  use24hFormat: true,
-                  onDateTimeChanged: (value) {
-                    selected = value;
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
+      builder: (popupContext) => _DateTimeInputSheet(
+        initial: initial,
+        onCancel: () => Navigator.of(popupContext).pop(),
+        onDone: (value) => Navigator.of(popupContext).pop(value),
       ),
     );
   }
@@ -2211,13 +2177,13 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
             _FormSection(
               children: [
                 _PickerRow(
-                  label: 'From',
+                  label: '시작 시각',
                   value: _dateTimeLabel(_startsAt),
                   onPressed: () => _pickDateTime(isStart: true),
                 ),
                 _FormDivider(),
                 _PickerRow(
-                  label: 'To',
+                  label: '종료 시각',
                   value: _dateTimeLabel(_endsAt),
                   onPressed: () => _pickDateTime(isStart: false),
                 ),
@@ -2234,7 +2200,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                 ),
                 _FormDivider(),
                 _OptionalTimeRow(
-                  label: '하차시각',
+                  label: '차량하차시각',
                   value: _vehicleDropoffAt,
                   onPick: () => _pickOptionalDateTime(isBoarding: false),
                   onClear: () => setState(() => _vehicleDropoffAt = null),
@@ -2298,35 +2264,31 @@ class _PickerRow extends StatelessWidget {
         height: 48,
         child: Row(
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.darkTextPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
+            SizedBox(
+              width: 82,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.darkTextPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
               ),
             ),
-            const Spacer(),
-            Flexible(
+            Expanded(
               child: Text(
                 value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
                 style: const TextStyle(
-                  color: AppColors.darkTextSecondary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  color: CupertinoColors.systemBlue,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 0,
                 ),
               ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(
-              CupertinoIcons.chevron_right,
-              color: CupertinoColors.systemGrey,
-              size: 17,
             ),
           ],
         ),
@@ -2360,17 +2322,22 @@ class _OptionalTimeRow extends StatelessWidget {
               onPressed: onPick,
               child: Row(
                 children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: AppColors.darkTextPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
+                  SizedBox(
+                    width: 92,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
                     ),
                   ),
-                  const Spacer(),
-                  Flexible(
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Text(
                       value == null ? '선택 안 함' : _dateTimeLabel(value!),
                       maxLines: 1,
@@ -2378,7 +2345,7 @@ class _OptionalTimeRow extends StatelessWidget {
                       textAlign: TextAlign.right,
                       style: const TextStyle(
                         color: AppColors.darkTextSecondary,
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0,
                       ),
@@ -2391,16 +2358,261 @@ class _OptionalTimeRow extends StatelessWidget {
           if (value != null)
             CupertinoButton(
               padding: EdgeInsets.zero,
-              minimumSize: const Size(34, 34),
+              minimumSize: const Size(28, 34),
               onPressed: onClear,
               child: const Icon(
                 CupertinoIcons.xmark_circle_fill,
                 color: CupertinoColors.systemGrey,
-                size: 20,
+                size: 18,
               ),
             ),
         ],
       ),
+    );
+  }
+}
+
+class _DateTimeInputSheet extends StatefulWidget {
+  const _DateTimeInputSheet({
+    required this.initial,
+    required this.onCancel,
+    required this.onDone,
+  });
+
+  final DateTime initial;
+  final VoidCallback onCancel;
+  final ValueChanged<DateTime> onDone;
+
+  @override
+  State<_DateTimeInputSheet> createState() => _DateTimeInputSheetState();
+}
+
+class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
+  late final TextEditingController _yearController;
+  late final TextEditingController _monthController;
+  late final TextEditingController _dayController;
+  late final TextEditingController _hourController;
+  late final TextEditingController _minuteController;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _yearController = TextEditingController(text: '${widget.initial.year}');
+    _monthController = TextEditingController(text: _two(widget.initial.month));
+    _dayController = TextEditingController(text: _two(widget.initial.day));
+    _hourController = TextEditingController(text: _two(widget.initial.hour));
+    _minuteController = TextEditingController(
+      text: _two(widget.initial.minute),
+    );
+  }
+
+  @override
+  void dispose() {
+    _yearController.dispose();
+    _monthController.dispose();
+    _dayController.dispose();
+    _hourController.dispose();
+    _minuteController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final year = int.tryParse(_yearController.text);
+    final month = int.tryParse(_monthController.text);
+    final day = int.tryParse(_dayController.text);
+    final hour = int.tryParse(_hourController.text);
+    final minute = int.tryParse(_minuteController.text);
+
+    if (year == null ||
+        month == null ||
+        day == null ||
+        hour == null ||
+        minute == null) {
+      setState(() => _message = '날짜와 시각을 숫자로 입력해 주세요.');
+      return;
+    }
+
+    if (month < 1 || month > 12) {
+      setState(() => _message = '월은 1부터 12까지 입력해 주세요.');
+      return;
+    }
+
+    if (hour < 0 || hour > 23) {
+      setState(() => _message = '시는 0부터 23까지 입력해 주세요.');
+      return;
+    }
+
+    if (minute < 0 || minute > 59) {
+      setState(() => _message = '분은 0부터 59까지 입력해 주세요.');
+      return;
+    }
+
+    final value = DateTime(year, month, day, hour, minute);
+    if (value.year != year || value.month != month || value.day != day) {
+      setState(() => _message = '존재하는 날짜를 입력해 주세요.');
+      return;
+    }
+
+    widget.onDone(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.darkSurface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 14,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 52,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onCancel,
+                      child: const Text('취소'),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _submit,
+                      child: const Text('완료'),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: _NumberInputField(
+                      controller: _yearController,
+                      placeholder: '2026',
+                      suffix: '년',
+                      maxLength: 4,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _monthController,
+                      placeholder: '06',
+                      suffix: '월',
+                      maxLength: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _dayController,
+                      placeholder: '27',
+                      suffix: '일',
+                      maxLength: 2,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _hourController,
+                      placeholder: '15',
+                      suffix: '시',
+                      maxLength: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _minuteController,
+                      placeholder: '30',
+                      suffix: '분',
+                      maxLength: 2,
+                    ),
+                  ),
+                ],
+              ),
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: const TextStyle(
+                    color: AppColors.darkDanger,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NumberInputField extends StatelessWidget {
+  const _NumberInputField({
+    required this.controller,
+    required this.placeholder,
+    required this.suffix,
+    required this.maxLength,
+  });
+
+  final TextEditingController controller;
+  final String placeholder;
+  final String suffix;
+  final int maxLength;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: CupertinoTextField(
+            controller: controller,
+            placeholder: placeholder,
+            maxLength: maxLength,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            style: const TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.darkBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.darkBorder),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          suffix,
+          style: const TextStyle(
+            color: AppColors.darkTextSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2669,7 +2881,7 @@ String _calendarWeekdayLabel(int index) {
 }
 
 String _dateTimeLabel(DateTime date) {
-  return '${date.month}.${date.day} ${_timeLabel(date)}';
+  return '${_dateLabel(date)} ${_timeLabel(date)}';
 }
 
 String _fullDateTimeLabel(DateTime date) {

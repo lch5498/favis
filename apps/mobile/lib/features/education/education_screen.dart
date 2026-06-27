@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
@@ -1013,41 +1014,26 @@ class _EducationProgramFormScreenState
   Future<DateTime?> _showDatePicker(DateTime initial) {
     final minimumDate = _minimumEducationProgramDate();
     final maximumDate = _maximumEducationProgramDate();
-    var selected = _clampDate(initial, minimumDate, maximumDate);
 
     return showCupertinoModalPopup<DateTime>(
       context: context,
-      builder: (popupContext) => _PickerSheet(
+      builder: (popupContext) => _DateInputSheet(
+        initial: _clampDate(initial, minimumDate, maximumDate),
+        minimumDate: minimumDate,
+        maximumDate: maximumDate,
         onCancel: () => Navigator.of(popupContext).pop(),
-        onDone: () => Navigator.of(popupContext).pop(_dateOnly(selected)),
-        child: CupertinoDatePicker(
-          mode: CupertinoDatePickerMode.date,
-          minimumDate: minimumDate,
-          maximumDate: maximumDate,
-          initialDateTime: selected,
-          onDateTimeChanged: (value) {
-            selected = value;
-          },
-        ),
+        onDone: (value) => Navigator.of(popupContext).pop(value),
       ),
     );
   }
 
   Future<TimeOfDayValue?> _showTimePicker(TimeOfDayValue initial) {
-    var selected = initial;
-
     return showCupertinoModalPopup<TimeOfDayValue>(
       context: context,
-      builder: (popupContext) => _PickerSheet(
+      builder: (popupContext) => _TimeInputSheet(
+        initial: initial,
         onCancel: () => Navigator.of(popupContext).pop(),
-        onDone: () => Navigator.of(popupContext).pop(selected),
-        child: CupertinoDatePicker(
-          mode: CupertinoDatePickerMode.time,
-          initialDateTime: DateTime(2026, 1, 1, initial.hour, initial.minute),
-          onDateTimeChanged: (value) {
-            selected = TimeOfDayValue(hour: value.hour, minute: value.minute);
-          },
-        ),
+        onDone: (value) => Navigator.of(popupContext).pop(value),
       ),
     );
   }
@@ -1432,40 +1418,349 @@ class _DeleteProgramButton extends StatelessWidget {
   }
 }
 
-class _PickerSheet extends StatelessWidget {
-  const _PickerSheet({
+class _DateInputSheet extends StatefulWidget {
+  const _DateInputSheet({
+    required this.initial,
+    required this.minimumDate,
+    required this.maximumDate,
     required this.onCancel,
     required this.onDone,
-    required this.child,
   });
 
+  final DateTime initial;
+  final DateTime minimumDate;
+  final DateTime maximumDate;
   final VoidCallback onCancel;
-  final VoidCallback onDone;
-  final Widget child;
+  final ValueChanged<DateTime> onDone;
+
+  @override
+  State<_DateInputSheet> createState() => _DateInputSheetState();
+}
+
+class _DateInputSheetState extends State<_DateInputSheet> {
+  late final TextEditingController _yearController;
+  late final TextEditingController _monthController;
+  late final TextEditingController _dayController;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _yearController = TextEditingController(text: '${widget.initial.year}');
+    _monthController = TextEditingController(
+      text: _twoDigits(widget.initial.month),
+    );
+    _dayController = TextEditingController(
+      text: _twoDigits(widget.initial.day),
+    );
+  }
+
+  @override
+  void dispose() {
+    _yearController.dispose();
+    _monthController.dispose();
+    _dayController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final year = int.tryParse(_yearController.text);
+    final month = int.tryParse(_monthController.text);
+    final day = int.tryParse(_dayController.text);
+
+    if (year == null || month == null || day == null) {
+      setState(() => _message = '날짜를 숫자로 입력해 주세요.');
+      return;
+    }
+
+    if (month < 1 || month > 12) {
+      setState(() => _message = '월은 1부터 12까지 입력해 주세요.');
+      return;
+    }
+
+    final value = DateTime(year, month, day);
+    if (value.year != year || value.month != month || value.day != day) {
+      setState(() => _message = '존재하는 날짜를 입력해 주세요.');
+      return;
+    }
+
+    final date = _dateOnly(value);
+    if (date.isBefore(widget.minimumDate) || date.isAfter(widget.maximumDate)) {
+      setState(() => _message = '오늘 기준 1년 전부터 1년 후까지만 입력할 수 있습니다.');
+      return;
+    }
+
+    widget.onDone(date);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 320,
-      color: CupertinoColors.systemBackground.resolveFrom(context),
+      color: AppColors.darkSurface,
       child: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            SizedBox(
-              height: 52,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 14,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 52,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onCancel,
+                      child: const Text('취소'),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _submit,
+                      child: const Text('완료'),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
                 children: [
-                  CupertinoButton(onPressed: onCancel, child: const Text('취소')),
-                  CupertinoButton(onPressed: onDone, child: const Text('완료')),
+                  Expanded(
+                    flex: 2,
+                    child: _NumberInputField(
+                      controller: _yearController,
+                      placeholder: '2026',
+                      suffix: '년',
+                      maxLength: 4,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _monthController,
+                      placeholder: '06',
+                      suffix: '월',
+                      maxLength: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _dayController,
+                      placeholder: '27',
+                      suffix: '일',
+                      maxLength: 2,
+                    ),
+                  ),
                 ],
               ),
-            ),
-            Expanded(child: child),
-          ],
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: const TextStyle(
+                    color: AppColors.darkDanger,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _TimeInputSheet extends StatefulWidget {
+  const _TimeInputSheet({
+    required this.initial,
+    required this.onCancel,
+    required this.onDone,
+  });
+
+  final TimeOfDayValue initial;
+  final VoidCallback onCancel;
+  final ValueChanged<TimeOfDayValue> onDone;
+
+  @override
+  State<_TimeInputSheet> createState() => _TimeInputSheetState();
+}
+
+class _TimeInputSheetState extends State<_TimeInputSheet> {
+  late final TextEditingController _hourController;
+  late final TextEditingController _minuteController;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _hourController = TextEditingController(
+      text: _twoDigits(widget.initial.hour),
+    );
+    _minuteController = TextEditingController(
+      text: _twoDigits(widget.initial.minute),
+    );
+  }
+
+  @override
+  void dispose() {
+    _hourController.dispose();
+    _minuteController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final hour = int.tryParse(_hourController.text);
+    final minute = int.tryParse(_minuteController.text);
+
+    if (hour == null || minute == null) {
+      setState(() => _message = '시각을 숫자로 입력해 주세요.');
+      return;
+    }
+
+    if (hour < 0 || hour > 23) {
+      setState(() => _message = '시는 0부터 23까지 입력해 주세요.');
+      return;
+    }
+
+    if (minute < 0 || minute > 59) {
+      setState(() => _message = '분은 0부터 59까지 입력해 주세요.');
+      return;
+    }
+
+    widget.onDone(TimeOfDayValue(hour: hour, minute: minute));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.darkSurface,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 14,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 52,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onCancel,
+                      child: const Text('취소'),
+                    ),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _submit,
+                      child: const Text('완료'),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _hourController,
+                      placeholder: '15',
+                      suffix: '시',
+                      maxLength: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _NumberInputField(
+                      controller: _minuteController,
+                      placeholder: '30',
+                      suffix: '분',
+                      maxLength: 2,
+                    ),
+                  ),
+                ],
+              ),
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: const TextStyle(
+                    color: AppColors.darkDanger,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NumberInputField extends StatelessWidget {
+  const _NumberInputField({
+    required this.controller,
+    required this.placeholder,
+    required this.suffix,
+    required this.maxLength,
+  });
+
+  final TextEditingController controller;
+  final String placeholder;
+  final String suffix;
+  final int maxLength;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: CupertinoTextField(
+            controller: controller,
+            placeholder: placeholder,
+            maxLength: maxLength,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            style: const TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+            decoration: BoxDecoration(
+              color: AppColors.darkBackground,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.darkBorder),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          suffix,
+          style: const TextStyle(
+            color: AppColors.darkTextSecondary,
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+      ],
     );
   }
 }

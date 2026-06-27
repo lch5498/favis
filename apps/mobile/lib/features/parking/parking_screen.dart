@@ -593,11 +593,6 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
   }
 
   Future<String?> _pickPresetName(String presetType) async {
-    final defaults = switch (presetType) {
-      _parkingPresetTypeBuilding => _defaultBuildingChoices,
-      _parkingPresetTypeFloor => _defaultFloorChoices,
-      _ => _defaultDetailChoices,
-    };
     final title = switch (presetType) {
       _parkingPresetTypeBuilding => '자주 쓰는 건물',
       _parkingPresetTypeFloor => '자주 쓰는 층수',
@@ -609,38 +604,12 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
       _ => '예: 기둥 A12',
     };
 
-    return showCupertinoModalPopup<String>(
+    return showCupertinoDialog<String>(
       context: context,
-      builder: (popupContext) => CupertinoActionSheet(
-        title: Text(title),
-        actions: [
-          for (final value in defaults)
-            CupertinoActionSheetAction(
-              onPressed: () => Navigator.of(popupContext).pop(value),
-              child: Text(value),
-            ),
-          CupertinoActionSheetAction(
-            onPressed: () async {
-              final custom = await showCupertinoDialog<String>(
-                context: popupContext,
-                builder: (_) => _TextInputDialog(
-                  title: '$title 직접 입력',
-                  placeholder: placeholder,
-                  maxLength: 40,
-                ),
-              );
-
-              if (custom != null && popupContext.mounted) {
-                Navigator.of(popupContext).pop(custom);
-              }
-            },
-            child: const Text('직접 입력'),
-          ),
-        ],
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
-        ),
+      builder: (_) => _TextInputDialog(
+        title: '$title 추가',
+        placeholder: placeholder,
+        maxLength: 40,
       ),
     );
   }
