@@ -1349,9 +1349,9 @@ class _MonthCalendar extends StatelessWidget {
   }
 }
 
-const double _monthBaseCellHeight = 88.0;
-const double _monthCellHeaderHeight = 36.0;
-const double _monthScheduleSlotHeight = 18.0;
+const double _monthBaseCellHeight = 92.0;
+const double _monthCellHeaderHeight = 40.0;
+const double _monthScheduleSlotHeight = 17.0;
 
 double _monthWeekRowHeight(int maxScheduleCount) {
   return (_monthCellHeaderHeight + maxScheduleCount * _monthScheduleSlotHeight)
@@ -1512,7 +1512,7 @@ class _DateCell extends StatelessWidget {
       onPressed: canManage ? onTapDate : null,
       child: Container(
         constraints: BoxConstraints(minHeight: minHeight),
-        padding: const EdgeInsets.fromLTRB(5, 6, 5, 6),
+        padding: const EdgeInsets.fromLTRB(5, 5, 5, 5),
         decoration: const BoxDecoration(
           border: Border(
             right: BorderSide(color: AppColors.darkBorder),
@@ -1526,7 +1526,7 @@ class _DateCell extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Container(
                 width: 24,
-                height: 22,
+                height: 20,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isToday ? CupertinoColors.systemTeal : null,
@@ -1547,10 +1547,10 @@ class _DateCell extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             ...visibleSchedules.map(
               (schedule) => Padding(
-                padding: const EdgeInsets.only(bottom: 2),
+                padding: const EdgeInsets.only(bottom: 1),
                 child: _MiniScheduleChip(
                   schedule: schedule,
                   color: _scheduleMemberColor(schedule, memberColors),
@@ -2393,18 +2393,23 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
   late final TextEditingController _dayController;
   late final TextEditingController _hourController;
   late final TextEditingController _minuteController;
+  late bool _isPm;
   String? _message;
 
   @override
   void initState() {
     super.initState();
+    final displayHour = widget.initial.hour % 12 == 0
+        ? 12
+        : widget.initial.hour % 12;
     _yearController = TextEditingController(text: '${widget.initial.year}');
     _monthController = TextEditingController(text: _two(widget.initial.month));
     _dayController = TextEditingController(text: _two(widget.initial.day));
-    _hourController = TextEditingController(text: _two(widget.initial.hour));
+    _hourController = TextEditingController(text: _two(displayHour));
     _minuteController = TextEditingController(
       text: _two(widget.initial.minute),
     );
+    _isPm = widget.initial.hour >= 12;
   }
 
   @override
@@ -2438,8 +2443,8 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
       return;
     }
 
-    if (hour < 0 || hour > 23) {
-      setState(() => _message = '시는 0부터 23까지 입력해 주세요.');
+    if (hour < 1 || hour > 12) {
+      setState(() => _message = '시는 1부터 12까지 입력해 주세요.');
       return;
     }
 
@@ -2448,7 +2453,10 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
       return;
     }
 
-    final value = DateTime(year, month, day, hour, minute);
+    final convertedHour = _isPm
+        ? (hour == 12 ? 12 : hour + 12)
+        : (hour == 12 ? 0 : hour);
+    final value = DateTime(year, month, day, convertedHour, minute);
     if (value.year != year || value.month != month || value.day != day) {
       setState(() => _message = '존재하는 날짜를 입력해 주세요.');
       return;
@@ -2524,10 +2532,31 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
               const SizedBox(height: 10),
               Row(
                 children: [
+                  CupertinoSlidingSegmentedControl<bool>(
+                    groupValue: _isPm,
+                    children: const {
+                      false: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('오전'),
+                      ),
+                      true: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('오후'),
+                      ),
+                    },
+                    onValueChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _isPm = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _NumberInputField(
                       controller: _hourController,
-                      placeholder: '15',
+                      placeholder: '3',
                       suffix: '시',
                       maxLength: 2,
                     ),
@@ -2898,7 +2927,12 @@ String _calendarTitleLabel(String title) {
   return '${String.fromCharCodes(characters.take(8))}...';
 }
 
-String _timeLabel(DateTime date) => '${_two(date.hour)}:${_two(date.minute)}';
+String _timeLabel(DateTime date) {
+  final isPm = date.hour >= 12;
+  final displayHour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+
+  return '${isPm ? '오후' : '오전'} $displayHour:${_two(date.minute)}';
+}
 
 String _hourLabel(int hour) => '$hour시';
 

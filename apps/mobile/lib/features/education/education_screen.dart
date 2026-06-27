@@ -1595,17 +1595,20 @@ class _TimeInputSheet extends StatefulWidget {
 class _TimeInputSheetState extends State<_TimeInputSheet> {
   late final TextEditingController _hourController;
   late final TextEditingController _minuteController;
+  late bool _isPm;
   String? _message;
 
   @override
   void initState() {
     super.initState();
-    _hourController = TextEditingController(
-      text: _twoDigits(widget.initial.hour),
-    );
+    final displayHour = widget.initial.hour % 12 == 0
+        ? 12
+        : widget.initial.hour % 12;
+    _hourController = TextEditingController(text: _twoDigits(displayHour));
     _minuteController = TextEditingController(
       text: _twoDigits(widget.initial.minute),
     );
+    _isPm = widget.initial.hour >= 12;
   }
 
   @override
@@ -1624,8 +1627,8 @@ class _TimeInputSheetState extends State<_TimeInputSheet> {
       return;
     }
 
-    if (hour < 0 || hour > 23) {
-      setState(() => _message = '시는 0부터 23까지 입력해 주세요.');
+    if (hour < 1 || hour > 12) {
+      setState(() => _message = '시는 1부터 12까지 입력해 주세요.');
       return;
     }
 
@@ -1634,7 +1637,11 @@ class _TimeInputSheetState extends State<_TimeInputSheet> {
       return;
     }
 
-    widget.onDone(TimeOfDayValue(hour: hour, minute: minute));
+    final convertedHour = _isPm
+        ? (hour == 12 ? 12 : hour + 12)
+        : (hour == 12 ? 0 : hour);
+
+    widget.onDone(TimeOfDayValue(hour: convertedHour, minute: minute));
   }
 
   @override
@@ -1672,10 +1679,31 @@ class _TimeInputSheetState extends State<_TimeInputSheet> {
               ),
               Row(
                 children: [
+                  CupertinoSlidingSegmentedControl<bool>(
+                    groupValue: _isPm,
+                    children: const {
+                      false: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('오전'),
+                      ),
+                      true: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('오후'),
+                      ),
+                    },
+                    onValueChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _isPm = value;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _NumberInputField(
                       controller: _hourController,
-                      placeholder: '15',
+                      placeholder: '3',
                       suffix: '시',
                       maxLength: 2,
                     ),
@@ -2030,16 +2058,20 @@ class _WeekdayRuleRow extends StatelessWidget {
           const SizedBox(height: 8),
           _RuleTimeLine(
             label: '일정',
-            startValue: rule.startsAt.toApiString(),
-            endValue: rule.endsAt.toApiString(),
+            startValue: _timeOfDayLabel(rule.startsAt),
+            endValue: _timeOfDayLabel(rule.endsAt),
             onPickStart: rule.enabled ? onPickStart : null,
             onPickEnd: rule.enabled ? onPickEnd : null,
           ),
           const SizedBox(height: 6),
           _RuleTimeLine(
             label: '차량',
-            startValue: rule.vehicleBoardingTime?.toApiString() ?? '탑승',
-            endValue: rule.vehicleDropoffTime?.toApiString() ?? '하차',
+            startValue: rule.vehicleBoardingTime == null
+                ? '탑승'
+                : _timeOfDayLabel(rule.vehicleBoardingTime!),
+            endValue: rule.vehicleDropoffTime == null
+                ? '하차'
+                : _timeOfDayLabel(rule.vehicleDropoffTime!),
             onPickStart: rule.enabled ? onPickBoarding : null,
             onPickEnd: rule.enabled ? onPickDropoff : null,
             onClearStart: rule.vehicleBoardingTime != null
@@ -2125,16 +2157,20 @@ class _MonthlyRuleRow extends StatelessWidget {
           const SizedBox(height: 8),
           _RuleTimeLine(
             label: '일정',
-            startValue: rule.startsAt.toApiString(),
-            endValue: rule.endsAt.toApiString(),
+            startValue: _timeOfDayLabel(rule.startsAt),
+            endValue: _timeOfDayLabel(rule.endsAt),
             onPickStart: rule.enabled ? onPickStart : null,
             onPickEnd: rule.enabled ? onPickEnd : null,
           ),
           const SizedBox(height: 6),
           _RuleTimeLine(
             label: '차량',
-            startValue: rule.vehicleBoardingTime?.toApiString() ?? '탑승',
-            endValue: rule.vehicleDropoffTime?.toApiString() ?? '하차',
+            startValue: rule.vehicleBoardingTime == null
+                ? '탑승'
+                : _timeOfDayLabel(rule.vehicleBoardingTime!),
+            endValue: rule.vehicleDropoffTime == null
+                ? '하차'
+                : _timeOfDayLabel(rule.vehicleDropoffTime!),
             onPickStart: rule.enabled ? onPickBoarding : null,
             onPickEnd: rule.enabled ? onPickDropoff : null,
             onClearStart: rule.vehicleBoardingTime != null
@@ -2674,8 +2710,12 @@ class _EducationScheduleSummary {
     required List<int> weekdays,
     required EducationWeeklySchedule schedule,
   }) {
-    final boardingTime = schedule.vehicleBoardingTime?.toApiString();
-    final dropoffTime = schedule.vehicleDropoffTime?.toApiString();
+    final boardingTime = schedule.vehicleBoardingTime == null
+        ? null
+        : _timeOfDayLabel(schedule.vehicleBoardingTime!);
+    final dropoffTime = schedule.vehicleDropoffTime == null
+        ? null
+        : _timeOfDayLabel(schedule.vehicleDropoffTime!);
     final vehicleParts = [
       if (boardingTime != null) '승차 $boardingTime',
       if (dropoffTime != null) '하차 $dropoffTime',
@@ -2683,7 +2723,7 @@ class _EducationScheduleSummary {
 
     return _EducationScheduleSummary(
       title:
-          '${_weekdayGroupText(weekdays)} ${schedule.startsAt.toApiString()}-${schedule.endsAt.toApiString()}',
+          '${_weekdayGroupText(weekdays)} ${_timeOfDayLabel(schedule.startsAt)}-${_timeOfDayLabel(schedule.endsAt)}',
       vehicleText: vehicleParts.isEmpty ? null : vehicleParts.join(' · '),
     );
   }
@@ -2692,8 +2732,12 @@ class _EducationScheduleSummary {
     required List<EducationMonthlySchedule> schedules,
     required EducationMonthlySchedule schedule,
   }) {
-    final boardingTime = schedule.vehicleBoardingTime?.toApiString();
-    final dropoffTime = schedule.vehicleDropoffTime?.toApiString();
+    final boardingTime = schedule.vehicleBoardingTime == null
+        ? null
+        : _timeOfDayLabel(schedule.vehicleBoardingTime!);
+    final dropoffTime = schedule.vehicleDropoffTime == null
+        ? null
+        : _timeOfDayLabel(schedule.vehicleDropoffTime!);
     final vehicleParts = [
       if (boardingTime != null) '승차 $boardingTime',
       if (dropoffTime != null) '하차 $dropoffTime',
@@ -2707,12 +2751,19 @@ class _EducationScheduleSummary {
 
     return _EducationScheduleSummary(
       title:
-          '매월 $scheduleText ${schedule.startsAt.toApiString()}-${schedule.endsAt.toApiString()}',
+          '매월 $scheduleText ${_timeOfDayLabel(schedule.startsAt)}-${_timeOfDayLabel(schedule.endsAt)}',
       vehicleText: vehicleParts.isEmpty ? null : vehicleParts.join(' · '),
     );
   }
 }
 
 int _minutes(TimeOfDayValue value) => value.hour * 60 + value.minute;
+
+String _timeOfDayLabel(TimeOfDayValue value) {
+  final isPm = value.hour >= 12;
+  final displayHour = value.hour % 12 == 0 ? 12 : value.hour % 12;
+
+  return '${isPm ? '오후' : '오전'} $displayHour:${_twoDigits(value.minute)}';
+}
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');

@@ -459,13 +459,22 @@ class _AppMark extends StatelessWidget {
           ],
         ),
         alignment: Alignment.center,
-        child: const Text(
-          'H',
-          style: TextStyle(
-            color: AppColors.darkTextPrimary,
-            fontSize: 30,
-            fontWeight: FontWeight.w800,
-          ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.asset(
+          'assets/branding/favis-icon-calendar-source.png',
+          width: 64,
+          height: 64,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return const Text(
+              'F',
+              style: TextStyle(
+                color: AppColors.darkTextPrimary,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+              ),
+            );
+          },
         ),
       ),
     );
@@ -487,16 +496,40 @@ class _LoginTitle extends StatelessWidget {
             fontSize: 38,
             fontWeight: FontWeight.w800,
             height: 1.05,
+            letterSpacing: 0,
           ),
         ),
         SizedBox(height: 12),
         Text(
-          '가족 일정과 주차 기록을 간단하게 관리하세요.',
+          '우리 가족의 작은 비서',
+          style: TextStyle(
+            color: AppColors.darkTextPrimary,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+            letterSpacing: 0,
+          ),
+        ),
+        SizedBox(height: 12),
+        Text(
+          '아이 일정, 학교와 학원 반복 일정, 주차 위치까지 가족 기준으로 차곡차곡 정리해요.',
           style: TextStyle(
             color: AppColors.darkTextSecondary,
             fontSize: 17,
             height: 1.45,
             fontWeight: FontWeight.w500,
+            letterSpacing: 0,
+          ),
+        ),
+        SizedBox(height: 18),
+        Text(
+          'Family + Javis, 파비스',
+          style: TextStyle(
+            color: CupertinoColors.systemTeal,
+            fontSize: 14,
+            height: 1.25,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
           ),
         ),
       ],
