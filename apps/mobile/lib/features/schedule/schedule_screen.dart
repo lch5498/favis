@@ -3,7 +3,6 @@ import 'package:flutter/cupertino.dart';
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
 import '../../shared/member_filter.dart';
-import '../../shared/refreshable_scroll_view.dart';
 
 enum _CalendarMode { day, week, month }
 
@@ -296,29 +295,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> _deleteSchedule(AppSchedule schedule) async {
-    final confirmed = await showCupertinoDialog<bool>(
-      context: context,
-      builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text('일정 삭제'),
-        content: Text('${schedule.title} 일정을 삭제할까요?'),
-        actions: [
-          CupertinoDialogAction(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
-          ),
-          CupertinoDialogAction(
-            isDestructiveAction: true,
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
     await _runTask(() async {
       await _apiClient.deleteSchedule(
         widget.sessionToken,
@@ -342,7 +318,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     if (action == 'edit') {
       await _openScheduleForm(schedule: schedule);
-    } else if (action == 'delete') {
+    } else if (action == 'deleteConfirmed') {
       await _deleteSchedule(schedule);
     }
   }
@@ -372,72 +348,106 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             : null,
       ),
       child: SafeArea(
-        child: RefreshableScrollView(
-          onRefresh: _loadSchedules,
-          padding: const EdgeInsets.fromLTRB(0, 18, 0, 32),
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _ScheduleHeader(
-                mode: _mode,
-                rangeLabel: _rangeLabel(_rangeStart, _rangeEnd, _mode),
-                canManage: dashboard?.canManage ?? false,
-                members: dashboard?.members ?? const [],
-                hiddenMemberIds: _hiddenMemberIds,
-                memberColors: memberColors,
-                onToggleMemberFilter: _toggleMemberFilter,
-                onModeChanged: _setMode,
-                onPrevious: () => _moveRange(-1),
-                onNext: () => _moveRange(1),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(
+            parent: BouncingScrollPhysics(),
+          ),
+          slivers: [
+            CupertinoSliverRefreshControl(onRefresh: _loadSchedules),
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 18, 0, 32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _ScheduleHeader(
+                        mode: _mode,
+                        rangeLabel: _rangeLabel(_rangeStart, _rangeEnd, _mode),
+                        canManage: dashboard?.canManage ?? false,
+                        members: dashboard?.members ?? const [],
+                        hiddenMemberIds: _hiddenMemberIds,
+                        memberColors: memberColors,
+                        onToggleMemberFilter: _toggleMemberFilter,
+                        onModeChanged: _setMode,
+                        onPrevious: () => _moveRange(-1),
+                        onNext: () => _moveRange(1),
+                      ),
+                    ),
+                    if (_message != null) ...[
+                      const SizedBox(height: 14),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: _InlineMessage(message: _message!),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    if (_isLoading && dashboard == null)
+                      const Expanded(
+                        child: Center(child: CupertinoActivityIndicator()),
+                      )
+                    else if (dashboard == null)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _EmptyState(
+                            icon: CupertinoIcons.calendar,
+                            title: '일정을 불러오지 못했습니다.',
+                            subtitle: '잠시 후 다시 시도해 주세요.',
+                            actionLabel: '다시 불러오기',
+                            onPressed: _loadSchedules,
+                          ),
+                        ),
+                      )
+                    else if (dashboard.members.isEmpty)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _EmptyState(
+                            icon: CupertinoIcons.person_2,
+                            title: '가족 구성원이 없습니다.',
+                            subtitle: '가족 구성원이 있어야 누구 일정인지 지정할 수 있습니다.',
+                            actionLabel: '다시 불러오기',
+                            onPressed: _loadSchedules,
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child: _mode == _CalendarMode.month
+                            ? SingleChildScrollView(
+                                child: _CalendarBoard(
+                                  mode: _mode,
+                                  rangeStart: _rangeStart,
+                                  rangeEnd: _rangeEnd,
+                                  anchorDate: _anchorDate,
+                                  schedules: schedules,
+                                  memberColors: memberColors,
+                                  canManage: dashboard.canManage,
+                                  onTapDate: (date) =>
+                                      _openScheduleForm(initialDate: date),
+                                  onTapSchedule: _openScheduleDetail,
+                                ),
+                              )
+                            : _CalendarBoard(
+                                mode: _mode,
+                                rangeStart: _rangeStart,
+                                rangeEnd: _rangeEnd,
+                                anchorDate: _anchorDate,
+                                schedules: schedules,
+                                memberColors: memberColors,
+                                canManage: dashboard.canManage,
+                                onTapDate: (date) =>
+                                    _openScheduleForm(initialDate: date),
+                                onTapSchedule: _openScheduleDetail,
+                              ),
+                      ),
+                  ],
+                ),
               ),
             ),
-            if (_message != null) ...[
-              const SizedBox(height: 14),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _InlineMessage(message: _message!),
-              ),
-            ],
-            const SizedBox(height: 18),
-            if (_isLoading && dashboard == null)
-              const Padding(
-                padding: EdgeInsets.only(top: 72),
-                child: Center(child: CupertinoActivityIndicator()),
-              )
-            else if (dashboard == null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _EmptyState(
-                  icon: CupertinoIcons.calendar,
-                  title: '일정을 불러오지 못했습니다.',
-                  subtitle: '잠시 후 다시 시도해 주세요.',
-                  actionLabel: '다시 불러오기',
-                  onPressed: _loadSchedules,
-                ),
-              )
-            else if (dashboard.members.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _EmptyState(
-                  icon: CupertinoIcons.person_2,
-                  title: '가족 구성원이 없습니다.',
-                  subtitle: '가족 구성원이 있어야 누구 일정인지 지정할 수 있습니다.',
-                  actionLabel: '다시 불러오기',
-                  onPressed: _loadSchedules,
-                ),
-              )
-            else
-              _CalendarBoard(
-                mode: _mode,
-                rangeStart: _rangeStart,
-                rangeEnd: _rangeEnd,
-                anchorDate: _anchorDate,
-                schedules: schedules,
-                memberColors: memberColors,
-                canManage: dashboard.canManage,
-                onTapDate: (date) => _openScheduleForm(initialDate: date),
-                onTapSchedule: _openScheduleDetail,
-              ),
           ],
         ),
       ),
@@ -677,6 +687,8 @@ class _CalendarBoard extends StatelessWidget {
 }
 
 const double _calendarHourRowHeight = 74.0;
+const double _calendarGridHeight = _calendarHourRowHeight * 24;
+const double _calendarBottomScrollPadding = 96.0;
 const double _dayTimeColumnWidth = 54.0;
 const double _weekTimeColumnWidth = 32.0;
 const String _educationProgramNoneValue = '__none__';
@@ -750,12 +762,11 @@ class _DayCalendarState extends State<_DayCalendar> {
       child: Column(
         children: [
           _CalendarTitleBar(title: _dayLabel(widget.date)),
-          SizedBox(
-            height: 620,
+          Expanded(
             child: SingleChildScrollView(
               controller: _scrollController,
               child: SizedBox(
-                height: _calendarHourRowHeight * 24,
+                height: _calendarGridHeight + _calendarBottomScrollPadding,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -869,12 +880,11 @@ class _WeekCalendarState extends State<_WeekCalendar> {
             ],
           ),
           Container(height: 1, color: AppColors.darkBorder),
-          SizedBox(
-            height: 620,
+          Expanded(
             child: SingleChildScrollView(
               controller: _scrollController,
               child: SizedBox(
-                height: _calendarHourRowHeight * 24,
+                height: _calendarGridHeight + _calendarBottomScrollPadding,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -911,7 +921,7 @@ class _TimeAxis extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      height: _calendarHourRowHeight * 24,
+      height: _calendarGridHeight,
       child: Stack(
         children: [
           for (var hour = 0; hour <= 23; hour++)
@@ -1600,6 +1610,31 @@ class _ScheduleDetailScreen extends StatelessWidget {
   final AppSchedule schedule;
   final bool canManage;
 
+  Future<void> _confirmDelete(BuildContext context) async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: const Text('일정 삭제'),
+        content: Text('${schedule.title} 일정을 삭제할까요?'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      Navigator.of(context).pop('deleteConfirmed');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return CupertinoPageScaffold(
@@ -1717,17 +1752,20 @@ class _ScheduleDetailScreen extends StatelessWidget {
             if (canManage) ...[
               const SizedBox(height: 18),
               SizedBox(
-                height: 50,
+                height: 56,
                 child: CupertinoButton(
                   color: AppColors.darkSurfaceElevated,
                   borderRadius: BorderRadius.circular(14),
-                  onPressed: () => Navigator.of(context).pop('delete'),
+                  minimumSize: const Size.fromHeight(56),
+                  padding: EdgeInsets.zero,
+                  onPressed: () => _confirmDelete(context),
                   child: const Text(
                     '일정 삭제',
                     style: TextStyle(
                       color: CupertinoColors.destructiveRed,
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
+                      height: 1.2,
                       letterSpacing: 0,
                     ),
                   ),
