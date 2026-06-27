@@ -1291,6 +1291,9 @@ class _MonthCalendar extends StatelessWidget {
       42,
       (index) => gridStart.add(Duration(days: index)),
     );
+    final weeks = List.generate(6, (weekIndex) {
+      return days.skip(weekIndex * 7).take(7).toList();
+    });
 
     return Container(
       decoration: _calendarDecoration,
@@ -1305,34 +1308,54 @@ class _MonthCalendar extends StatelessWidget {
             ),
           ),
           Container(height: 1, color: AppColors.darkBorder),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              mainAxisExtent: 116,
-            ),
-            itemCount: days.length,
-            itemBuilder: (context, index) {
-              final day = days[index];
+          ...weeks.map((week) {
+            final schedulesByDay = {
+              for (final day in week) day: _schedulesForDay(schedules, day),
+            };
+            final maxScheduleCount = schedulesByDay.values.fold<int>(
+              0,
+              (maxCount, daySchedules) => daySchedules.length > maxCount
+                  ? daySchedules.length
+                  : maxCount,
+            );
+            final rowHeight = _monthWeekRowHeight(maxScheduleCount);
 
-              return _DateCell(
-                date: day,
-                schedules: _schedulesForDay(schedules, day),
-                memberColors: memberColors,
-                canManage: canManage,
-                isInCurrentMonth: day.month == monthStart.month,
-                maxVisibleSchedules: 3,
-                minHeight: 116,
-                onTapDate: () => onTapDate(day),
-                onTapSchedule: onTapSchedule,
-              );
-            },
-          ),
+            return SizedBox(
+              height: rowHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: week.map((day) {
+                  return Expanded(
+                    child: _DateCell(
+                      date: day,
+                      schedules: schedulesByDay[day] ?? const [],
+                      memberColors: memberColors,
+                      canManage: canManage,
+                      isInCurrentMonth: day.month == monthStart.month,
+                      maxVisibleSchedules: maxScheduleCount,
+                      minHeight: rowHeight,
+                      onTapDate: () => onTapDate(day),
+                      onTapSchedule: onTapSchedule,
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          }),
         ],
       ),
     );
   }
+}
+
+const double _monthBaseCellHeight = 88.0;
+const double _monthCellHeaderHeight = 36.0;
+const double _monthScheduleSlotHeight = 18.0;
+
+double _monthWeekRowHeight(int maxScheduleCount) {
+  return (_monthCellHeaderHeight + maxScheduleCount * _monthScheduleSlotHeight)
+      .clamp(_monthBaseCellHeight, double.infinity)
+      .toDouble();
 }
 
 class _CalendarTitleBar extends StatelessWidget {
