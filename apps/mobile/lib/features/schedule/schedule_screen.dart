@@ -198,7 +198,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final selectedFamilyId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('가족 전환'),
+        title: Text('가족 전환'),
         actions: widget.families
             .map(
               (family) => CupertinoActionSheetAction(
@@ -210,7 +210,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -386,7 +386,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     ],
                     const SizedBox(height: 18),
                     if (_isLoading && dashboard == null)
-                      const Expanded(
+                      Expanded(
                         child: Center(child: CupertinoActivityIndicator()),
                       )
                     else if (dashboard == null)
@@ -478,7 +478,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           inherit: false,
           color: AppColors.darkTextPrimary,
           fontSize: 17,
@@ -500,7 +500,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 inherit: false,
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
@@ -546,7 +546,7 @@ class _ScheduleHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
       ),
       child: Column(
@@ -596,7 +596,7 @@ class _ScheduleHeader extends StatelessWidget {
                 child: Text(
                   rangeLabel,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -614,7 +614,7 @@ class _ScheduleHeader extends StatelessWidget {
           ),
           if (!canManage) ...[
             const SizedBox(height: 10),
-            const Text(
+            Text(
               '구성원 권한은 조회만 가능합니다.',
               style: TextStyle(
                 color: AppColors.darkTextSecondary,
@@ -871,7 +871,7 @@ class _WeekCalendarState extends State<_WeekCalendar> {
               Container(
                 width: _weekTimeColumnWidth,
                 height: 62,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
                     right: BorderSide(color: AppColors.darkBorder),
                   ),
@@ -934,7 +934,7 @@ class _TimeAxis extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.only(top: 8, right: 4),
                 alignment: Alignment.topRight,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
                     top: BorderSide(color: AppColors.darkBorder),
                     right: BorderSide(color: AppColors.darkBorder),
@@ -942,7 +942,7 @@ class _TimeAxis extends StatelessWidget {
                 ),
                 child: Text(
                   _hourLabel(hour),
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextMuted,
                     fontSize: 8,
                     fontWeight: FontWeight.w700,
@@ -1003,10 +1003,10 @@ class _TimedDayColumn extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border(
-                        top: const BorderSide(color: AppColors.darkBorder),
-                        right: const BorderSide(color: AppColors.darkBorder),
+                        top: BorderSide(color: AppColors.darkBorder),
+                        right: BorderSide(color: AppColors.darkBorder),
                         left: showLeftBorder
-                            ? const BorderSide(color: AppColors.darkBorder)
+                            ? BorderSide(color: AppColors.darkBorder)
                             : BorderSide.none,
                       ),
                     ),
@@ -1381,7 +1381,7 @@ class _CalendarTitleBar extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
@@ -1407,7 +1407,7 @@ class _WeekDayHeader extends StatelessWidget {
     return Container(
       height: 62,
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(right: BorderSide(color: AppColors.darkBorder)),
       ),
       child: Column(
@@ -1466,7 +1466,7 @@ class _MonthWeekdayHeader extends StatelessWidget {
       child: Center(
         child: Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkTextSecondary,
             fontSize: 12,
             fontWeight: FontWeight.w800,
@@ -1513,7 +1513,7 @@ class _DateCell extends StatelessWidget {
       child: Container(
         constraints: BoxConstraints(minHeight: minHeight),
         padding: const EdgeInsets.fromLTRB(5, 5, 5, 5),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
             right: BorderSide(color: AppColors.darkBorder),
             bottom: BorderSide(color: AppColors.darkBorder),
@@ -1564,7 +1564,7 @@ class _DateCell extends StatelessWidget {
                 '+$hiddenCount',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.darkTextSecondary,
                   fontSize: 9,
                   fontWeight: FontWeight.w800,
@@ -1638,17 +1638,17 @@ class _ScheduleDetailScreen extends StatelessWidget {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text('일정 삭제'),
+        title: Text('일정 삭제'),
         content: Text('${schedule.title} 일정을 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
+            child: Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -1664,12 +1664,12 @@ class _ScheduleDetailScreen extends StatelessWidget {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('일정 상세'),
+        middle: Text('일정 상세'),
         trailing: canManage
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: () => Navigator.of(context).pop('edit'),
-                child: const Text('수정'),
+                child: Text('수정'),
               )
             : null,
       ),
@@ -1691,7 +1691,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                     schedule.memberNickname,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: CupertinoColors.systemTeal,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -1701,7 +1701,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     schedule.title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextPrimary,
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
@@ -1713,7 +1713,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                     const SizedBox(height: 14),
                     Text(
                       schedule.content!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.darkTextSecondary,
                         fontSize: 16,
                         height: 1.45,
@@ -1783,7 +1783,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   minimumSize: const Size.fromHeight(56),
                   padding: EdgeInsets.zero,
                   onPressed: () => _confirmDelete(context),
-                  child: const Text(
+                  child: Text(
                     '일정 삭제',
                     style: TextStyle(
                       color: CupertinoColors.destructiveRed,
@@ -1846,7 +1846,7 @@ class _DetailRow extends StatelessWidget {
             width: 86,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextSecondary,
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
@@ -1858,7 +1858,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 15,
                 height: 1.35,
@@ -1933,7 +1933,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     final selectedId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('가족 구성원'),
+        title: Text('가족 구성원'),
         actions: widget.members
             .map(
               (member) => CupertinoActionSheetAction(
@@ -1945,7 +1945,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -1969,13 +1969,13 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     final selectedId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('학교/학원 템플릿'),
+        title: Text('학교/학원 템플릿'),
         actions: [
           CupertinoActionSheetAction(
             isDefaultAction: _educationProgramId == null,
             onPressed: () =>
                 Navigator.of(popupContext).pop(_educationProgramNoneValue),
-            child: const Text('선택 안 함'),
+            child: Text('선택 안 함'),
           ),
           ...educationPrograms.map(
             (program) => CupertinoActionSheetAction(
@@ -1987,7 +1987,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -2129,12 +2129,12 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: _submit,
-          child: const Text('저장'),
+          child: Text('저장'),
         ),
       ),
       child: SafeArea(
@@ -2161,7 +2161,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                   controller: _titleController,
                   placeholder: '제목',
                   maxLength: 80,
-                  style: const TextStyle(fontSize: 17, letterSpacing: 0),
+                  style: TextStyle(fontSize: 17, letterSpacing: 0),
                 ),
                 _FormDivider(),
                 CupertinoTextField.borderless(
@@ -2169,7 +2169,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                   placeholder: '내용',
                   maxLines: 4,
                   maxLength: 1000,
-                  style: const TextStyle(fontSize: 16, letterSpacing: 0),
+                  style: TextStyle(fontSize: 16, letterSpacing: 0),
                 ),
               ],
             ),
@@ -2268,7 +2268,7 @@ class _PickerRow extends StatelessWidget {
               width: 82,
               child: Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.darkTextPrimary,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -2282,7 +2282,7 @@ class _PickerRow extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.systemBlue,
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
@@ -2328,7 +2328,7 @@ class _OptionalTimeRow extends StatelessWidget {
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.darkTextPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
@@ -2343,7 +2343,7 @@ class _OptionalTimeRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.right,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.darkTextSecondary,
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -2488,12 +2488,12 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: widget.onCancel,
-                      child: const Text('취소'),
+                      child: Text('취소'),
                     ),
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: _submit,
-                      child: const Text('완료'),
+                      child: Text('완료'),
                     ),
                   ],
                 ),
@@ -2576,7 +2576,7 @@ class _DateTimeInputSheetState extends State<_DateTimeInputSheet> {
                 const SizedBox(height: 12),
                 Text(
                   _message!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkDanger,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -2618,7 +2618,7 @@ class _NumberInputField extends StatelessWidget {
             textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -2634,7 +2634,7 @@ class _NumberInputField extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           suffix,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkTextSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -2677,7 +2677,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -2688,7 +2688,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextSecondary,
               fontSize: 14,
               height: 1.35,
@@ -2705,7 +2705,7 @@ class _EmptyState extends StatelessWidget {
                 onPressed: onPressed,
                 child: Text(
                   actionLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
@@ -2737,7 +2737,7 @@ class _InlineMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,
@@ -2809,7 +2809,7 @@ DateTime _defaultStartAt(DateTime initialDate) {
 
 BoxDecoration get _calendarDecoration => BoxDecoration(
   color: AppColors.darkSurface,
-  border: const Border(
+  border: Border(
     top: BorderSide(color: AppColors.darkBorder),
     bottom: BorderSide(color: AppColors.darkBorder),
   ),
@@ -2825,7 +2825,9 @@ Map<String, MemberFilterColor> _memberFilterColors(List<FamilyMember> members) {
   return {
     for (var index = 0; index < members.length; index++)
       members[index].id:
-          MemberFilterColor.values[index % MemberFilterColor.values.length],
+          MemberFilterColor.fromValue(members[index].color) ??
+          MemberFilterColor.selectable[index %
+              MemberFilterColor.selectable.length],
   };
 }
 

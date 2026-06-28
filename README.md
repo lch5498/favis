@@ -1,19 +1,19 @@
 # 파비스 (Favis)
 
-가족만 사용하는 Favis 앱입니다. iOS Flutter 앱은 하단 탭으로 홈, 일정, 주차를 구분합니다.
+가족만 사용하는 Favis 앱입니다. Flutter 앱은 iOS와 Android에서 하단 탭으로 홈, 일정, 주차를 구분합니다.
 
 - 홈: 오늘 일정과 현재 주차 위치 브리핑
 - 일정: 가족 구성원별 학원 일정 관리
 - 주차: 차량과 주차 위치 관리
 
-백엔드는 Supabase + Next.js API 서버를 Vercel에 배포하는 구조로 구성하고, 앱은 Flutter iOS 기반으로 개발합니다.
+백엔드는 Supabase + Next.js API 서버를 Vercel에 배포하는 구조로 구성하고, 앱은 Flutter 기반으로 iOS와 Android를 지원합니다.
 
 ## 폴더 구조
 
 ```text
 apps/
   api/       Next.js App Router 기반 백엔드 API
-  mobile/    Flutter iOS 앱
+  mobile/    Flutter iOS/Android 앱
 packages/
   contracts/ API 요청/응답 스키마
 supabase/
@@ -35,10 +35,12 @@ harness/
 - Flutter 3.41 이상
 - Xcode
 - iOS Simulator
+- Android Studio
+- Android SDK
 - Vercel CLI 또는 `npx vercel`
 - Supabase 프로젝트
 
-현재 프로젝트는 macOS에서 iOS 우선으로 실행하는 흐름을 기준으로 작성되어 있습니다.
+현재 프로젝트는 macOS에서 iOS 우선으로 개발을 시작했고, Android 빌드 타겟도 함께 구성되어 있습니다.
 
 ## 현재 완료된 상태
 
@@ -69,6 +71,7 @@ harness/
 - 홈 화면에서 오늘 일정과 현재 주차 위치 브리핑 카드 구현
 - 홈 브리핑 카드 클릭 시 일정 또는 주차 탭으로 이동
 - Flutter 앱을 iOS Simulator와 실제 iPhone 네이티브 환경에서 실행 확인
+- Flutter Android debug APK 빌드 확인
 - 앱 UI는 Flutter Cupertino 위젯 중심으로 정리
 
 현재 Production API 주소는 아래와 같습니다.
@@ -234,6 +237,78 @@ flutter run -d "iPhone 이름 또는 device id" \
 ```
 
 실제 iPhone은 Mac의 `localhost`를 바라볼 수 없습니다. 실기기에서는 Vercel Production API를 사용하거나, 같은 Wi-Fi에서 Mac의 내부 IP 주소를 `API_BASE_URL`로 넘겨야 합니다.
+
+### Android Emulator 또는 Android 기기에서 실행하기
+
+Android 실행을 위해서는 Android Studio와 Android SDK가 필요합니다.
+
+1. Android Studio 설치
+2. Android Studio에서 `Settings > Languages & Frameworks > Android SDK` 확인
+3. SDK Platform과 Android SDK Command-line Tools 설치
+4. Android Emulator를 만들거나 실제 Android 기기를 USB 디버깅으로 연결
+
+Flutter에서 Android toolchain 상태를 확인합니다.
+
+```bash
+flutter doctor -v
+flutter devices
+```
+
+카카오 개발자 콘솔의 Android 플랫폼에는 아래 패키지명을 등록합니다.
+
+```text
+com.family.favis.mobile
+```
+
+Android 카카오 로그인은 패키지명 외에 키 해시도 필요합니다. 개발용 debug keystore 기준 키 해시는 아래처럼 확인할 수 있습니다.
+
+```bash
+cd /Users/changhwanlee/Documents/project/favis/apps/mobile
+keytool -exportcert -alias androiddebugkey \
+  -keystore ~/.android/debug.keystore \
+  -storepass android -keypass android \
+  | openssl sha1 -binary | openssl base64
+```
+
+출력된 값을 카카오 개발자 콘솔의 Android 플랫폼 `키 해시`에 추가합니다. 나중에 Play Store 배포용 release keystore를 만들면 release keystore의 키 해시도 별도로 추가해야 합니다.
+
+Android Emulator에서 로컬 API 서버를 바라볼 때는 Mac의 `localhost` 대신 `10.0.2.2`를 사용합니다.
+
+```bash
+cd /Users/changhwanlee/Documents/project/favis/apps/mobile
+flutter run -d <android-device-id> \
+  --dart-define=KAKAO_NATIVE_APP_KEY=여기에_카카오_NATIVE_APP_KEY \
+  --dart-define=API_BASE_URL=http://10.0.2.2:3000
+```
+
+실제 Android 기기는 Mac의 `localhost`를 직접 볼 수 없습니다. 실제 기기에서는 Vercel Production API를 쓰는 것이 가장 간단합니다.
+
+```bash
+flutter run -d <android-device-id> \
+  --dart-define=KAKAO_NATIVE_APP_KEY=여기에_카카오_NATIVE_APP_KEY \
+  --dart-define=API_BASE_URL=https://api-one-ruby-46.vercel.app
+```
+
+Android debug APK만 빌드하려면 아래 명령을 사용합니다.
+
+```bash
+flutter build apk --debug \
+  --dart-define=KAKAO_NATIVE_APP_KEY=여기에_카카오_NATIVE_APP_KEY \
+  --dart-define=API_BASE_URL=https://api-one-ruby-46.vercel.app
+```
+
+빌드 결과물은 아래에 생성됩니다.
+
+```text
+apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+```
+
+현재 Android 앱 설정:
+
+- Application ID: `com.family.favis.mobile`
+- 앱 이름: `파비스`
+- 카카오 redirect scheme: `kakao{KAKAO_NATIVE_APP_KEY}`
+- Android manifest는 `--dart-define=KAKAO_NATIVE_APP_KEY=...` 값을 읽어 카카오 콜백 scheme에 반영합니다.
 
 ## 전체 프로젝트 설치
 

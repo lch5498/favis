@@ -166,6 +166,22 @@ class ApiClient {
     return FamilyMember.fromJson(json['member'] as Map<String, Object?>);
   }
 
+  Future<FamilyMember> updateFamilyMemberColor(
+    String sessionToken, {
+    required String familyId,
+    required String memberId,
+    required String color,
+  }) async {
+    final json = await _requestJson(
+      'PATCH',
+      '/api/mobile/families/$familyId/members/$memberId',
+      bearerToken: sessionToken,
+      body: {'color': color},
+    );
+
+    return FamilyMember.fromJson(json['member'] as Map<String, Object?>);
+  }
+
   Future<void> deleteFamilyMember(
     String sessionToken, {
     required String familyId,
@@ -740,6 +756,7 @@ class FamilyMember {
     required this.userId,
     required this.nickname,
     required this.role,
+    required this.color,
     required this.createdAt,
     required this.userNickname,
   });
@@ -749,6 +766,7 @@ class FamilyMember {
   final String? userId;
   final String nickname;
   final String role;
+  final String? color;
   final String createdAt;
   final String userNickname;
 
@@ -764,6 +782,7 @@ class FamilyMember {
       userId: json['user_id'] as String?,
       nickname: nickname,
       role: json['role'] as String,
+      color: json['color'] as String?,
       createdAt: json['created_at'] as String,
       userNickname: user?['nickname'] as String? ?? nickname,
     );

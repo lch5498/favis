@@ -9,18 +9,18 @@ class AppTheme {
   const AppTheme._();
 
   static const darkTokens = AppThemeExtension(
-    background: AppColors.darkBackground,
-    surface: AppColors.darkSurface,
-    surfaceElevated: AppColors.darkSurfaceElevated,
-    primary: AppColors.darkPrimary,
-    primarySoft: AppColors.darkPrimarySoft,
-    textPrimary: AppColors.darkTextPrimary,
-    textSecondary: AppColors.darkTextSecondary,
-    textMuted: AppColors.darkTextMuted,
-    border: AppColors.darkBorder,
-    success: AppColors.darkSuccess,
-    warning: AppColors.darkWarning,
-    danger: AppColors.darkDanger,
+    background: AppColors.darkBackgroundValue,
+    surface: AppColors.darkSurfaceValue,
+    surfaceElevated: AppColors.darkSurfaceElevatedValue,
+    primary: AppColors.darkPrimaryValue,
+    primarySoft: AppColors.darkPrimarySoftValue,
+    textPrimary: AppColors.darkTextPrimaryValue,
+    textSecondary: AppColors.darkTextSecondaryValue,
+    textMuted: AppColors.darkTextMutedValue,
+    border: AppColors.darkBorderValue,
+    success: AppColors.darkSuccessValue,
+    warning: AppColors.darkWarningValue,
+    danger: AppColors.darkDangerValue,
   );
 
   static const lightTokens = AppThemeExtension(
@@ -88,11 +88,11 @@ class AppTheme {
           error: tokens.danger,
         ).copyWith(
           onPrimary: brightness == Brightness.dark
-              ? AppColors.darkBackground
+              ? AppColors.darkBackgroundValue
               : AppColors.lightSurface,
           onSurface: tokens.textPrimary,
           onError: brightness == Brightness.dark
-              ? AppColors.darkBackground
+              ? AppColors.darkBackgroundValue
               : AppColors.lightSurface,
           surfaceContainerHighest: tokens.surfaceElevated,
           outline: tokens.border,

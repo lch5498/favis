@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
+import '../../core/theme_preference.dart';
 import '../../design_system/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -87,17 +88,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (dialogContext) {
         return CupertinoAlertDialog(
-          title: const Text('로그아웃할까요?'),
-          content: const Text('다시 사용하려면 카카오 로그인이 필요합니다.'),
+          title: Text('로그아웃할까요?'),
+          content: Text('다시 사용하려면 카카오 로그인이 필요합니다.'),
           actions: [
             CupertinoDialogAction(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('취소'),
+              child: Text('취소'),
             ),
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('로그아웃'),
+              child: Text('로그아웃'),
             ),
           ],
         );
@@ -123,17 +124,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (dialogContext) {
         return CupertinoAlertDialog(
-          title: const Text('탈퇴할까요?'),
-          content: const Text('모든 데이터가 삭제되며 복구되지 않습니다. 정말 탈퇴할까요?'),
+          title: Text('탈퇴할까요?'),
+          content: Text('모든 데이터가 삭제되며 복구되지 않습니다. 정말 탈퇴할까요?'),
           actions: [
             CupertinoDialogAction(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('취소'),
+              child: Text('취소'),
             ),
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('탈퇴하기'),
+              child: Text('탈퇴하기'),
             ),
           ],
         );
@@ -175,17 +176,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themePreferenceController = ThemePreferenceScope.of(context);
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('프로필'),
+        middle: Text('프로필'),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(44, 32),
           onPressed: _isSaving ? null : _save,
           child: _isSaving
               ? const CupertinoActivityIndicator()
-              : const Text(
+              : Text(
                   '저장',
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
@@ -198,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
           children: [
-            const Text(
+            Text(
               '가족에게 보일 이름',
               style: TextStyle(
                 color: AppColors.darkTextPrimary,
@@ -209,7 +212,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               '카카오 계정 이름과 별개로 파비스 안에서만 사용하는 이름입니다.',
               style: TextStyle(
                 color: AppColors.darkTextSecondary,
@@ -228,7 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               placeholder: '닉네임',
               textInputAction: TextInputAction.done,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -245,6 +248,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 14),
               _ProfileMessage(message: _message!),
             ],
+            const SizedBox(height: 28),
+            _ThemePreferenceSelector(controller: themePreferenceController),
             const SizedBox(height: 34),
             if (widget.onLogout != null) ...[
               _ProfileTextAction(
@@ -257,6 +262,81 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: '탈퇴하기',
               isDestructive: true,
               onPressed: _isSaving ? null : _confirmDeleteAccount,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePreferenceSelector extends StatelessWidget {
+  const _ThemePreferenceSelector({required this.controller});
+
+  final ThemePreferenceController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '화면 모드',
+              style: TextStyle(
+                color: AppColors.darkTextPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '기기 설정을 따르거나 직접 밝기를 고를 수 있어요.',
+              style: TextStyle(
+                color: AppColors.darkTextSecondary,
+                fontSize: 13,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoSlidingSegmentedControl<AppThemePreference>(
+                groupValue: controller.preference,
+                children: {
+                  for (final preference in AppThemePreference.values)
+                    preference: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 7,
+                      ),
+                      child: Text(
+                        preference.label,
+                        style: TextStyle(
+                          color: AppColors.darkTextPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                },
+                onValueChanged: (preference) {
+                  if (preference != null) {
+                    controller.setPreference(preference);
+                  }
+                },
+              ),
             ),
           ],
         ),
@@ -319,7 +399,7 @@ class _ProfileMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,

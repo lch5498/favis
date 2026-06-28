@@ -45,10 +45,25 @@ create table public.family_members (
   user_id uuid references public.users(id) on delete set null,
   nickname text not null,
   role text not null,
+  color text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint family_members_role_check check (
     role in ('owner', 'co_owner', 'member')
+  ),
+  constraint family_members_color_check check (
+    color is null or color in (
+      'red',
+      'orange',
+      'yellow',
+      'green',
+      'mint',
+      'teal',
+      'blue',
+      'indigo',
+      'purple',
+      'pink'
+    )
   ),
   constraint family_members_family_user_unique unique (family_id, user_id)
 );

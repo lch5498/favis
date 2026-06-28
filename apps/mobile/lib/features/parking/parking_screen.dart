@@ -263,7 +263,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
+            child: Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
@@ -285,7 +285,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
     final selectedFamilyId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (sheetContext) => CupertinoActionSheet(
-        title: const Text('가족 전환'),
+        title: Text('가족 전환'),
         actions: widget.families
             .map(
               (family) => CupertinoActionSheetAction(
@@ -297,7 +297,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(sheetContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -362,7 +362,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
               const SizedBox(height: 18),
             ],
             if (_isLoading && dashboard == null)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 72),
                 child: Center(child: CupertinoActivityIndicator()),
               )
@@ -426,7 +426,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           inherit: false,
           color: AppColors.darkTextPrimary,
           fontSize: 17,
@@ -448,7 +448,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 inherit: false,
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
@@ -618,17 +618,17 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text('즐겨찾기 삭제'),
+        title: Text('즐겨찾기 삭제'),
         content: Text('${preset.name} 즐겨찾기를 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
+            child: Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -666,7 +666,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('주차 위치 즐겨찾기'),
+        middle: Text('주차 위치 즐겨찾기'),
         trailing: widget.canManage
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
@@ -684,7 +684,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
-            const Text(
+            Text(
               '자주 쓰는 주차 위치',
               style: TextStyle(
                 color: AppColors.darkTextPrimary,
@@ -695,7 +695,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               '건물 아래에 층수와 상세위치를 등록해 두면 주차 위치를 빠르게 기록할 수 있습니다.',
               style: TextStyle(
                 color: AppColors.darkTextSecondary,
@@ -711,7 +711,7 @@ class _ParkingPresetScreenState extends State<ParkingPresetScreen> {
             ],
             const SizedBox(height: 18),
             if (_isLoading)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 56),
                 child: Center(child: CupertinoActivityIndicator()),
               )
@@ -814,7 +814,7 @@ class _PresetSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -842,7 +842,7 @@ class _PresetSection extends StatelessWidget {
               ),
               child: Text(
                 emptyText,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.darkTextMuted,
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -920,7 +920,7 @@ class _BuildingPresetBlock extends StatelessWidget {
                   building.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
@@ -1024,7 +1024,7 @@ class _PresetGroupHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w800,
@@ -1075,7 +1075,7 @@ class _PresetNameChip extends StatelessWidget {
               preset.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w800,
@@ -1121,7 +1121,7 @@ class _PresetEmptyText extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.darkTextMuted,
           fontSize: 13,
           fontWeight: FontWeight.w700,
@@ -1165,7 +1165,7 @@ class _VehicleCard extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
       ),
       child: Column(
@@ -1182,7 +1182,7 @@ class _VehicleCard extends StatelessWidget {
                       vehicle.nickname,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.darkTextPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
@@ -1192,7 +1192,7 @@ class _VehicleCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       vehicle.plateNumber,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.darkTextSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -1222,7 +1222,7 @@ class _VehicleCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '현재 위치',
                   style: TextStyle(
                     color: AppColors.darkTextSecondary,
@@ -1263,7 +1263,7 @@ class _VehicleCard extends StatelessWidget {
                     '마지막 등록: ${currentLocation.createdByNickname} · ${_parkingUpdatedAtLabel(currentLocation.updatedAt)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1288,7 +1288,7 @@ class _VehicleCard extends StatelessWidget {
                           : onRegisterLocation,
                       child: Text(
                         isRegisteringLocation ? '등록 중' : '위치 등록',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 15,
                           height: 1.1,
                           fontWeight: FontWeight.w800,
@@ -1353,7 +1353,7 @@ class _PresetTile extends StatelessWidget {
               preset.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -1651,7 +1651,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkTextPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w800,
@@ -1706,7 +1706,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         '주차 위치 등록',
                         style: TextStyle(
@@ -1773,7 +1773,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                         ? const CupertinoActivityIndicator(
                             color: CupertinoColors.white,
                           )
-                        : const Text(
+                        : Text(
                             '등록',
                             style: TextStyle(
                               fontSize: 15,
@@ -1898,7 +1898,7 @@ class _VehicleDialogState extends State<_VehicleDialog> {
               const SizedBox(height: 8),
               Text(
                 _message!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.destructiveRed,
                   fontSize: 13,
                 ),
@@ -1910,9 +1910,9 @@ class _VehicleDialogState extends State<_VehicleDialog> {
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
-        CupertinoDialogAction(onPressed: _submit, child: const Text('저장')),
+        CupertinoDialogAction(onPressed: _submit, child: Text('저장')),
       ],
     );
   }
@@ -1999,7 +1999,7 @@ class _TextInputDialogState extends State<_TextInputDialog> {
               const SizedBox(height: 8),
               Text(
                 _message!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.destructiveRed,
                   fontSize: 13,
                 ),
@@ -2011,9 +2011,9 @@ class _TextInputDialogState extends State<_TextInputDialog> {
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
-        CupertinoDialogAction(onPressed: _submit, child: const Text('저장')),
+        CupertinoDialogAction(onPressed: _submit, child: Text('저장')),
       ],
     );
   }
@@ -2052,7 +2052,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -2063,7 +2063,7 @@ class _EmptyState extends StatelessWidget {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextSecondary,
               fontSize: 14,
               height: 1.35,
@@ -2080,7 +2080,7 @@ class _EmptyState extends StatelessWidget {
                 onPressed: onPressed,
                 child: Text(
                   actionLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     height: 1.1,
                     fontWeight: FontWeight.w800,
@@ -2113,7 +2113,7 @@ class _InlineMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,

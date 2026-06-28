@@ -5,16 +5,44 @@ import '../design_system/app_colors.dart';
 import '../core/api_client.dart';
 
 enum MemberFilterColor {
-  teal,
+  red,
   blue,
-  indigo,
+  green,
+  orange,
   purple,
   pink,
-  red,
-  orange,
+  teal,
   yellow,
-  green,
-  gray,
+  indigo,
+  mint,
+  gray;
+
+  static MemberFilterColor? fromValue(String? value) {
+    if (value == null) {
+      return null;
+    }
+
+    for (final color in MemberFilterColor.values) {
+      if (color.name == value) {
+        return color;
+      }
+    }
+
+    return null;
+  }
+
+  static const selectable = [
+    MemberFilterColor.red,
+    MemberFilterColor.blue,
+    MemberFilterColor.green,
+    MemberFilterColor.orange,
+    MemberFilterColor.purple,
+    MemberFilterColor.pink,
+    MemberFilterColor.teal,
+    MemberFilterColor.yellow,
+    MemberFilterColor.indigo,
+    MemberFilterColor.mint,
+  ];
 }
 
 class MemberFilterBar extends StatelessWidget {
@@ -53,7 +81,8 @@ class MemberFilterBar extends StatelessWidget {
   }
 
   MemberFilterColor _colorForMember(FamilyMember member, int index) {
-    return memberColors[member.id] ??
+    return MemberFilterColor.fromValue(member.color) ??
+        memberColors[member.id] ??
         MemberFilterColor.values[index % MemberFilterColor.values.length];
   }
 }
@@ -119,7 +148,7 @@ class _MemberFilterButton extends StatelessWidget {
 }
 
 class MemberFilterColorStyle {
-  const MemberFilterColorStyle({
+  MemberFilterColorStyle({
     required this.background,
     required this.foreground,
     required this.border,
@@ -131,55 +160,60 @@ class MemberFilterColorStyle {
 
   factory MemberFilterColorStyle.from(MemberFilterColor color) {
     return switch (color) {
-      MemberFilterColor.teal => const MemberFilterColorStyle(
-        background: AppColors.darkPrimarySoft,
-        foreground: Color(0xFF006D68),
-        border: Color(0xFFD2E8E5),
+      MemberFilterColor.red => MemberFilterColorStyle(
+        background: Color(0xFFE53935),
+        foreground: CupertinoColors.white,
+        border: Color(0xFFC62828),
       ),
-      MemberFilterColor.blue => const MemberFilterColorStyle(
-        background: Color(0xFFE8F1FF),
-        foreground: Color(0xFF0A63CE),
-        border: Color(0xFFD1E3FF),
+      MemberFilterColor.blue => MemberFilterColorStyle(
+        background: Color(0xFF1E88E5),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF1565C0),
       ),
-      MemberFilterColor.indigo => const MemberFilterColorStyle(
-        background: Color(0xFFEDEEFF),
-        foreground: Color(0xFF4951B8),
-        border: Color(0xFFDCDCFF),
+      MemberFilterColor.green => MemberFilterColorStyle(
+        background: Color(0xFF43A047),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF2E7D32),
       ),
-      MemberFilterColor.purple => const MemberFilterColorStyle(
-        background: Color(0xFFF3EAFE),
-        foreground: Color(0xFF7A3EB1),
-        border: Color(0xFFE3D0F8),
+      MemberFilterColor.orange => MemberFilterColorStyle(
+        background: Color(0xFFFB8C00),
+        foreground: CupertinoColors.white,
+        border: Color(0xFFEF6C00),
       ),
-      MemberFilterColor.pink => const MemberFilterColorStyle(
-        background: Color(0xFFFFEAF3),
-        foreground: Color(0xFFC13B75),
-        border: Color(0xFFF7D0E1),
+      MemberFilterColor.purple => MemberFilterColorStyle(
+        background: Color(0xFF8E24AA),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF6A1B9A),
       ),
-      MemberFilterColor.red => const MemberFilterColorStyle(
-        background: Color(0xFFFFEDEC),
-        foreground: Color(0xFFC7352B),
-        border: Color(0xFFF6D2D0),
+      MemberFilterColor.pink => MemberFilterColorStyle(
+        background: Color(0xFFD81B60),
+        foreground: CupertinoColors.white,
+        border: Color(0xFFAD1457),
       ),
-      MemberFilterColor.orange => const MemberFilterColorStyle(
-        background: Color(0xFFFFF0E3),
-        foreground: Color(0xFFC75B12),
-        border: Color(0xFFF4D7BA),
+      MemberFilterColor.teal => MemberFilterColorStyle(
+        background: Color(0xFF00897B),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF00695C),
       ),
-      MemberFilterColor.yellow => const MemberFilterColorStyle(
-        background: Color(0xFFFFF7D6),
-        foreground: Color(0xFF9A7200),
-        border: Color(0xFFEFE2A9),
+      MemberFilterColor.yellow => MemberFilterColorStyle(
+        background: Color(0xFFFDD835),
+        foreground: Color(0xFF3D2F00),
+        border: Color(0xFFF9A825),
       ),
-      MemberFilterColor.green => const MemberFilterColorStyle(
-        background: Color(0xFFEAF7E8),
-        foreground: Color(0xFF2F7D32),
-        border: Color(0xFFD0E8CC),
+      MemberFilterColor.indigo => MemberFilterColorStyle(
+        background: Color(0xFF3949AB),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF283593),
       ),
-      MemberFilterColor.gray => const MemberFilterColorStyle(
-        background: Color(0xFFEFEFF4),
-        foreground: Color(0xFF5E5E66),
-        border: Color(0xFFDCDCE4),
+      MemberFilterColor.mint => MemberFilterColorStyle(
+        background: Color(0xFF00ACC1),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF00838F),
+      ),
+      MemberFilterColor.gray => MemberFilterColorStyle(
+        background: Color(0xFF6B7280),
+        foreground: CupertinoColors.white,
+        border: Color(0xFF4B5563),
       ),
     };
   }

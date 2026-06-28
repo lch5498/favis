@@ -153,7 +153,7 @@ class _EducationScreenState extends State<EducationScreen> {
     final selectedFamilyId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('가족 전환'),
+        title: Text('가족 전환'),
         actions: widget.families
             .map(
               (family) => CupertinoActionSheetAction(
@@ -165,7 +165,7 @@ class _EducationScreenState extends State<EducationScreen> {
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -280,17 +280,17 @@ class _EducationScreenState extends State<EducationScreen> {
       final confirmed = await showCupertinoDialog<bool>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
-          title: const Text('학교/학원 삭제'),
+          title: Text('학교/학원 삭제'),
           content: Text('${program.name}와 연결된 캘린더 일정을 삭제할까요?'),
           actions: [
             CupertinoDialogAction(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('취소'),
+              child: Text('취소'),
             ),
             CupertinoDialogAction(
               isDestructiveAction: true,
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('삭제'),
+              child: Text('삭제'),
             ),
           ],
         ),
@@ -346,7 +346,7 @@ class _EducationScreenState extends State<EducationScreen> {
                   const SizedBox(height: 12),
                 ],
                 if (_isLoading && dashboard == null)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.only(top: 80),
                     child: Center(child: CupertinoActivityIndicator()),
                   )
@@ -421,7 +421,7 @@ class _FullScreenProgressOverlay extends StatelessWidget {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
@@ -457,7 +457,7 @@ class _EducationProgramCard extends StatelessWidget {
 
     final content = Container(
       padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
       ),
       child: Column(
@@ -475,7 +475,7 @@ class _EducationProgramCard extends StatelessWidget {
                     program.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextPrimary,
                       fontSize: 18,
                       height: 1.15,
@@ -574,7 +574,7 @@ class _EducationScheduleGroup extends StatelessWidget {
             textAlign: TextAlign.left,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 13,
               height: 1.15,
@@ -620,7 +620,7 @@ class _EducationScheduleChip extends StatelessWidget {
         children: [
           Text(
             summary.title,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 13,
               height: 1.15,
@@ -632,7 +632,7 @@ class _EducationScheduleChip extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               vehicleText,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextSecondary,
                 fontSize: 12,
                 height: 1.15,
@@ -664,7 +664,7 @@ class _EducationFilterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(0, 0, 0, 14),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
       ),
       child: MemberFilterBar(
@@ -787,7 +787,7 @@ class _EducationProgramFormScreenState
     final selectedId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('가족 구성원'),
+        title: Text('가족 구성원'),
         actions: widget.members
             .map(
               (member) => CupertinoActionSheetAction(
@@ -799,7 +799,7 @@ class _EducationProgramFormScreenState
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -828,7 +828,7 @@ class _EducationProgramFormScreenState
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -1190,7 +1190,7 @@ class _EducationProgramFormScreenState
         ],
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -1206,17 +1206,17 @@ class _EducationProgramFormScreenState
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: const Text('학교/학원 삭제'),
+        title: Text('학교/학원 삭제'),
         content: Text('${program.name}와 연결된 캘린더 일정을 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('취소'),
+            child: Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -1256,13 +1256,13 @@ class _EducationProgramFormScreenState
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
           onPressed: _submit,
-          child: const Text('저장'),
+          child: Text('저장'),
         ),
       ),
       child: SafeArea(
@@ -1404,7 +1404,7 @@ class _DeleteProgramButton extends StatelessWidget {
         color: AppColors.darkSurfaceElevated,
         borderRadius: BorderRadius.circular(12),
         onPressed: onPressed,
-        child: const Text(
+        child: Text(
           '학교/학원 삭제',
           style: TextStyle(
             color: CupertinoColors.destructiveRed,
@@ -1516,12 +1516,12 @@ class _DateInputSheetState extends State<_DateInputSheet> {
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: widget.onCancel,
-                      child: const Text('취소'),
+                      child: Text('취소'),
                     ),
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: _submit,
-                      child: const Text('완료'),
+                      child: Text('완료'),
                     ),
                   ],
                 ),
@@ -1561,7 +1561,7 @@ class _DateInputSheetState extends State<_DateInputSheet> {
                 const SizedBox(height: 12),
                 Text(
                   _message!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkDanger,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1667,12 +1667,12 @@ class _TimeInputSheetState extends State<_TimeInputSheet> {
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: widget.onCancel,
-                      child: const Text('취소'),
+                      child: Text('취소'),
                     ),
                     CupertinoButton(
                       padding: EdgeInsets.zero,
                       onPressed: _submit,
-                      child: const Text('완료'),
+                      child: Text('완료'),
                     ),
                   ],
                 ),
@@ -1723,7 +1723,7 @@ class _TimeInputSheetState extends State<_TimeInputSheet> {
                 const SizedBox(height: 12),
                 Text(
                   _message!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkDanger,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -1765,7 +1765,7 @@ class _NumberInputField extends StatelessWidget {
             textAlign: TextAlign.center,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 17,
               fontWeight: FontWeight.w800,
@@ -1781,7 +1781,7 @@ class _NumberInputField extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           suffix,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkTextSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w700,
@@ -1832,7 +1832,7 @@ class _TextFieldRow extends StatelessWidget {
             width: 82,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -1845,8 +1845,8 @@ class _TextFieldRow extends StatelessWidget {
               controller: controller,
               placeholder: placeholder,
               padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 10),
-              decoration: const BoxDecoration(),
-              style: const TextStyle(fontSize: 16, letterSpacing: 0),
+              decoration: BoxDecoration(),
+              style: TextStyle(fontSize: 16, letterSpacing: 0),
             ),
           ),
         ],
@@ -1877,7 +1877,7 @@ class _PickerRow extends StatelessWidget {
             width: 82,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -1891,7 +1891,7 @@ class _PickerRow extends StatelessWidget {
               textAlign: TextAlign.right,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: CupertinoColors.systemBlue,
                 fontSize: 15,
                 fontWeight: FontWeight.w700,
@@ -1917,7 +1917,7 @@ class _RecurrenceTypeRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 82,
             child: Text(
               '반복',
@@ -1996,7 +1996,7 @@ class _WeekdayRuleRow extends StatelessWidget {
                 width: 44,
                 child: Text(
                   _weekdayLabels[weekday],
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -2122,7 +2122,7 @@ class _MonthlyRuleRow extends StatelessWidget {
                 width: 58,
                 child: Text(
                   _weekOfMonthLabels[weekOfMonth] ?? '$weekOfMonth주',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -2211,7 +2211,7 @@ class _RuleTimeLine extends StatelessWidget {
           width: 44,
           child: Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextSecondary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -2224,7 +2224,7 @@ class _RuleTimeLine extends StatelessWidget {
           _ClearTimeButton(onPressed: onClearStart!)
         else
           const SizedBox(width: 6),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 4),
           child: Text(
             '-',
@@ -2400,7 +2400,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
         family.name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           inherit: false,
           color: AppColors.darkTextPrimary,
           fontSize: 17,
@@ -2422,7 +2422,7 @@ class _FeatureFamilyTitle extends StatelessWidget {
               family.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 inherit: false,
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
@@ -2455,7 +2455,7 @@ class _EmptyPrograms extends StatelessWidget {
       ),
       child: Text(
         canManage ? '등록된 학교/학원이 없습니다. + 버튼으로 추가해 주세요.' : '등록된 학교/학원이 없습니다.',
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.darkTextSecondary,
           fontSize: 15,
           height: 1.35,
@@ -2479,7 +2479,7 @@ class _EmptyFilteredPrograms extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.darkBorder),
       ),
-      child: const Text(
+      child: Text(
         '선택한 구성원의 학교/학원이 없습니다.',
         style: TextStyle(
           color: AppColors.darkTextSecondary,
@@ -2509,7 +2509,7 @@ class _InlineMessage extends StatelessWidget {
       ),
       child: Text(
         message,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.darkDanger,
           fontSize: 14,
           height: 1.35,
@@ -2570,7 +2570,9 @@ Map<String, MemberFilterColor> _memberFilterColors(List<FamilyMember> members) {
   return {
     for (var index = 0; index < members.length; index++)
       members[index].id:
-          MemberFilterColor.values[index % MemberFilterColor.values.length],
+          MemberFilterColor.fromValue(members[index].color) ??
+          MemberFilterColor.selectable[index %
+              MemberFilterColor.selectable.length],
   };
 }
 

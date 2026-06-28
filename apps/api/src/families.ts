@@ -20,6 +20,7 @@ export type FamilyMember = {
   user_id: string | null;
   nickname: string;
   role: FamilyRole;
+  color: FamilyMemberColor | null;
   created_at: string;
   updated_at: string;
   user?: {
@@ -27,6 +28,18 @@ export type FamilyMember = {
     nickname: string;
   };
 };
+
+export type FamilyMemberColor =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'mint'
+  | 'teal'
+  | 'blue'
+  | 'indigo'
+  | 'purple'
+  | 'pink';
 
 export type FamilyInvitation = {
   id: string;
@@ -184,6 +197,7 @@ export async function listFamilyMembers(
         user_id,
         nickname,
         role,
+        color,
         created_at,
         updated_at,
         user:users (
@@ -225,6 +239,49 @@ export async function createFamilyMember(
         user_id,
         nickname,
         role,
+        color,
+        created_at,
+        updated_at,
+        user:users (
+          id,
+          nickname
+        )
+      `,
+    )
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as unknown as FamilyMember;
+}
+
+export async function updateFamilyMember(
+  userId: string,
+  familyId: string,
+  memberId: string,
+  input: { color: FamilyMemberColor },
+) {
+  await requireFamilyManager(userId, familyId);
+  assertFamilyMemberColor(input.color);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('family_members')
+    .update({
+      color: input.color,
+    })
+    .eq('id', memberId)
+    .eq('family_id', familyId)
+    .select(
+      `
+        id,
+        family_id,
+        user_id,
+        nickname,
+        role,
+        color,
         created_at,
         updated_at,
         user:users (
@@ -551,5 +608,26 @@ function canManage(role: FamilyRole) {
 function assertFamilyRole(role: string): asserts role is FamilyRole {
   if (!['owner', 'co_owner', 'member'].includes(role)) {
     throw new HttpError(400, { error: 'invalid_family_role' });
+  }
+}
+
+export function assertFamilyMemberColor(
+  color: string,
+): asserts color is FamilyMemberColor {
+  if (
+    ![
+      'red',
+      'orange',
+      'yellow',
+      'green',
+      'mint',
+      'teal',
+      'blue',
+      'indigo',
+      'purple',
+      'pink',
+    ].includes(color)
+  ) {
+    throw new HttpError(400, { error: 'invalid_member_color' });
   }
 }

@@ -196,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final selectedFamilyId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: const Text('가족 전환'),
+        title: Text('가족 전환'),
         actions: _families
             .map(
               (summary) => CupertinoActionSheetAction(
@@ -209,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.of(popupContext).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
       ),
     );
@@ -244,7 +244,8 @@ class _HomeScreenState extends State<HomeScreen> {
           backgroundColor: AppColors.darkSurface,
           activeColor: AppColors.darkPrimary,
           inactiveColor: AppColors.darkTextMuted,
-          border: const Border(top: BorderSide(color: AppColors.darkBorder)),
+          iconSize: 26,
+          border: Border(top: BorderSide(color: AppColors.darkBorder)),
           items: const [
             BottomNavigationBarItem(
               icon: Icon(CupertinoIcons.house),
@@ -373,7 +374,7 @@ class _HomeTitle extends StatelessWidget {
     final family = this.family;
 
     if (family == null) {
-      return const Text('파비스');
+      return Text('파비스');
     }
 
     if (!canSwitch) {
@@ -381,7 +382,7 @@ class _HomeTitle extends StatelessWidget {
         family.name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           inherit: false,
           color: AppColors.darkTextPrimary,
           fontSize: 17,
@@ -403,7 +404,7 @@ class _HomeTitle extends StatelessWidget {
               family.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 inherit: false,
                 color: AppColors.darkTextPrimary,
                 fontSize: 17,
@@ -602,7 +603,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                   color: AppColors.darkSurfaceElevated,
                   borderRadius: BorderRadius.circular(14),
                   onPressed: _loadBriefing,
-                  child: const Text(
+                  child: Text(
                     '브리핑 새로고침',
                     style: TextStyle(
                       color: CupertinoColors.systemTeal,
@@ -618,7 +619,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
             if (_isLoading &&
                 _scheduleDashboard == null &&
                 _parkingDashboard == null)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 80),
                 child: Center(child: CupertinoActivityIndicator()),
               )
@@ -727,7 +728,7 @@ class _BriefingSection extends StatelessWidget {
       onPressed: onPressed,
       child: Container(
         padding: const EdgeInsets.fromLTRB(0, 16, 0, 16),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
         ),
         child: Column(
@@ -742,7 +743,7 @@ class _BriefingSection extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
@@ -763,7 +764,7 @@ class _BriefingSection extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   emptyText,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -799,7 +800,7 @@ class _ScheduleBriefingTile extends StatelessWidget {
             width: 132,
             child: Text(
               timeText,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
@@ -815,7 +816,7 @@ class _ScheduleBriefingTile extends StatelessWidget {
                   schedule.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -827,7 +828,7 @@ class _ScheduleBriefingTile extends StatelessWidget {
                   schedule.memberNickname,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -881,7 +882,7 @@ class _ParkingBriefingTile extends StatelessWidget {
                   vehicleTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
@@ -893,7 +894,7 @@ class _ParkingBriefingTile extends StatelessWidget {
                   record.locationText,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -962,7 +963,7 @@ class _FamilyRequiredIntro extends StatelessWidget {
         const SizedBox(height: 22),
         Text(
           '$userNickname님,\n파비스를 시작해 볼까요?',
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkTextPrimary,
             fontSize: 28,
             fontWeight: FontWeight.w800,
@@ -971,7 +972,7 @@ class _FamilyRequiredIntro extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           '파비스는 Family + Javis에서 온 이름이에요. 아이 일정과 주차 위치를 가족이 함께 관리하는 작은 비서입니다.',
           style: TextStyle(
             color: AppColors.darkTextSecondary,
@@ -982,7 +983,7 @@ class _FamilyRequiredIntro extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        const Row(
+        Row(
           children: [
             Expanded(
               child: _IntroFeaturePill(
@@ -1004,7 +1005,7 @@ class _FamilyRequiredIntro extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        const Text(
+        Text(
           '일정, 차량, 주차 기록은 모두 가족 단위로 저장됩니다. 가족을 만들거나 초대 링크를 수락하면 홈에서 바로 사용할 수 있어요.',
           style: TextStyle(
             color: AppColors.darkTextMuted,
@@ -1097,7 +1098,7 @@ class _IntroFeaturePill extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
@@ -1110,7 +1111,7 @@ class _IntroFeaturePill extends StatelessWidget {
               description,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.darkTextSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -1142,7 +1143,7 @@ class _InlineMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,

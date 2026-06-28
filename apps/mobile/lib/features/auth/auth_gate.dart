@@ -212,7 +212,7 @@ class _AuthGateState extends State<AuthGate> {
     final auth = _auth;
 
     if (_isRestoringSession) {
-      return const CupertinoPageScaffold(
+      return CupertinoPageScaffold(
         backgroundColor: AppColors.darkBackground,
         child: Center(child: CupertinoActivityIndicator()),
       );
@@ -345,7 +345,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('프로필 설정'),
+        middle: Text('프로필 설정'),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
@@ -359,7 +359,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
+              Text(
                 '처음 사용할 이름을 정해 주세요.',
                 style: TextStyle(
                   color: AppColors.darkTextPrimary,
@@ -370,7 +370,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 '카카오 계정 정보 대신 가족이 보기 편한 이름으로 저장됩니다.',
                 style: TextStyle(
                   color: AppColors.darkTextSecondary,
@@ -392,7 +392,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
                   horizontal: 16,
                   vertical: 15,
                 ),
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.darkTextPrimary,
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -419,7 +419,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
                       ? const CupertinoActivityIndicator(
                           color: CupertinoColors.white,
                         )
-                      : const Text(
+                      : Text(
                           '가입 완료하기',
                           style: TextStyle(
                             fontSize: 17,
@@ -466,7 +466,7 @@ class _AppMark extends StatelessWidget {
           height: 64,
           fit: BoxFit.cover,
           errorBuilder: (context, error, stackTrace) {
-            return const Text(
+            return Text(
               'F',
               style: TextStyle(
                 color: AppColors.darkTextPrimary,
@@ -486,7 +486,7 @@ class _LoginTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -554,7 +554,7 @@ class _ErrorMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,
@@ -584,7 +584,7 @@ class _KakaoLoginButton extends StatelessWidget {
         onPressed: onPressed,
         child: isLoading
             ? const CupertinoActivityIndicator(color: Color(0xFF191919))
-            : const Text(
+            : Text(
                 '카카오로 계속하기',
                 style: TextStyle(
                   color: Color(0xFF191919),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
+import '../../shared/member_filter.dart';
 
 const _shareChannel = MethodChannel('favis/share');
 
@@ -138,7 +139,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: const Text('가족 관리'),
+        middle: Text('가족 관리'),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
@@ -150,7 +151,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
-            const Text(
+            Text(
               '가족을 만들고 구성원을 초대하세요.',
               style: TextStyle(
                 color: AppColors.darkTextPrimary,
@@ -161,7 +162,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               '대표와 공동대표는 가족 안의 추가, 수정, 삭제를 할 수 있고 구성원은 조회만 할 수 있습니다.',
               style: TextStyle(
                 color: AppColors.darkTextSecondary,
@@ -179,7 +180,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
                 borderRadius: BorderRadius.circular(12),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 onPressed: _isLoading ? null : _acceptInvitation,
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(CupertinoIcons.link, size: 20),
@@ -202,7 +203,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
             ],
             const SizedBox(height: 20),
             if (_isLoading)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 48),
                 child: Center(child: CupertinoActivityIndicator()),
               )
@@ -434,6 +435,33 @@ class _FamilyDetailScreenState extends State<FamilyDetailScreen> {
     });
   }
 
+  Future<void> _changeMemberColor(FamilyMember member) async {
+    final detail = _detail;
+
+    if (detail == null || !detail.canManage) {
+      return;
+    }
+
+    final selectedColor = await showCupertinoDialog<MemberFilterColor>(
+      context: context,
+      builder: (_) => _MemberColorDialog(member: member),
+    );
+
+    if (selectedColor == null) {
+      return;
+    }
+
+    await _runDetailTask(() async {
+      await _apiClient.updateFamilyMemberColor(
+        widget.sessionToken,
+        familyId: detail.family.id,
+        memberId: member.id,
+        color: selectedColor.name,
+      );
+      await _loadFamily();
+    });
+  }
+
   Future<void> _runDetailTask(Future<void> Function() task) async {
     setState(() {
       _isLoading = true;
@@ -471,7 +499,7 @@ class _FamilyDetailScreenState extends State<FamilyDetailScreen> {
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
+            child: Text('취소'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: destructive,
@@ -507,7 +535,7 @@ class _FamilyDetailScreenState extends State<FamilyDetailScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
             if (_isLoading && detail == null)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 80),
                 child: Center(child: CupertinoActivityIndicator()),
               )
@@ -543,10 +571,12 @@ class _FamilyDetailScreenState extends State<FamilyDetailScreen> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: _MemberTile(
                     member: member,
+                    canEditColor: detail.canManage,
                     canDelete:
                         detail.canManage &&
                         member.userId != widget.currentUserId,
                     canInvite: detail.canManage && !member.isLinked,
+                    onChangeColor: () => _changeMemberColor(member),
                     onInvite: () => _createInvitation(member),
                     onDelete: () => _removeMember(member),
                   ),
@@ -602,7 +632,7 @@ class _FamilyTile extends StatelessWidget {
                     summary.family.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
@@ -612,7 +642,7 @@ class _FamilyTile extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     roleLabel(summary.role),
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.darkTextSecondary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -653,7 +683,7 @@ class _FamilyDetailHeader extends StatelessWidget {
         children: [
           Text(
             detail.family.name,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextPrimary,
               fontSize: 26,
               fontWeight: FontWeight.w800,
@@ -664,7 +694,7 @@ class _FamilyDetailHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             '${roleLabel(detail.myRole)} 권한 · 구성원 ${detail.members.length}명',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.darkTextSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -680,20 +710,28 @@ class _FamilyDetailHeader extends StatelessWidget {
 class _MemberTile extends StatelessWidget {
   const _MemberTile({
     required this.member,
+    required this.canEditColor,
     required this.canDelete,
     required this.canInvite,
+    required this.onChangeColor,
     required this.onInvite,
     required this.onDelete,
   });
 
   final FamilyMember member;
+  final bool canEditColor;
   final bool canDelete;
   final bool canInvite;
+  final VoidCallback onChangeColor;
   final VoidCallback onInvite;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final memberColor =
+        MemberFilterColor.fromValue(member.color) ?? MemberFilterColor.red;
+    final colorStyle = MemberFilterColorStyle.from(memberColor);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       decoration: BoxDecoration(
@@ -707,12 +745,13 @@ class _MemberTile extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: AppColors.darkSurfaceElevated,
+              color: colorStyle.background,
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: colorStyle.border),
             ),
-            child: const Icon(
+            child: Icon(
               CupertinoIcons.person_fill,
-              color: CupertinoColors.systemGrey,
+              color: colorStyle.foreground,
               size: 20,
             ),
           ),
@@ -725,7 +764,7 @@ class _MemberTile extends StatelessWidget {
                   member.userNickname,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
@@ -735,7 +774,7 @@ class _MemberTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   '${roleLabel(member.role)} · ${member.isLinked ? '계정 연결됨' : '계정 미연결'}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.darkTextSecondary,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -745,6 +784,17 @@ class _MemberTile extends StatelessWidget {
               ],
             ),
           ),
+          if (canEditColor)
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(40, 40),
+              onPressed: onChangeColor,
+              child: Icon(
+                CupertinoIcons.paintbrush,
+                color: colorStyle.background,
+                size: 21,
+              ),
+            ),
           if (canInvite)
             CupertinoButton(
               padding: EdgeInsets.zero,
@@ -763,6 +813,81 @@ class _MemberTile extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _MemberColorDialog extends StatelessWidget {
+  const _MemberColorDialog({required this.member});
+
+  final FamilyMember member;
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedColor = MemberFilterColor.fromValue(member.color);
+
+    return CupertinoAlertDialog(
+      title: const Text('구성원 색상'),
+      content: Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final color in MemberFilterColor.selectable)
+              _MemberColorOption(
+                color: color,
+                isSelected: color == selectedColor,
+                onPressed: () => Navigator.of(context).pop(color),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        CupertinoDialogAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+      ],
+    );
+  }
+}
+
+class _MemberColorOption extends StatelessWidget {
+  const _MemberColorOption({
+    required this.color,
+    required this.isSelected,
+    required this.onPressed,
+  });
+
+  final MemberFilterColor color;
+  final bool isSelected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = MemberFilterColorStyle.from(color);
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(42, 42),
+      onPressed: onPressed,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: style.background,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isSelected ? AppColors.darkTextPrimary : style.border,
+            width: isSelected ? 3 : 1,
+          ),
+        ),
+        child: isSelected
+            ? Icon(CupertinoIcons.check_mark, color: style.foreground, size: 18)
+            : null,
       ),
     );
   }
@@ -899,7 +1024,7 @@ class _FamilyNameDialogState extends State<_FamilyNameDialog> {
               const SizedBox(height: 8),
               Text(
                 _message!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.destructiveRed,
                   fontSize: 13,
                 ),
@@ -911,9 +1036,9 @@ class _FamilyNameDialogState extends State<_FamilyNameDialog> {
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
-        CupertinoDialogAction(onPressed: _submit, child: const Text('저장')),
+        CupertinoDialogAction(onPressed: _submit, child: Text('저장')),
       ],
     );
   }
@@ -952,7 +1077,7 @@ class _InviteAcceptDialogState extends State<_InviteAcceptDialog> {
   @override
   Widget build(BuildContext context) {
     return CupertinoAlertDialog(
-      title: const Text('초대 수락'),
+      title: Text('초대 수락'),
       content: Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Column(
@@ -967,7 +1092,7 @@ class _InviteAcceptDialogState extends State<_InviteAcceptDialog> {
               const SizedBox(height: 8),
               Text(
                 _message!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.destructiveRed,
                   fontSize: 13,
                 ),
@@ -979,9 +1104,9 @@ class _InviteAcceptDialogState extends State<_InviteAcceptDialog> {
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
-        CupertinoDialogAction(onPressed: _submit, child: const Text('수락')),
+        CupertinoDialogAction(onPressed: _submit, child: Text('수락')),
       ],
     );
   }
@@ -1028,7 +1153,7 @@ class _MemberDialogState extends State<_MemberDialog> {
   @override
   Widget build(BuildContext context) {
     return CupertinoAlertDialog(
-      title: const Text('구성원 추가'),
+      title: Text('구성원 추가'),
       content: Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Column(
@@ -1069,7 +1194,7 @@ class _MemberDialogState extends State<_MemberDialog> {
               const SizedBox(height: 8),
               Text(
                 _message!,
-                style: const TextStyle(
+                style: TextStyle(
                   color: CupertinoColors.destructiveRed,
                   fontSize: 13,
                 ),
@@ -1081,9 +1206,9 @@ class _MemberDialogState extends State<_MemberDialog> {
       actions: [
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('취소'),
+          child: Text('취소'),
         ),
-        CupertinoDialogAction(onPressed: _submit, child: const Text('추가')),
+        CupertinoDialogAction(onPressed: _submit, child: Text('추가')),
       ],
     );
   }
@@ -1114,7 +1239,7 @@ class _InviteResultDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoAlertDialog(
-      title: const Text('초대 링크 생성 완료'),
+      title: Text('초대 링크 생성 완료'),
       content: Padding(
         padding: const EdgeInsets.only(top: 12),
         child: Column(
@@ -1123,7 +1248,7 @@ class _InviteResultDialog extends StatelessWidget {
               '${invitation.memberNickname}님을 ${roleLabel(invitation.role)} 권한으로 연결합니다.',
             ),
             const SizedBox(height: 10),
-            Text(invitation.inviteUrl, style: const TextStyle(fontSize: 13)),
+            Text(invitation.inviteUrl, style: TextStyle(fontSize: 13)),
           ],
         ),
       ),
@@ -1136,7 +1261,7 @@ class _InviteResultDialog extends StatelessWidget {
               Navigator.of(context).pop();
             }
           },
-          child: const Text('공유'),
+          child: Text('공유'),
         ),
         CupertinoDialogAction(
           onPressed: () async {
@@ -1146,11 +1271,11 @@ class _InviteResultDialog extends StatelessWidget {
               Navigator.of(context).pop();
             }
           },
-          child: const Text('링크 복사'),
+          child: Text('링크 복사'),
         ),
         CupertinoDialogAction(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('닫기'),
+          child: Text('닫기'),
         ),
       ],
     );
@@ -1169,7 +1294,7 @@ class _EmptyFamilies extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.darkBorder),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(
             CupertinoIcons.person_2,
@@ -1213,7 +1338,7 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.darkTextPrimary,
         fontSize: 18,
         fontWeight: FontWeight.w800,
@@ -1240,7 +1365,7 @@ class _InlineMessage extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.darkDanger,
             fontSize: 14,
             height: 1.35,
