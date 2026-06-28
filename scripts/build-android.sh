@@ -7,7 +7,7 @@ MOBILE_DIR="$ROOT_DIR/apps/mobile"
 MODE="release"
 FORMAT="appbundle"
 API_BASE_URL="${API_BASE_URL:-https://favis.vercel.app}"
-KAKAO_NATIVE_APP_KEY="${KAKAO_NATIVE_APP_KEY:-b337431d556984d924b2945179a29d9d}"
+KAKAO_NATIVE_APP_KEY="${KAKAO_NATIVE_APP_KEY:-471d534ffd886dcada787e331f059cb7}"
 BUILD_NAME="${BUILD_NAME:-}"
 BUILD_NUMBER="${BUILD_NUMBER:-}"
 RUN_ANALYZE=1
@@ -123,6 +123,10 @@ fi
 if [[ -z "$KAKAO_NATIVE_APP_KEY" ]]; then
   echo "KAKAO_NATIVE_APP_KEY is required." >&2
   exit 1
+fi
+
+if [[ "$KAKAO_NATIVE_APP_KEY" == kakao* ]]; then
+  KAKAO_NATIVE_APP_KEY="${KAKAO_NATIVE_APP_KEY#kakao}"
 fi
 
 if [[ "$MODE" == "release" ]]; then

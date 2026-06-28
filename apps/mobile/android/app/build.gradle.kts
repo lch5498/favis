@@ -30,7 +30,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.family.favis.mobile"
+    namespace = "com.family.checky.mobile"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -40,7 +40,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.family.favis.mobile"
+        applicationId = "com.family.checky.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -49,8 +49,8 @@ android {
         versionName = flutter.versionName
         manifestPlaceholders["KAKAO_NATIVE_APP_KEY"] = dartDefine(
             "KAKAO_NATIVE_APP_KEY",
-            "b337431d556984d924b2945179a29d9d",
-        )
+            "471d534ffd886dcada787e331f059cb7",
+        ).removePrefix("kakao")
     }
 
     signingConfigs {

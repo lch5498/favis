@@ -12,7 +12,7 @@ import '../profile/profile_screen.dart';
 import '../schedule/schedule_screen.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
-const _preferencesChannel = MethodChannel('favis/preferences');
+const _preferencesChannel = MethodChannel('checky/preferences');
 const _selectedFamilyPreferenceKey = 'selectedFamilyId';
 
 class HomeScreen extends StatefulWidget {

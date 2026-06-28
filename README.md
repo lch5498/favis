@@ -100,7 +100,7 @@ npm run dev:api
 카카오 개발자 콘솔의 iOS 플랫폼 Bundle ID에는 아래 값을 등록합니다.
 
 ```text
-com.family.favis.mobile
+com.family.checky.mobile
 ```
 
 ```bash
@@ -257,7 +257,7 @@ flutter devices
 카카오 개발자 콘솔의 Android 플랫폼에는 아래 패키지명을 등록합니다.
 
 ```text
-com.family.favis.mobile
+com.family.checky.mobile
 ```
 
 Android 카카오 로그인은 패키지명 외에 키 해시도 필요합니다. 개발용 debug keystore 기준 키 해시는 아래처럼 확인할 수 있습니다.
@@ -383,7 +383,7 @@ apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
 
 현재 Android 앱 설정:
 
-- Application ID: `com.family.favis.mobile`
+- Application ID: `com.family.checky.mobile`
 - 앱 이름: `체키`
 - 카카오 redirect scheme: `kakao{KAKAO_NATIVE_APP_KEY}`
 - Android manifest는 `--dart-define=KAKAO_NATIVE_APP_KEY=...` 값을 읽어 카카오 콜백 scheme에 반영합니다.
@@ -428,7 +428,7 @@ MOBILE_INVITE_BASE_URL=
 - `.env.local`은 커밋하지 않습니다.
 - `KAKAO_CLIENT_SECRET`은 카카오 개발자 콘솔에서 client secret이 활성화된 경우 넣습니다.
 - `SESSION_SECRET`은 모바일 앱용 자체 세션 토큰 서명에 사용합니다. 충분히 긴 랜덤 문자열을 사용합니다.
-- `MOBILE_INVITE_BASE_URL`은 가족 초대 링크 생성에 사용합니다. 미설정 시 기본값은 `favis://family-invite`입니다.
+- `MOBILE_INVITE_BASE_URL`은 가족 초대 링크 생성에 사용합니다. 미설정 시 기본값은 `checky://family-invite`입니다.
 
 로컬에서 직접 `.env.local`을 만들려면:
 

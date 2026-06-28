@@ -6,7 +6,12 @@ class ApiConfig {
     defaultValue: 'http://localhost:3000',
   );
 
-  static const kakaoNativeAppKey = String.fromEnvironment(
+  static const _rawKakaoNativeAppKey = String.fromEnvironment(
     'KAKAO_NATIVE_APP_KEY',
   );
+
+  static String get kakaoNativeAppKey =>
+      _rawKakaoNativeAppKey.startsWith('kakao')
+      ? _rawKakaoNativeAppKey.substring(5)
+      : _rawKakaoNativeAppKey;
 }

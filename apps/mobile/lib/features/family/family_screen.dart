@@ -5,7 +5,7 @@ import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
 import '../../shared/member_filter.dart';
 
-const _shareChannel = MethodChannel('favis/share');
+const _shareChannel = MethodChannel('checky/share');
 
 class FamilyScreen extends StatefulWidget {
   const FamilyScreen({
