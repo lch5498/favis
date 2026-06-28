@@ -1280,8 +1280,9 @@ class _VehicleCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 46,
+                    height: 50,
                     child: CupertinoButton.filled(
+                      padding: EdgeInsets.zero,
                       borderRadius: BorderRadius.circular(12),
                       onPressed: isRegisteringLocation
                           ? null
@@ -1290,7 +1291,7 @@ class _VehicleCard extends StatelessWidget {
                         isRegisteringLocation ? '등록 중' : '위치 등록',
                         style: TextStyle(
                           fontSize: 15,
-                          height: 1.1,
+                          height: 1,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0,
                         ),
@@ -1765,8 +1766,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 const SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
-                  height: 46,
+                  height: 50,
                   child: CupertinoButton.filled(
+                    padding: EdgeInsets.zero,
                     borderRadius: BorderRadius.circular(12),
                     onPressed: canSubmit && !_isCreatingPreset ? _submit : null,
                     child: _isCreatingPreset
@@ -1777,7 +1779,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                             '등록',
                             style: TextStyle(
                               fontSize: 15,
-                              height: 1.1,
+                              height: 1,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 0,
                             ),
