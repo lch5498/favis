@@ -1285,15 +1285,11 @@ class _EducationProgramFormScreenState
                   value: selectedMember.userNickname,
                   onPressed: _pickMember,
                 ),
-                _PickerRow(
-                  label: '시작 날짜',
-                  value: _dateText(_startsOn),
-                  onPressed: () => _pickDate(isStart: true),
-                ),
-                _PickerRow(
-                  label: '종료 날짜',
-                  value: _dateText(_endsOn),
-                  onPressed: () => _pickDate(isStart: false),
+                _DateRangeRow(
+                  startValue: _dateText(_startsOn),
+                  endValue: _dateText(_endsOn),
+                  onPickStart: () => _pickDate(isStart: true),
+                  onPickEnd: () => _pickDate(isStart: false),
                 ),
               ],
             ),
@@ -1905,6 +1901,73 @@ class _PickerRow extends StatelessWidget {
   }
 }
 
+class _DateRangeRow extends StatelessWidget {
+  const _DateRangeRow({
+    required this.startValue,
+    required this.endValue,
+    required this.onPickStart,
+    required this.onPickEnd,
+  });
+
+  final String startValue;
+  final String endValue;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 82,
+            child: Text(
+              '기간',
+              style: TextStyle(
+                color: AppColors.darkTextPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _CompactValueButton(
+                    value: startValue,
+                    onPressed: onPickStart,
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text(
+                    '~',
+                    style: TextStyle(
+                      color: AppColors.darkTextSecondary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: _CompactValueButton(
+                    value: endValue,
+                    onPressed: onPickEnd,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _RecurrenceTypeRow extends StatelessWidget {
   const _RecurrenceTypeRow({required this.value, required this.onChanged});
 
@@ -1988,96 +2051,55 @@ class _WeekdayRuleRow extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 44,
-                child: Text(
-                  _weekdayLabels[weekday],
-                  style: TextStyle(
-                    color: AppColors.darkTextPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-              CupertinoSwitch(value: rule.enabled, onChanged: onToggle),
-              const Spacer(),
-              if (copyLabel != null)
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size.zero,
-                  onPressed: canCopy ? onCopyPrevious : null,
-                  child: Container(
-                    height: 30,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    decoration: BoxDecoration(
-                      color: canCopy
-                          ? AppColors.darkPrimarySoft
-                          : AppColors.darkSurfaceElevated,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: canCopy
-                            ? AppColors.darkBorder
-                            : AppColors.darkBorder,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          CupertinoIcons.arrow_down_doc,
-                          size: 15,
-                          color: canCopy
-                              ? CupertinoColors.systemBlue
-                              : CupertinoColors.systemGrey,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          copyLabel!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: canCopy
-                                ? CupertinoColors.systemBlue
-                                : CupertinoColors.systemGrey,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          _RuleLeadingColumn(
+            label: _weekdayLabels[weekday],
+            enabled: rule.enabled,
+            onToggle: onToggle,
           ),
-          const SizedBox(height: 8),
-          _RuleTimeLine(
-            label: '일정',
-            startValue: _timeOfDayLabel(rule.startsAt),
-            endValue: _timeOfDayLabel(rule.endsAt),
-            onPickStart: rule.enabled ? onPickStart : null,
-            onPickEnd: rule.enabled ? onPickEnd : null,
-          ),
-          const SizedBox(height: 6),
-          _RuleTimeLine(
-            label: '차량',
-            startValue: rule.vehicleBoardingTime == null
-                ? '탑승'
-                : _timeOfDayLabel(rule.vehicleBoardingTime!),
-            endValue: rule.vehicleDropoffTime == null
-                ? '하차'
-                : _timeOfDayLabel(rule.vehicleDropoffTime!),
-            onPickStart: rule.enabled ? onPickBoarding : null,
-            onPickEnd: rule.enabled ? onPickDropoff : null,
-            onClearStart: rule.vehicleBoardingTime != null
-                ? onClearBoarding
-                : null,
-            onClearEnd: rule.vehicleDropoffTime != null ? onClearDropoff : null,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              children: [
+                _AlignedRuleTimeLine(
+                  label: '일정',
+                  startValue: _timeOfDayLabel(rule.startsAt),
+                  endValue: _timeOfDayLabel(rule.endsAt),
+                  onPickStart: rule.enabled ? onPickStart : null,
+                  onPickEnd: rule.enabled ? onPickEnd : null,
+                  trailing: copyLabel == null
+                      ? null
+                      : _CopyPreviousRuleButton(
+                          enabled: canCopy,
+                          label: copyLabel!,
+                          onPressed: onCopyPrevious,
+                        ),
+                ),
+                const SizedBox(height: 6),
+                _AlignedRuleTimeLine(
+                  label: '차량',
+                  startValue: rule.vehicleBoardingTime == null
+                      ? '탑승'
+                      : _timeOfDayLabel(rule.vehicleBoardingTime!),
+                  endValue: rule.vehicleDropoffTime == null
+                      ? '하차'
+                      : _timeOfDayLabel(rule.vehicleDropoffTime!),
+                  onPickStart: rule.enabled ? onPickBoarding : null,
+                  onPickEnd: rule.enabled ? onPickDropoff : null,
+                  onClearStart: rule.vehicleBoardingTime != null
+                      ? onClearBoarding
+                      : null,
+                  onClearEnd: rule.vehicleDropoffTime != null
+                      ? onClearDropoff
+                      : null,
+                  trailing: copyLabel == null
+                      ? null
+                      : const SizedBox(width: 28, height: 32),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -2114,69 +2136,65 @@ class _MonthlyRuleRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              SizedBox(
-                width: 58,
-                child: Text(
-                  _weekOfMonthLabels[weekOfMonth] ?? '$weekOfMonth주',
-                  style: TextStyle(
-                    color: AppColors.darkTextPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-              CupertinoSwitch(value: rule.enabled, onChanged: onToggle),
-              const Spacer(),
-              SizedBox(
-                height: 34,
-                child: CupertinoButton(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  color: AppColors.darkSurfaceElevated,
-                  borderRadius: BorderRadius.circular(9),
-                  onPressed: rule.enabled ? onPickWeekday : null,
-                  child: Text(
-                    '${_weekdayLabels[rule.weekday]}요일',
-                    style: TextStyle(
-                      color: rule.enabled
-                          ? CupertinoColors.systemBlue
-                          : CupertinoColors.systemGrey,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
+          _RuleLeadingColumn(
+            label: _weekOfMonthLabels[weekOfMonth] ?? '$weekOfMonth주',
+            enabled: rule.enabled,
+            onToggle: onToggle,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AlignedRuleTimeLine(
+                        label: '일정',
+                        startValue: _timeOfDayLabel(rule.startsAt),
+                        endValue: _timeOfDayLabel(rule.endsAt),
+                        onPickStart: rule.enabled ? onPickStart : null,
+                        onPickEnd: rule.enabled ? onPickEnd : null,
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    _SmallWeekdayButton(
+                      value: '${_weekdayLabels[rule.weekday]}요일',
+                      enabled: rule.enabled,
+                      onPressed: onPickWeekday,
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _RuleTimeLine(
-            label: '일정',
-            startValue: _timeOfDayLabel(rule.startsAt),
-            endValue: _timeOfDayLabel(rule.endsAt),
-            onPickStart: rule.enabled ? onPickStart : null,
-            onPickEnd: rule.enabled ? onPickEnd : null,
-          ),
-          const SizedBox(height: 6),
-          _RuleTimeLine(
-            label: '차량',
-            startValue: rule.vehicleBoardingTime == null
-                ? '탑승'
-                : _timeOfDayLabel(rule.vehicleBoardingTime!),
-            endValue: rule.vehicleDropoffTime == null
-                ? '하차'
-                : _timeOfDayLabel(rule.vehicleDropoffTime!),
-            onPickStart: rule.enabled ? onPickBoarding : null,
-            onPickEnd: rule.enabled ? onPickDropoff : null,
-            onClearStart: rule.vehicleBoardingTime != null
-                ? onClearBoarding
-                : null,
-            onClearEnd: rule.vehicleDropoffTime != null ? onClearDropoff : null,
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AlignedRuleTimeLine(
+                        label: '차량',
+                        startValue: rule.vehicleBoardingTime == null
+                            ? '탑승'
+                            : _timeOfDayLabel(rule.vehicleBoardingTime!),
+                        endValue: rule.vehicleDropoffTime == null
+                            ? '하차'
+                            : _timeOfDayLabel(rule.vehicleDropoffTime!),
+                        onPickStart: rule.enabled ? onPickBoarding : null,
+                        onPickEnd: rule.enabled ? onPickDropoff : null,
+                        onClearStart: rule.vehicleBoardingTime != null
+                            ? onClearBoarding
+                            : null,
+                        onClearEnd: rule.vehicleDropoffTime != null
+                            ? onClearDropoff
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const SizedBox(width: 48, height: 32),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -2184,8 +2202,128 @@ class _MonthlyRuleRow extends StatelessWidget {
   }
 }
 
-class _RuleTimeLine extends StatelessWidget {
-  const _RuleTimeLine({
+class _RuleLeadingColumn extends StatelessWidget {
+  const _RuleLeadingColumn({
+    required this.label,
+    required this.enabled,
+    required this.onToggle,
+  });
+
+  final String label;
+  final bool enabled;
+  final ValueChanged<bool> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      child: Column(
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            width: 34,
+            height: 22,
+            child: FittedBox(
+              fit: BoxFit.contain,
+              child: CupertinoSwitch(value: enabled, onChanged: onToggle),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmallWeekdayButton extends StatelessWidget {
+  const _SmallWeekdayButton({
+    required this.value,
+    required this.enabled,
+    required this.onPressed,
+  });
+
+  final String value;
+  final bool enabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 32,
+      child: CupertinoButton(
+        padding: EdgeInsets.zero,
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(9),
+        onPressed: enabled ? onPressed : null,
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: enabled
+                ? CupertinoColors.systemBlue
+                : CupertinoColors.systemGrey,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CopyPreviousRuleButton extends StatelessWidget {
+  const _CopyPreviousRuleButton({
+    required this.enabled,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled
+        ? CupertinoColors.systemBlue
+        : CupertinoColors.systemGrey;
+
+    return Semantics(
+      button: true,
+      label: '$label 아래로 복사',
+      child: SizedBox(
+        width: 28,
+        height: 32,
+        child: CupertinoButton(
+          padding: EdgeInsets.zero,
+          color: enabled
+              ? AppColors.darkPrimarySoft
+              : AppColors.darkSurfaceElevated,
+          borderRadius: BorderRadius.circular(9),
+          onPressed: enabled ? onPressed : null,
+          child: Icon(CupertinoIcons.arrow_down_doc, size: 14, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _AlignedRuleTimeLine extends StatelessWidget {
+  const _AlignedRuleTimeLine({
     required this.label,
     required this.startValue,
     required this.endValue,
@@ -2193,6 +2331,7 @@ class _RuleTimeLine extends StatelessWidget {
     required this.onPickEnd,
     this.onClearStart,
     this.onClearEnd,
+    this.trailing,
   });
 
   final String label;
@@ -2202,13 +2341,14 @@ class _RuleTimeLine extends StatelessWidget {
   final VoidCallback? onPickEnd;
   final VoidCallback? onClearStart;
   final VoidCallback? onClearEnd;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         SizedBox(
-          width: 44,
+          width: 34,
           child: Text(
             label,
             style: TextStyle(
@@ -2219,24 +2359,77 @@ class _RuleTimeLine extends StatelessWidget {
             ),
           ),
         ),
-        _SmallTimeButton(value: startValue, onPressed: onPickStart),
-        if (onClearStart != null)
-          _ClearTimeButton(onPressed: onClearStart!)
-        else
-          const SizedBox(width: 6),
+        Expanded(
+          child: _CompactValueButton(value: startValue, onPressed: onPickStart),
+        ),
+        _ClearTimeSlot(onPressed: onClearStart),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4),
+          padding: EdgeInsets.symmetric(horizontal: 3),
           child: Text(
-            '-',
-            style: TextStyle(color: AppColors.darkTextSecondary),
+            '~',
+            style: TextStyle(
+              color: AppColors.darkTextSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
           ),
         ),
-        _SmallTimeButton(value: endValue, onPressed: onPickEnd),
-        if (onClearEnd != null)
-          _ClearTimeButton(onPressed: onClearEnd!)
-        else
-          const SizedBox(width: 6),
+        Expanded(
+          child: _CompactValueButton(value: endValue, onPressed: onPickEnd),
+        ),
+        _ClearTimeSlot(onPressed: onClearEnd),
+        if (trailing != null) ...[const SizedBox(width: 4), trailing!],
       ],
+    );
+  }
+}
+
+class _ClearTimeSlot extends StatelessWidget {
+  const _ClearTimeSlot({this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      child: onPressed == null
+          ? const SizedBox.shrink()
+          : _ClearTimeButton(onPressed: onPressed!),
+    );
+  }
+}
+
+class _CompactValueButton extends StatelessWidget {
+  const _CompactValueButton({required this.value, required this.onPressed});
+
+  final String value;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 34,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(9),
+        onPressed: onPressed,
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: onPressed == null
+                ? CupertinoColors.systemGrey
+                : CupertinoColors.systemBlue,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -2253,37 +2446,6 @@ class _ClearTimeButton extends StatelessWidget {
       minimumSize: const Size(28, 28),
       onPressed: onPressed,
       child: const Icon(CupertinoIcons.xmark_circle_fill, size: 16),
-    );
-  }
-}
-
-class _SmallTimeButton extends StatelessWidget {
-  const _SmallTimeButton({required this.value, required this.onPressed});
-
-  final String value;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        color: AppColors.darkSurfaceElevated,
-        borderRadius: BorderRadius.circular(9),
-        onPressed: onPressed,
-        child: Text(
-          value,
-          style: TextStyle(
-            color: onPressed == null
-                ? CupertinoColors.systemGrey
-                : CupertinoColors.systemBlue,
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-      ),
     );
   }
 }
