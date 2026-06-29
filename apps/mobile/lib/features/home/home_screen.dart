@@ -69,15 +69,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _tabController = CupertinoTabController();
     _tabController.addListener(_handleTabChange);
+    _deepLinkChannel.setMethodCallHandler(_handleDeepLinkMethodCall);
     _loadFamilies();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumeInviteLinkFromChannel('getInitialLink');
+      _consumeInviteLinkFromChannel('getLatestLink');
+      _consumeInviteLinkFromChannelLater('getLatestLink');
     });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _deepLinkChannel.setMethodCallHandler(null);
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
@@ -89,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.resumed) {
       _consumeInviteLinkFromChannel('getLatestLink');
+      _consumeInviteLinkFromChannelLater('getLatestLink');
     }
   }
 
@@ -113,6 +118,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _openParkingTab() {
     _tabController.index = 3;
+  }
+
+  Future<void> _handleDeepLinkMethodCall(MethodCall call) async {
+    if (call.method != 'onLink') {
+      return;
+    }
+
+    final link = call.arguments as String?;
+
+    if (link == null || link.trim().isEmpty) {
+      return;
+    }
+
+    await _handleInviteLink(link);
+  }
+
+  Future<void> _consumeInviteLinkFromChannelLater(String method) async {
+    await Future<void>.delayed(const Duration(milliseconds: 450));
+
+    if (!mounted) {
+      return;
+    }
+
+    await _consumeInviteLinkFromChannel(method);
   }
 
   Future<void> _consumeInviteLinkFromChannel(String method) async {

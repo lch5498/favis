@@ -3,15 +3,17 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
-  private var initialDeepLink: String?
-  private var latestDeepLink: String?
+  let pendingDeepLinkKey = "checky.pendingDeepLink"
+  var initialDeepLink: String?
+  var latestDeepLink: String?
+  var deepLinkChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     if let url = launchOptions?[.url] as? URL {
-      captureDeepLink(url, isInitial: true)
+      handleDeepLink(url, isInitial: true)
     }
 
     if let controller = window?.rootViewController as? FlutterViewController {
@@ -102,18 +104,18 @@ import UIKit
         }
       }
 
-      let deepLinkChannel = FlutterMethodChannel(
+      deepLinkChannel = FlutterMethodChannel(
         name: "checky/deep_links",
         binaryMessenger: controller.binaryMessenger
       )
 
-      deepLinkChannel.setMethodCallHandler { [weak self] call, result in
+      deepLinkChannel?.setMethodCallHandler { [weak self] call, result in
         switch call.method {
         case "getInitialLink":
-          result(self?.initialDeepLink)
+          result(self?.consumeDeepLink(preferred: self?.initialDeepLink))
           self?.initialDeepLink = nil
         case "getLatestLink":
-          result(self?.latestDeepLink)
+          result(self?.consumeDeepLink(preferred: self?.latestDeepLink))
           self?.latestDeepLink = nil
         default:
           result(FlutterMethodNotImplemented)
@@ -129,25 +131,50 @@ import UIKit
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey : Any] = [:]
   ) -> Bool {
-    captureDeepLink(url, isInitial: false)
+    if handleDeepLink(url, isInitial: false) {
+      return true
+    }
+
     return super.application(app, open: url, options: options)
   }
 
-  private func captureDeepLink(_ url: URL, isInitial: Bool) {
+  @discardableResult
+  func handleDeepLink(_ url: URL, isInitial: Bool) -> Bool {
     guard
       let scheme = url.scheme,
       let host = url.host,
       (scheme == "checky" || scheme == "favis"),
       host == "family-invite"
     else {
-      return
+      return false
     }
 
     let value = url.absoluteString
     latestDeepLink = value
+    UserDefaults.standard.set(value, forKey: pendingDeepLinkKey)
     if isInitial && initialDeepLink == nil {
       initialDeepLink = value
     }
+
+    DispatchQueue.main.async { [weak self] in
+      self?.deepLinkChannel?.invokeMethod("onLink", arguments: value)
+    }
+
+    return true
+  }
+
+  func consumeDeepLink(preferred: String?) -> String? {
+    if let preferred, !preferred.isEmpty {
+      UserDefaults.standard.removeObject(forKey: pendingDeepLinkKey)
+      return preferred
+    }
+
+    guard let pending = UserDefaults.standard.string(forKey: pendingDeepLinkKey), !pending.isEmpty else {
+      return nil
+    }
+
+    UserDefaults.standard.removeObject(forKey: pendingDeepLinkKey)
+    return pending
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
