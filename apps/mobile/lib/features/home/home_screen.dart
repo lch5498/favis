@@ -400,10 +400,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return CupertinoTabScaffold(
         controller: _tabController,
         tabBar: CupertinoTabBar(
-          backgroundColor: AppColors.darkSurface,
+          backgroundColor: AppColors.darkSurfaceElevated,
           activeColor: AppColors.darkPrimary,
           inactiveColor: AppColors.darkTextMuted,
-          iconSize: 26,
+          iconSize: 24,
           border: Border(top: BorderSide(color: AppColors.darkBorder)),
           items: const [
             BottomNavigationBarItem(

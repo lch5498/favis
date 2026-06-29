@@ -24,15 +24,15 @@ class AppColors {
   static const darkCoralValue = Color(0xFFFF8585);
   static const darkLavenderValue = Color(0xFFBCA7FF);
 
-  static const lightBackground = Color(0xFFF6FFFD);
-  static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurfaceElevated = Color(0xFFEFFFFD);
-  static const lightPrimary = checkyMint;
-  static const lightPrimarySoft = Color(0xFFDDF7F5);
-  static const lightTextPrimary = Color(0xFF132224);
-  static const lightTextSecondary = Color(0xFF486164);
-  static const lightTextMuted = Color(0xFF81989B);
-  static const lightBorder = Color(0xFFD8EDEA);
+  static const lightBackground = Color(0xFFEEF9F6);
+  static const lightSurface = Color(0xFFF3FCF9);
+  static const lightSurfaceElevated = Color(0xFFDFF4EF);
+  static const lightPrimary = Color(0xFF159D95);
+  static const lightPrimarySoft = Color(0xFFD5F2EE);
+  static const lightTextPrimary = Color(0xFF102320);
+  static const lightTextSecondary = Color(0xFF42635E);
+  static const lightTextMuted = Color(0xFF6F8984);
+  static const lightBorder = Color(0xFFC2E2DC);
   static const lightSuccess = checkyLavender;
   static const lightWarning = Color(0xFFE78B00);
   static const lightDanger = checkyCoral;

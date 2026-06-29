@@ -562,7 +562,7 @@ class _EducationScheduleGroup extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: AppColors.darkSurfaceElevated,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppColors.darkBorder),
       ),
@@ -1802,7 +1802,7 @@ class _FormSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: AppColors.darkSurfaceElevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.darkBorder),
       ),
@@ -2449,7 +2449,7 @@ class _EmptyPrograms extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: AppColors.darkSurface,
+        color: AppColors.darkSurfaceElevated,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.darkBorder),
       ),

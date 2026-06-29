@@ -31,6 +31,7 @@ class ScheduleScreen extends StatefulWidget {
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
   final _apiClient = ApiClient();
+  final _calendarPageController = PageController(initialPage: 1);
 
   late AppFamily _family;
   ScheduleDashboard? _dashboard;
@@ -39,25 +40,32 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   final Set<String> _hiddenMemberIds = <String>{};
   String? _message;
   bool _isLoading = true;
+  int _scheduleLoadToken = 0;
 
   DateTime get _rangeStart => _startOfRange(_anchorDate, _mode);
   DateTime get _rangeEnd => _endOfRange(_anchorDate, _mode);
-  List<AppSchedule> get _filteredSchedules {
+  DateTime get _prefetchRangeStart =>
+      _startOfRange(_anchorDateForOffset(_anchorDate, _mode, -1), _mode);
+  DateTime get _prefetchRangeEnd =>
+      _endOfRange(_anchorDateForOffset(_anchorDate, _mode, 1), _mode);
+
+  List<AppSchedule> _filteredSchedulesForRange(
+    DateTime rangeStart,
+    DateTime rangeEnd,
+  ) {
     final dashboard = _dashboard;
 
     if (dashboard == null) {
       return const [];
     }
 
-    if (_hiddenMemberIds.isEmpty) {
-      return dashboard.schedules;
-    }
-
     return dashboard.schedules
         .where(
           (schedule) =>
-              schedule.familyMemberId == null ||
-              !_hiddenMemberIds.contains(schedule.familyMemberId),
+              schedule.startsAt.isBefore(rangeEnd) &&
+              schedule.endsAt.isAfter(rangeStart) &&
+              (schedule.familyMemberId == null ||
+                  !_hiddenMemberIds.contains(schedule.familyMemberId)),
         )
         .toList();
   }
@@ -73,15 +81,23 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   @override
+  void dispose() {
+    _calendarPageController.dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant ScheduleScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
 
     if (oldWidget.family.id != widget.family.id) {
       _family = widget.family;
       _hiddenMemberIds.clear();
+      _resetCalendarPage();
       _loadSchedules();
     } else if (oldWidget.todayRequestToken != widget.todayRequestToken) {
       setState(_setTodayDayViewState);
+      _resetCalendarPage();
       _loadSchedules();
     } else if (oldWidget.refreshToken != widget.refreshToken) {
       _loadSchedules();
@@ -94,6 +110,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> _loadSchedules() async {
+    final loadToken = ++_scheduleLoadToken;
+    final rangeStart = _prefetchRangeStart;
+    final rangeEnd = _prefetchRangeEnd;
+
     setState(() {
       _isLoading = true;
       _message = null;
@@ -103,11 +123,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final dashboard = await _apiClient.getScheduleDashboard(
         widget.sessionToken,
         familyId: _family.id,
-        rangeStart: _rangeStart,
-        rangeEnd: _rangeEnd,
+        rangeStart: rangeStart,
+        rangeEnd: rangeEnd,
       );
 
-      if (mounted) {
+      if (mounted && loadToken == _scheduleLoadToken) {
         setState(() {
           _dashboard = dashboard;
           _hiddenMemberIds.removeWhere(
@@ -117,13 +137,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
         });
       }
     } catch (error) {
-      if (mounted) {
+      if (mounted && loadToken == _scheduleLoadToken) {
         setState(() {
           _message = error.toString();
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && loadToken == _scheduleLoadToken) {
         setState(() {
           _isLoading = false;
         });
@@ -159,25 +179,51 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _mode = mode;
       _anchorDate = _dateOnly(_anchorDate);
     });
+    _resetCalendarPage();
     _loadSchedules();
   }
 
   void _moveRange(int direction) {
+    if (_calendarPageController.hasClients) {
+      _calendarPageController.animateToPage(
+        1 + direction,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+
+    _commitRangeMove(direction);
+  }
+
+  void _commitRangeMove(int direction) {
+    if (direction == 0) {
+      return;
+    }
+
     setState(() {
-      switch (_mode) {
-        case _CalendarMode.day:
-          _anchorDate = _anchorDate.add(Duration(days: direction));
-        case _CalendarMode.week:
-          _anchorDate = _anchorDate.add(Duration(days: 7 * direction));
-        case _CalendarMode.month:
-          _anchorDate = DateTime(
-            _anchorDate.year,
-            _anchorDate.month + direction,
-            1,
-          );
-      }
+      _anchorDate = _anchorDateForOffset(_anchorDate, _mode, direction);
     });
+    _jumpCalendarToCenter();
     _loadSchedules();
+  }
+
+  void _handleCalendarPageChanged(int page) {
+    _commitRangeMove(page - 1);
+  }
+
+  void _resetCalendarPage() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _jumpCalendarToCenter();
+    });
+  }
+
+  void _jumpCalendarToCenter() {
+    if (!mounted || !_calendarPageController.hasClients) {
+      return;
+    }
+
+    _calendarPageController.jumpToPage(1);
   }
 
   void _toggleMemberFilter(String memberId) {
@@ -228,6 +274,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _dashboard = null;
       _hiddenMemberIds.clear();
     });
+    _resetCalendarPage();
     await widget.onSelectFamily(selectedFamily);
     await _loadSchedules();
   }
@@ -326,9 +373,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final brightness = CupertinoTheme.brightnessOf(context);
+    AppColors.useBrightness(brightness);
     final dashboard = _dashboard;
-    final schedules = _filteredSchedules;
     final memberColors = _memberFilterColors(dashboard?.members ?? const []);
+    final calendarKey = ValueKey('schedule-calendar-${brightness.name}');
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
@@ -417,33 +466,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       )
                     else
                       Expanded(
-                        child: _mode == _CalendarMode.month
-                            ? SingleChildScrollView(
-                                child: _CalendarBoard(
-                                  mode: _mode,
-                                  rangeStart: _rangeStart,
-                                  rangeEnd: _rangeEnd,
-                                  anchorDate: _anchorDate,
-                                  schedules: schedules,
-                                  memberColors: memberColors,
-                                  canManage: dashboard.canManage,
-                                  onTapDate: (date) =>
-                                      _openScheduleForm(initialDate: date),
-                                  onTapSchedule: _openScheduleDetail,
-                                ),
-                              )
-                            : _CalendarBoard(
-                                mode: _mode,
-                                rangeStart: _rangeStart,
-                                rangeEnd: _rangeEnd,
-                                anchorDate: _anchorDate,
-                                schedules: schedules,
-                                memberColors: memberColors,
-                                canManage: dashboard.canManage,
-                                onTapDate: (date) =>
-                                    _openScheduleForm(initialDate: date),
-                                onTapSchedule: _openScheduleDetail,
-                              ),
+                        child: _PagedCalendarBoard(
+                          key: calendarKey,
+                          controller: _calendarPageController,
+                          mode: _mode,
+                          anchorDate: _anchorDate,
+                          schedulesForRange: _filteredSchedulesForRange,
+                          memberColors: memberColors,
+                          canManage: dashboard.canManage,
+                          onTapDate: (date) =>
+                              _openScheduleForm(initialDate: date),
+                          onTapSchedule: _openScheduleDetail,
+                          onPageChanged: _handleCalendarPageChanged,
+                        ),
                       ),
                   ],
                 ),
@@ -630,6 +665,67 @@ class _ScheduleHeader extends StatelessWidget {
   }
 }
 
+class _PagedCalendarBoard extends StatelessWidget {
+  const _PagedCalendarBoard({
+    super.key,
+    required this.controller,
+    required this.mode,
+    required this.anchorDate,
+    required this.schedulesForRange,
+    required this.memberColors,
+    required this.canManage,
+    required this.onTapDate,
+    required this.onTapSchedule,
+    required this.onPageChanged,
+  });
+
+  final PageController controller;
+  final _CalendarMode mode;
+  final DateTime anchorDate;
+  final List<AppSchedule> Function(DateTime rangeStart, DateTime rangeEnd)
+  schedulesForRange;
+  final Map<String, MemberFilterColor> memberColors;
+  final bool canManage;
+  final ValueChanged<DateTime> onTapDate;
+  final ValueChanged<AppSchedule> onTapSchedule;
+  final ValueChanged<int> onPageChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return PageView.builder(
+      controller: controller,
+      itemCount: 3,
+      onPageChanged: onPageChanged,
+      itemBuilder: (context, index) {
+        final pageAnchorDate = _anchorDateForOffset(
+          anchorDate,
+          mode,
+          index - 1,
+        );
+        final rangeStart = _startOfRange(pageAnchorDate, mode);
+        final rangeEnd = _endOfRange(pageAnchorDate, mode);
+        final board = _CalendarBoard(
+          mode: mode,
+          rangeStart: rangeStart,
+          rangeEnd: rangeEnd,
+          anchorDate: pageAnchorDate,
+          schedules: schedulesForRange(rangeStart, rangeEnd),
+          memberColors: memberColors,
+          canManage: canManage,
+          onTapDate: onTapDate,
+          onTapSchedule: onTapSchedule,
+        );
+
+        if (mode == _CalendarMode.month) {
+          return SingleChildScrollView(child: board);
+        }
+
+        return board;
+      },
+    );
+  }
+}
+
 class _CalendarBoard extends StatelessWidget {
   const _CalendarBoard({
     required this.mode,
@@ -762,7 +858,11 @@ class _DayCalendarState extends State<_DayCalendar> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          _CalendarTitleBar(title: _dayLabel(widget.date)),
+          ColoredBox(
+            color: AppColors.darkSurfaceElevated,
+            child: _CalendarTitleBar(title: _dayLabel(widget.date)),
+          ),
+          Container(height: 1, color: AppColors.darkBorder),
           Expanded(
             child: SingleChildScrollView(
               controller: _scrollController,
@@ -866,19 +966,24 @@ class _WeekCalendarState extends State<_WeekCalendar> {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: _weekTimeColumnWidth,
-                height: 62,
-                decoration: BoxDecoration(
-                  border: Border(
-                    right: BorderSide(color: AppColors.darkBorder),
+          ColoredBox(
+            color: AppColors.darkSurfaceElevated,
+            child: Row(
+              children: [
+                Container(
+                  width: _weekTimeColumnWidth,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      right: BorderSide(color: AppColors.darkBorder),
+                    ),
                   ),
                 ),
-              ),
-              ...days.map((day) => Expanded(child: _WeekDayHeader(date: day))),
-            ],
+                ...days.map(
+                  (day) => Expanded(child: _WeekDayHeader(date: day)),
+                ),
+              ],
+            ),
           ),
           Container(height: 1, color: AppColors.darkBorder),
           Expanded(
@@ -1300,11 +1405,16 @@ class _MonthCalendar extends StatelessWidget {
       decoration: _calendarDecoration,
       child: Column(
         children: [
-          Row(
-            children: List.generate(
-              7,
-              (index) => Expanded(
-                child: _MonthWeekdayHeader(label: _calendarWeekdayLabel(index)),
+          ColoredBox(
+            color: AppColors.darkSurfaceElevated,
+            child: Row(
+              children: List.generate(
+                7,
+                (index) => Expanded(
+                  child: _MonthWeekdayHeader(
+                    label: _calendarWeekdayLabel(index),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1518,6 +1628,9 @@ class _DateCell extends StatelessWidget {
             right: BorderSide(color: AppColors.darkBorder),
             bottom: BorderSide(color: AppColors.darkBorder),
           ),
+          color: isInCurrentMonth
+              ? AppColors.darkSurface
+              : AppColors.darkSurfaceElevated.withValues(alpha: 0.42),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2794,6 +2907,21 @@ DateTime _endOfRange(DateTime date, _CalendarMode mode) {
     case _CalendarMode.month:
       final start = _startOfRange(date, mode);
       return DateTime(start.year, start.month + 1);
+  }
+}
+
+DateTime _anchorDateForOffset(
+  DateTime anchorDate,
+  _CalendarMode mode,
+  int offset,
+) {
+  switch (mode) {
+    case _CalendarMode.day:
+      return _dateOnly(anchorDate).add(Duration(days: offset));
+    case _CalendarMode.week:
+      return _dateOnly(anchorDate).add(Duration(days: 7 * offset));
+    case _CalendarMode.month:
+      return DateTime(anchorDate.year, anchorDate.month + offset, 1);
   }
 }
 
