@@ -416,7 +416,7 @@ KAKAO_REST_API_KEY=
 KAKAO_CLIENT_SECRET=
 KAKAO_REDIRECT_URI=http://localhost:3000/api/auth/kakao/callback
 SESSION_SECRET=
-MOBILE_INVITE_BASE_URL=
+WEB_INVITE_BASE_URL=https://favis.vercel.app/invite
 ```
 
 중요한 규칙:
@@ -428,7 +428,7 @@ MOBILE_INVITE_BASE_URL=
 - `.env.local`은 커밋하지 않습니다.
 - `KAKAO_CLIENT_SECRET`은 카카오 개발자 콘솔에서 client secret이 활성화된 경우 넣습니다.
 - `SESSION_SECRET`은 모바일 앱용 자체 세션 토큰 서명에 사용합니다. 충분히 긴 랜덤 문자열을 사용합니다.
-- `MOBILE_INVITE_BASE_URL`은 가족 초대 링크 생성에 사용합니다. 미설정 시 기본값은 `checky://family-invite`입니다.
+- `WEB_INVITE_BASE_URL`은 가족 초대 공유용 HTTPS 링크 생성에 사용합니다. 미설정 시 Vercel 도메인 기반 `/invite` 경로를 사용합니다. 카카오톡 공유 안정성을 위해 `checky://...` 같은 커스텀 scheme을 직접 공유하지 않습니다.
 
 로컬에서 직접 `.env.local`을 만들려면:
 
@@ -898,7 +898,7 @@ Vercel Dashboard 또는 CLI로 아래 환경변수를 등록합니다.
 - `KAKAO_CLIENT_SECRET`
 - `KAKAO_REDIRECT_URI`
 - `SESSION_SECRET`
-- `MOBILE_INVITE_BASE_URL`
+- `WEB_INVITE_BASE_URL`
 
 현재 서버 코드는 Supabase 서버용 secret key만 사용하므로 `SUPABASE_PUBLISHABLE_KEY`는 필수값이 아닙니다.
 
@@ -963,3 +963,20 @@ curl https://favis.vercel.app/api/health
 3. 실제 iPhone에서 가입, 가족 생성, 구성원 추가/초대/수락, 주차 관리, 일정 등록/수정/삭제 회귀 테스트
 4. 일정 반복 규칙과 알림 같은 고급 기능 검토
 5. 주차 기록 히스토리와 차량별 기록 조회 기능 검토
+
+
+## 가족 초대 링크
+
+가족 초대 링크는 카카오톡 등 메신저에서 안정적으로 열리도록 HTTPS 링크로 생성합니다.
+
+```text
+https://favis.vercel.app/invite/<초대토큰>
+```
+
+초대 페이지는 체키 앱이 설치된 단말에서 아래 앱 딥링크로 이동합니다.
+
+```text
+checky://family-invite/<초대토큰>
+```
+
+Android는 `checky://family-invite/...`와 기존 호환용 `favis://family-invite/...`를 모두 받을 수 있습니다. iOS도 동일한 URL scheme을 등록합니다.

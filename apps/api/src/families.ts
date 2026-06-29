@@ -470,7 +470,12 @@ export async function acceptFamilyInvitation(userId: string, inviteToken: string
 }
 
 export function getInviteUrl(inviteToken: string) {
-  const baseUrl = process.env.MOBILE_INVITE_BASE_URL ?? 'checky://family-invite';
+  const configuredBaseUrl = process.env.WEB_INVITE_BASE_URL;
+  const vercelHost = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  const fallbackBaseUrl = vercelHost
+    ? `https://${vercelHost.replace(/^https?:\/\//, '')}/invite`
+    : 'https://favis.vercel.app/invite';
+  const baseUrl = configuredBaseUrl ?? fallbackBaseUrl;
 
   return `${baseUrl.replace(/\/$/, '')}/${inviteToken}`;
 }

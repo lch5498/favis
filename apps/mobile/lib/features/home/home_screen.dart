@@ -13,6 +13,7 @@ import '../schedule/schedule_screen.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
 const _preferencesChannel = MethodChannel('checky/preferences');
+const _deepLinkChannel = MethodChannel('checky/deep_links');
 const _selectedFamilyPreferenceKey = 'selectedFamilyId';
 
 class HomeScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _apiClient = ApiClient();
   late final CupertinoTabController _tabController;
 
@@ -46,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _homeRefreshToken = 0;
   int _scheduleRefreshToken = 0;
   int _todayScheduleRequestToken = 0;
+  final Set<String> _handledInviteTokens = <String>{};
 
   AppFamily? get _selectedFamily {
     if (_families.isEmpty) {
@@ -64,16 +66,30 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = CupertinoTabController();
     _tabController.addListener(_handleTabChange);
     _loadFamilies();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _consumeInviteLinkFromChannel('getInitialLink');
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.resumed) {
+      _consumeInviteLinkFromChannel('getLatestLink');
+    }
   }
 
   void _handleTabChange() {
@@ -97,6 +113,115 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openParkingTab() {
     _tabController.index = 3;
+  }
+
+  Future<void> _consumeInviteLinkFromChannel(String method) async {
+    try {
+      final link = await _deepLinkChannel.invokeMethod<String>(method);
+
+      if (!mounted || link == null || link.trim().isEmpty) {
+        return;
+      }
+
+      await _handleInviteLink(link);
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  Future<void> _handleInviteLink(String link) async {
+    final inviteToken = _extractInviteToken(link);
+
+    if (inviteToken.isEmpty || _handledInviteTokens.contains(inviteToken)) {
+      return;
+    }
+
+    _handledInviteTokens.add(inviteToken);
+
+    final shouldAccept = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text('가족 초대 수락'),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text('이 초대 링크로 가족에 참여할까요?'),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('취소'),
+          ),
+          CupertinoDialogAction(
+            isDefaultAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('수락'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldAccept != true || !mounted) {
+      _handledInviteTokens.remove(inviteToken);
+      return;
+    }
+
+    setState(() {
+      _isLoadingFamilies = true;
+      _message = null;
+    });
+
+    try {
+      final detail = await _apiClient.acceptFamilyInvitation(
+        widget.sessionToken,
+        inviteToken: inviteToken,
+      );
+      await _loadFamilies();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedFamilyId = detail.family.id;
+      });
+      await _saveSelectedFamilyId(detail.family.id);
+
+      if (!mounted) {
+        return;
+      }
+
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: Text('초대 수락 완료'),
+          content: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('${detail.family.name} 가족에 연결되었습니다.'),
+          ),
+          actions: [
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('확인'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      _handledInviteTokens.remove(inviteToken);
+
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingFamilies = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadFamilies() async {
@@ -1159,4 +1284,19 @@ class _InlineMessage extends StatelessWidget {
       ),
     );
   }
+}
+
+String _extractInviteToken(String input) {
+  final trimmed = input.trim();
+  final uri = Uri.tryParse(trimmed);
+
+  if (uri != null && uri.pathSegments.isNotEmpty) {
+    return uri.pathSegments.last;
+  }
+
+  if (trimmed.contains('/')) {
+    return trimmed.split('/').where((segment) => segment.isNotEmpty).last;
+  }
+
+  return trimmed;
 }
