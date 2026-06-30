@@ -49,7 +49,7 @@ create table public.family_members (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint family_members_role_check check (
-    role in ('owner', 'co_owner', 'member')
+    role in ('owner', 'member')
   ),
   constraint family_members_color_check check (
     color is null or color in (

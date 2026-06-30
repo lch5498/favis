@@ -1,7 +1,26 @@
+import type { Metadata } from 'next';
+
 type InvitePageProps = {
   params: Promise<{
     inviteToken: string;
   }>;
+};
+
+export const metadata: Metadata = {
+  title: '체키 가족 초대',
+  description: '체키에서 가족 일정과 주차 위치를 함께 관리해요.',
+  openGraph: {
+    title: '체키 가족 초대',
+    description: '체키에서 가족 일정과 주차 위치를 함께 관리해요.',
+    siteName: '체키',
+    type: 'website',
+    locale: 'ko_KR',
+  },
+  twitter: {
+    card: 'summary',
+    title: '체키 가족 초대',
+    description: '체키에서 가족 일정과 주차 위치를 함께 관리해요.',
+  },
 };
 
 export default async function InvitePage({ params }: InvitePageProps) {

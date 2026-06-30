@@ -4,7 +4,7 @@ import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 import { getUserById } from './users';
 
-export type FamilyRole = 'owner' | 'co_owner' | 'member';
+export type FamilyRole = 'owner' | 'member';
 
 export type Family = {
   id: string;
@@ -57,7 +57,6 @@ export type FamilyInvitation = {
   updated_at: string;
 };
 
-const WRITER_ROLES: FamilyRole[] = ['owner', 'co_owner'];
 const INVITATION_TTL_DAYS = 7;
 
 type MembershipCheckOptions = {
@@ -607,11 +606,11 @@ async function getValidInvitation(inviteToken: string) {
 }
 
 function canManage(role: FamilyRole) {
-  return WRITER_ROLES.includes(role);
+  return role === 'owner';
 }
 
 function assertFamilyRole(role: string): asserts role is FamilyRole {
-  if (!['owner', 'co_owner', 'member'].includes(role)) {
+  if (!['owner', 'member'].includes(role)) {
     throw new HttpError(400, { error: 'invalid_family_role' });
   }
 }

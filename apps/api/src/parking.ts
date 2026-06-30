@@ -60,7 +60,7 @@ export async function getParkingDashboard(userId: string, familyId: string) {
   ]);
 
   return {
-    canManage: membership.role === 'owner' || membership.role === 'co_owner',
+    canManage: membership.role === 'owner',
     vehicles,
     presets,
     currentLocations,

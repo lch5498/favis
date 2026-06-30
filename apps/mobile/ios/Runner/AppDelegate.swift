@@ -42,23 +42,27 @@ import UIKit
           return
         }
 
+        let subject = arguments["subject"] as? String ?? "체키 가족 초대"
+        let presenter = self.topViewController(from: controller)
+
         let activityController = UIActivityViewController(
           activityItems: [text],
           applicationActivities: nil
         )
+        activityController.setValue(subject, forKey: "subject")
 
         if let popover = activityController.popoverPresentationController {
-          popover.sourceView = controller.view
+          popover.sourceView = presenter.view
           popover.sourceRect = CGRect(
-            x: controller.view.bounds.midX,
-            y: controller.view.bounds.midY,
+            x: presenter.view.bounds.midX,
+            y: presenter.view.bounds.midY,
             width: 0,
             height: 0
           )
           popover.permittedArrowDirections = []
         }
 
-        controller.present(activityController, animated: true) {
+        presenter.present(activityController, animated: true) {
           result(nil)
         }
       }
@@ -175,6 +179,24 @@ import UIKit
 
     UserDefaults.standard.removeObject(forKey: pendingDeepLinkKey)
     return pending
+  }
+
+  func topViewController(from controller: UIViewController) -> UIViewController {
+    if let presented = controller.presentedViewController {
+      return topViewController(from: presented)
+    }
+
+    if let navigation = controller as? UINavigationController,
+       let visible = navigation.visibleViewController {
+      return topViewController(from: visible)
+    }
+
+    if let tab = controller as? UITabBarController,
+       let selected = tab.selectedViewController {
+      return topViewController(from: selected)
+    }
+
+    return controller
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

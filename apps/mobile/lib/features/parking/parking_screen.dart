@@ -378,7 +378,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
                 title: '등록된 차량이 없습니다.',
                 subtitle: dashboard.canManage
                     ? '차량을 먼저 등록하면 주차 위치를 기록할 수 있습니다.'
-                    : '대표 또는 공동대표가 차량을 등록하면 주차 위치를 볼 수 있습니다.',
+                    : '대표가 차량을 등록하면 주차 위치를 볼 수 있습니다.',
                 actionLabel: '차량 등록',
                 onPressed: dashboard.canManage
                     ? () => _openVehicleForm()

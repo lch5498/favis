@@ -17,6 +17,32 @@ class MainActivity : FlutterActivity() {
 
         captureDeepLink(intent, isInitial = true)
 
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "checky/share"
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "shareText" -> {
+                    val text = call.argument<String>("text")
+                    val subject = call.argument<String>("subject") ?: "체키 가족 초대"
+
+                    if (text.isNullOrBlank()) {
+                        result.error("invalid_arguments", "text is required", null)
+                        return@setMethodCallHandler
+                    }
+
+                    val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        putExtra(Intent.EXTRA_SUBJECT, subject)
+                    }
+                    startActivity(Intent.createChooser(sendIntent, subject))
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
         deepLinkChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "checky/deep_links"

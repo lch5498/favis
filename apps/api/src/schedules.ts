@@ -68,7 +68,7 @@ export async function getScheduleDashboard(
   ]);
 
   return {
-    canManage: membership.role === 'owner' || membership.role === 'co_owner',
+    canManage: membership.role === 'owner',
     members,
     schedules,
     educationPrograms,

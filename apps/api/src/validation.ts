@@ -57,9 +57,9 @@ export function optionalString(
 export function requiredFamilyRole(payload: Record<string, unknown>, key: string) {
   const role = requiredString(payload, key);
 
-  if (!['owner', 'co_owner', 'member'].includes(role)) {
+  if (!['owner', 'member'].includes(role)) {
     throw new HttpError(400, { error: 'invalid_payload', field: key });
   }
 
-  return role as 'owner' | 'co_owner' | 'member';
+  return role as 'owner' | 'member';
 }

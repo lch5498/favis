@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
-  title: 'Favis API',
-  description: 'Favis API server and Kakao login test page.',
+  title: '체키',
+  description: '가족 일정과 주차 위치를 함께 관리하는 체키 서비스입니다.',
 };
 
 type RootLayoutProps = {

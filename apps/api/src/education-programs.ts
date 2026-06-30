@@ -92,7 +92,7 @@ export async function getEducationProgramDashboard(
   ]);
 
   return {
-    canManage: membership.role === 'owner' || membership.role === 'co_owner',
+    canManage: membership.role === 'owner',
     members,
     programs,
   };
