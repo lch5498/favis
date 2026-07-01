@@ -17,56 +17,7 @@ import UIKit
     }
 
     if let controller = window?.rootViewController as? FlutterViewController {
-      let shareChannel = FlutterMethodChannel(
-        name: "checky/share",
-        binaryMessenger: controller.binaryMessenger
-      )
-
-      shareChannel.setMethodCallHandler { call, result in
-        guard call.method == "shareText" else {
-          result(FlutterMethodNotImplemented)
-          return
-        }
-
-        guard
-          let arguments = call.arguments as? [String: Any],
-          let text = arguments["text"] as? String
-        else {
-          result(
-            FlutterError(
-              code: "invalid_arguments",
-              message: "text is required",
-              details: nil
-            )
-          )
-          return
-        }
-
-        let subject = arguments["subject"] as? String ?? "체키 가족 초대"
-        let presenter = self.topViewController(from: controller)
-
-        let activityController = UIActivityViewController(
-          activityItems: [text],
-          applicationActivities: nil
-        )
-        activityController.setValue(subject, forKey: "subject")
-
-        if let popover = activityController.popoverPresentationController {
-          popover.sourceView = presenter.view
-          popover.sourceRect = CGRect(
-            x: presenter.view.bounds.midX,
-            y: presenter.view.bounds.midY,
-            width: 0,
-            height: 0
-          )
-          popover.permittedArrowDirections = []
-        }
-
-        presenter.present(activityController, animated: true) {
-          result(nil)
-        }
-      }
-
+      configureShareChannel(controller: controller)
       let preferencesChannel = FlutterMethodChannel(
         name: "checky/preferences",
         binaryMessenger: controller.binaryMessenger
@@ -128,6 +79,70 @@ import UIKit
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  func configureShareChannel(controller: FlutterViewController) {
+    let shareChannel = FlutterMethodChannel(
+      name: "checky/share",
+      binaryMessenger: controller.binaryMessenger
+    )
+
+    shareChannel.setMethodCallHandler { [weak self, weak controller] call, result in
+      guard call.method == "shareText" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+
+      guard let self, let controller else {
+        result(
+          FlutterError(
+            code: "view_controller_unavailable",
+            message: "Flutter view controller is unavailable",
+            details: nil
+          )
+        )
+        return
+      }
+
+      guard
+        let arguments = call.arguments as? [String: Any],
+        let text = arguments["text"] as? String,
+        !text.isEmpty
+      else {
+        result(
+          FlutterError(
+            code: "invalid_arguments",
+            message: "text is required",
+            details: nil
+          )
+        )
+        return
+      }
+
+      let subject = arguments["subject"] as? String ?? "체키 가족 초대"
+      let presenter = self.topViewController(from: controller)
+
+      let activityController = UIActivityViewController(
+        activityItems: [text],
+        applicationActivities: nil
+      )
+      activityController.setValue(subject, forKey: "subject")
+
+      if let popover = activityController.popoverPresentationController {
+        popover.sourceView = presenter.view
+        popover.sourceRect = CGRect(
+          x: presenter.view.bounds.midX,
+          y: presenter.view.bounds.midY,
+          width: 0,
+          height: 0
+        )
+        popover.permittedArrowDirections = []
+      }
+
+      presenter.present(activityController, animated: true) {
+        result(nil)
+      }
+    }
   }
 
   override func application(

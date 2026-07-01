@@ -25,6 +25,7 @@ void main() {
 
   testWidgets('auth gate shows kakao login entry', (tester) async {
     await tester.pumpWidget(const CheckyApp());
+    await tester.pump(const Duration(milliseconds: 1600));
     await tester.pump();
 
     expect(find.text('체키'), findsOneWidget);

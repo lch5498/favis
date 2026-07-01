@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 import '../../core/api_client.dart';
@@ -6,6 +7,10 @@ import '../../design_system/app_colors.dart';
 import '../../core/api_config.dart';
 import '../../core/auth_session_store.dart';
 import '../home/home_screen.dart';
+
+const _startupSplashDuration = Duration(milliseconds: 1500);
+const _preferencesChannel = MethodChannel('checky/preferences');
+const _selectedFamilyPreferenceKey = 'selectedFamilyId';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -19,6 +24,7 @@ class _AuthGateState extends State<AuthGate> {
   final _sessionStore = AuthSessionStore();
 
   AuthResponse? _auth;
+  _InitialHomeData? _initialHomeData;
   String? _pendingKakaoAccessToken;
   String? _message;
   bool _isLoading = false;
@@ -31,6 +37,8 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _restoreSession() async {
+    final minimumSplash = Future<void>.delayed(_startupSplashDuration);
+
     try {
       final storedSession = await _sessionStore.read();
 
@@ -44,6 +52,9 @@ class _AuthGateState extends State<AuthGate> {
       }
 
       final user = await _apiClient.getMe(storedSession.accessToken);
+      final initialHomeData = await _loadInitialHomeData(
+        storedSession.accessToken,
+      );
 
       if (!mounted) {
         return;
@@ -57,6 +68,7 @@ class _AuthGateState extends State<AuthGate> {
           isNewUser: false,
           user: user,
         );
+        _initialHomeData = initialHomeData;
       });
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
@@ -73,11 +85,96 @@ class _AuthGateState extends State<AuthGate> {
         });
       }
     } finally {
+      await minimumSplash;
+
       if (mounted) {
         setState(() {
           _isRestoringSession = false;
         });
       }
+    }
+  }
+
+  Future<_InitialHomeData?> _loadInitialHomeData(String sessionToken) async {
+    try {
+      final preferredFamilyId = await _readSelectedFamilyId();
+      final families = await _apiClient.listFamilies(sessionToken);
+      final selectedFamilyId = _resolveSelectedFamilyId(
+        families,
+        preferredFamilyId,
+      );
+
+      ScheduleDashboard? scheduleDashboard;
+      ParkingDashboard? parkingDashboard;
+
+      if (selectedFamilyId != null) {
+        await _saveSelectedFamilyId(selectedFamilyId);
+
+        final now = DateTime.now();
+        final dayStart = DateTime(now.year, now.month, now.day);
+        final dayEnd = dayStart.add(const Duration(days: 1));
+        final dashboards = await Future.wait<dynamic>([
+          _apiClient.getScheduleDashboard(
+            sessionToken,
+            familyId: selectedFamilyId,
+            rangeStart: dayStart,
+            rangeEnd: dayEnd,
+          ),
+          _apiClient.getParkingDashboard(
+            sessionToken,
+            familyId: selectedFamilyId,
+          ),
+        ]);
+
+        scheduleDashboard = dashboards[0] as ScheduleDashboard;
+        parkingDashboard = dashboards[1] as ParkingDashboard;
+      }
+
+      return _InitialHomeData(
+        families: families,
+        selectedFamilyId: selectedFamilyId,
+        scheduleDashboard: scheduleDashboard,
+        parkingDashboard: parkingDashboard,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _resolveSelectedFamilyId(
+    List<FamilySummary> families,
+    String? preferredFamilyId,
+  ) {
+    if (families.isEmpty) {
+      return null;
+    }
+
+    if (preferredFamilyId != null &&
+        families.any((summary) => summary.family.id == preferredFamilyId)) {
+      return preferredFamilyId;
+    }
+
+    return families.first.family.id;
+  }
+
+  Future<String?> _readSelectedFamilyId() async {
+    try {
+      return await _preferencesChannel.invokeMethod<String>('getString', {
+        'key': _selectedFamilyPreferenceKey,
+      });
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
+  Future<void> _saveSelectedFamilyId(String familyId) async {
+    try {
+      await _preferencesChannel.invokeMethod<void>('setString', {
+        'key': _selectedFamilyPreferenceKey,
+        'value': familyId,
+      });
+    } on MissingPluginException {
+      return;
     }
   }
 
@@ -181,6 +278,7 @@ class _AuthGateState extends State<AuthGate> {
 
     setState(() {
       _auth = null;
+      _initialHomeData = null;
       _pendingKakaoAccessToken = null;
       _message = null;
     });
@@ -212,16 +310,19 @@ class _AuthGateState extends State<AuthGate> {
     final auth = _auth;
 
     if (_isRestoringSession) {
-      return CupertinoPageScaffold(
-        backgroundColor: AppColors.darkBackground,
-        child: Center(child: CupertinoActivityIndicator()),
-      );
+      return const _StartupSplashScreen();
     }
 
     if (auth != null) {
+      final initialHomeData = _initialHomeData;
+
       return HomeScreen(
         user: auth.user,
         sessionToken: auth.accessToken,
+        initialFamilies: initialHomeData?.families,
+        initialSelectedFamilyId: initialHomeData?.selectedFamilyId,
+        initialScheduleDashboard: initialHomeData?.scheduleDashboard,
+        initialParkingDashboard: initialHomeData?.parkingDashboard,
         onUpdateProfile: _updateProfile,
         onDeleteAccount: _deleteAccount,
         onLogout: () async {
@@ -233,6 +334,7 @@ class _AuthGateState extends State<AuthGate> {
 
           setState(() {
             _auth = null;
+            _initialHomeData = null;
             _pendingKakaoAccessToken = null;
             _message = null;
           });
@@ -278,6 +380,81 @@ class _AuthGateState extends State<AuthGate> {
               _KakaoLoginButton(
                 isLoading: _isLoading,
                 onPressed: _isLoading ? null : _loginWithKakaoSdk,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InitialHomeData {
+  const _InitialHomeData({
+    required this.families,
+    required this.selectedFamilyId,
+    required this.scheduleDashboard,
+    required this.parkingDashboard,
+  });
+
+  final List<FamilySummary> families;
+  final String? selectedFamilyId;
+  final ScheduleDashboard? scheduleDashboard;
+  final ParkingDashboard? parkingDashboard;
+}
+
+class _StartupSplashScreen extends StatelessWidget {
+  const _StartupSplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      backgroundColor: const Color(0xFFEAFBF8),
+      child: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 104,
+                height: 104,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x22000000),
+                      blurRadius: 30,
+                      offset: Offset(0, 14),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Image.asset(
+                  'assets/branding/checky-icon-source.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(height: 22),
+              const Text(
+                '체키',
+                style: TextStyle(
+                  color: Color(0xFF102A2A),
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                '가족의 하루를 준비하는 중',
+                style: TextStyle(
+                  color: Color(0xFF55706F),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                  decoration: TextDecoration.none,
+                ),
               ),
             ],
           ),

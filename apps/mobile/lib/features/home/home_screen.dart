@@ -23,6 +23,10 @@ class HomeScreen extends StatefulWidget {
     required this.sessionToken,
     required this.onUpdateProfile,
     required this.onDeleteAccount,
+    this.initialFamilies,
+    this.initialSelectedFamilyId,
+    this.initialScheduleDashboard,
+    this.initialParkingDashboard,
     this.onLogout,
   });
 
@@ -30,6 +34,10 @@ class HomeScreen extends StatefulWidget {
   final String sessionToken;
   final Future<AppUser> Function(String nickname) onUpdateProfile;
   final Future<void> Function() onDeleteAccount;
+  final List<FamilySummary>? initialFamilies;
+  final String? initialSelectedFamilyId;
+  final ScheduleDashboard? initialScheduleDashboard;
+  final ParkingDashboard? initialParkingDashboard;
   final Future<void> Function()? onLogout;
 
   @override
@@ -70,7 +78,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _tabController = CupertinoTabController();
     _tabController.addListener(_handleTabChange);
     _deepLinkChannel.setMethodCallHandler(_handleDeepLinkMethodCall);
-    _loadFamilies();
+    final initialFamilies = widget.initialFamilies;
+    if (initialFamilies != null) {
+      _families = initialFamilies;
+      _selectedFamilyId = _resolveSelectedFamilyId(
+        initialFamilies,
+        widget.initialSelectedFamilyId,
+      );
+      _isLoadingFamilies = false;
+    } else {
+      _loadFamilies();
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumeInviteLinkFromChannel('getInitialLink');
       _consumeInviteLinkFromChannel('getLatestLink');
@@ -464,6 +482,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     family: selectedFamily,
                     families: families,
                     refreshToken: _homeRefreshToken,
+                    initialScheduleDashboard: widget.initialScheduleDashboard,
+                    initialParkingDashboard: widget.initialParkingDashboard,
                     message: _message,
                     onOpenFamilyManagement: _openFamilyManagement,
                     onSwitchFamily: _switchFamily,
@@ -624,6 +644,8 @@ class _HomeDashboardTab extends StatefulWidget {
     required this.family,
     required this.families,
     required this.refreshToken,
+    required this.initialScheduleDashboard,
+    required this.initialParkingDashboard,
     required this.message,
     required this.onOpenFamilyManagement,
     required this.onSwitchFamily,
@@ -639,6 +661,8 @@ class _HomeDashboardTab extends StatefulWidget {
   final AppFamily family;
   final List<AppFamily> families;
   final int refreshToken;
+  final ScheduleDashboard? initialScheduleDashboard;
+  final ParkingDashboard? initialParkingDashboard;
   final String? message;
   final VoidCallback onOpenFamilyManagement;
   final VoidCallback onSwitchFamily;
@@ -663,7 +687,13 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
   @override
   void initState() {
     super.initState();
-    _loadBriefing();
+    _scheduleDashboard = widget.initialScheduleDashboard;
+    _parkingDashboard = widget.initialParkingDashboard;
+    _isLoading = _scheduleDashboard == null && _parkingDashboard == null;
+
+    if (_isLoading) {
+      _loadBriefing();
+    }
   }
 
   @override
