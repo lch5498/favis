@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@supabase/supabase-js": "^2.87.0",
+    "lunar-javascript": "^1.7.7",
     "next": "^16.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

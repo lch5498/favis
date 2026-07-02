@@ -40,6 +40,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   _CalendarMode _mode = _CalendarMode.week;
   DateTime _anchorDate = _dateOnly(DateTime.now());
   final Set<String> _hiddenMemberIds = <String>{};
+  bool _isAnniversaryHidden = false;
   String? _message;
   bool _isLoading = true;
   int _scheduleLoadToken = 0;
@@ -66,6 +67,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           (schedule) =>
               schedule.startsAt.isBefore(rangeEnd) &&
               schedule.endsAt.isAfter(rangeStart) &&
+              (!_isAnniversaryHidden || schedule.anniversaryId == null) &&
               (schedule.familyMemberId == null ||
                   !_hiddenMemberIds.contains(schedule.familyMemberId)),
         )
@@ -95,6 +97,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (oldWidget.family.id != widget.family.id) {
       _family = widget.family;
       _hiddenMemberIds.clear();
+      _isAnniversaryHidden = false;
       _resetCalendarPage();
       _loadSchedules();
     } else if (oldWidget.todayRequestToken != widget.todayRequestToken) {
@@ -235,6 +238,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       } else {
         _hiddenMemberIds.add(memberId);
       }
+    });
+  }
+
+  void _toggleAnniversaryFilter() {
+    setState(() {
+      _isAnniversaryHidden = !_isAnniversaryHidden;
     });
   }
 
@@ -421,8 +430,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         canManage: dashboard?.canManage ?? false,
                         members: dashboard?.members ?? const [],
                         hiddenMemberIds: _hiddenMemberIds,
+                        isAnniversaryHidden: _isAnniversaryHidden,
                         memberColors: memberColors,
                         onToggleMemberFilter: _toggleMemberFilter,
+                        onToggleAnniversaryFilter: _toggleAnniversaryFilter,
                         onModeChanged: _setMode,
                         onPrevious: () => _moveRange(-1),
                         onNext: () => _moveRange(1),
@@ -561,8 +572,10 @@ class _ScheduleHeader extends StatelessWidget {
     required this.canManage,
     required this.members,
     required this.hiddenMemberIds,
+    required this.isAnniversaryHidden,
     required this.memberColors,
     required this.onToggleMemberFilter,
+    required this.onToggleAnniversaryFilter,
     required this.onModeChanged,
     required this.onPrevious,
     required this.onNext,
@@ -573,8 +586,10 @@ class _ScheduleHeader extends StatelessWidget {
   final bool canManage;
   final List<FamilyMember> members;
   final Set<String> hiddenMemberIds;
+  final bool isAnniversaryHidden;
   final Map<String, MemberFilterColor> memberColors;
   final ValueChanged<String> onToggleMemberFilter;
+  final VoidCallback onToggleAnniversaryFilter;
   final ValueChanged<_CalendarMode> onModeChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -596,8 +611,13 @@ class _ScheduleHeader extends StatelessWidget {
               memberColors: memberColors,
               onToggleMember: onToggleMemberFilter,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
           ],
+          _AnniversaryFilterButton(
+            isActive: !isAnniversaryHidden,
+            onPressed: onToggleAnniversaryFilter,
+          ),
+          const SizedBox(height: 16),
           CupertinoSlidingSegmentedControl<_CalendarMode>(
             groupValue: mode,
             children: const {
@@ -662,6 +682,55 @@ class _ScheduleHeader extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _AnniversaryFilterButton extends StatelessWidget {
+  const _AnniversaryFilterButton({
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 30,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        color: isActive
+            ? CupertinoColors.systemPurple
+            : AppColors.darkBackground,
+        borderRadius: BorderRadius.circular(9),
+        onPressed: onPressed,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.circle,
+              color: isActive ? CupertinoColors.white : AppColors.darkTextMuted,
+              size: 15,
+            ),
+            const SizedBox(width: 5),
+            Text(
+              '기념일',
+              style: TextStyle(
+                color: isActive
+                    ? CupertinoColors.white
+                    : AppColors.darkTextSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3206,6 +3275,10 @@ MemberFilterColor _scheduleMemberColor(
   AppSchedule schedule,
   Map<String, MemberFilterColor> memberColors,
 ) {
+  if (schedule.anniversaryId != null) {
+    return MemberFilterColor.purple;
+  }
+
   final familyMemberId = schedule.familyMemberId;
 
   if (familyMemberId == null) {

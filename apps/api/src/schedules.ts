@@ -18,6 +18,7 @@ export type Schedule = {
   vehicle_boarding_at: string | null;
   vehicle_dropoff_at: string | null;
   education_program_id: string | null;
+  anniversary_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -35,6 +36,11 @@ export type Schedule = {
     id: string;
     name: string;
     phone_contacts: Array<{ label: string; phoneNumber: string }>;
+  } | null;
+  anniversary?: {
+    id: string;
+    category: string;
+    title: string;
   } | null;
 };
 
@@ -372,5 +378,10 @@ const scheduleSelect = `
     id,
     name,
     phone_contacts
+  ),
+  anniversary:anniversaries (
+    id,
+    category,
+    title
   )
 `;

@@ -526,6 +526,62 @@ class ApiClient {
     );
   }
 
+  Future<AnniversaryDashboard> getAnniversaryDashboard(
+    String sessionToken, {
+    required String familyId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      '/api/mobile/families/$familyId/anniversaries',
+      bearerToken: sessionToken,
+    );
+
+    return AnniversaryDashboard.fromJson(json);
+  }
+
+  Future<AnniversaryMutationResult> createAnniversary(
+    String sessionToken, {
+    required String familyId,
+    required AnniversaryInput input,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/anniversaries',
+      bearerToken: sessionToken,
+      body: input.toJson(),
+    );
+
+    return AnniversaryMutationResult.fromJson(json);
+  }
+
+  Future<AnniversaryMutationResult> updateAnniversary(
+    String sessionToken, {
+    required String familyId,
+    required String anniversaryId,
+    required AnniversaryInput input,
+  }) async {
+    final json = await _requestJson(
+      'PATCH',
+      '/api/mobile/families/$familyId/anniversaries/$anniversaryId',
+      bearerToken: sessionToken,
+      body: input.toJson(),
+    );
+
+    return AnniversaryMutationResult.fromJson(json);
+  }
+
+  Future<void> deleteAnniversary(
+    String sessionToken, {
+    required String familyId,
+    required String anniversaryId,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/families/$familyId/anniversaries/$anniversaryId',
+      bearerToken: sessionToken,
+    );
+  }
+
   Map<String, Object?> _scheduleBody({
     required String familyMemberId,
     required String title,
@@ -1105,6 +1161,197 @@ enum EducationRecurrenceType {
   }
 }
 
+enum AnniversaryCategory {
+  birthday,
+  wedding,
+  custom;
+
+  String toApiString() {
+    return switch (this) {
+      AnniversaryCategory.birthday => 'birthday',
+      AnniversaryCategory.wedding => 'wedding',
+      AnniversaryCategory.custom => 'custom',
+    };
+  }
+
+  static AnniversaryCategory fromJson(Object? value) {
+    return switch (value) {
+      'birthday' => AnniversaryCategory.birthday,
+      'wedding' => AnniversaryCategory.wedding,
+      _ => AnniversaryCategory.custom,
+    };
+  }
+}
+
+enum AnniversaryCalendarType {
+  solar,
+  lunar;
+
+  String toApiString() {
+    return switch (this) {
+      AnniversaryCalendarType.solar => 'solar',
+      AnniversaryCalendarType.lunar => 'lunar',
+    };
+  }
+
+  static AnniversaryCalendarType fromJson(Object? value) {
+    return value == 'lunar'
+        ? AnniversaryCalendarType.lunar
+        : AnniversaryCalendarType.solar;
+  }
+}
+
+class AnniversaryInput {
+  const AnniversaryInput({
+    required this.category,
+    required this.title,
+    required this.calendarType,
+    required this.month,
+    required this.day,
+    required this.isLunarLeap,
+  });
+
+  final AnniversaryCategory category;
+  final String title;
+  final AnniversaryCalendarType calendarType;
+  final int month;
+  final int day;
+  final bool isLunarLeap;
+
+  Map<String, Object?> toJson() {
+    return {
+      'category': category.toApiString(),
+      'title': title,
+      'calendarType': calendarType.toApiString(),
+      'month': month,
+      'day': day,
+      'isLunarLeap': isLunarLeap,
+      'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
+    };
+  }
+}
+
+class AnniversaryDashboard {
+  const AnniversaryDashboard({
+    required this.canManage,
+    required this.anniversaries,
+  });
+
+  final bool canManage;
+  final List<Anniversary> anniversaries;
+
+  factory AnniversaryDashboard.fromJson(Map<String, Object?> json) {
+    final anniversaries = json['anniversaries'] as List<Object?>;
+
+    return AnniversaryDashboard(
+      canManage: json['canManage'] as bool,
+      anniversaries: anniversaries
+          .map((item) => Anniversary.fromJson(item as Map<String, Object?>))
+          .toList(),
+    );
+  }
+}
+
+class AnniversaryMutationResult {
+  const AnniversaryMutationResult({
+    required this.anniversary,
+    required this.generatedScheduleCount,
+  });
+
+  final Anniversary anniversary;
+  final int generatedScheduleCount;
+
+  factory AnniversaryMutationResult.fromJson(Map<String, Object?> json) {
+    return AnniversaryMutationResult(
+      anniversary: Anniversary.fromJson(
+        json['anniversary'] as Map<String, Object?>,
+      ),
+      generatedScheduleCount: json['generatedScheduleCount'] as int,
+    );
+  }
+}
+
+class Anniversary {
+  const Anniversary({
+    required this.id,
+    required this.familyId,
+    required this.category,
+    required this.title,
+    required this.calendarType,
+    required this.month,
+    required this.day,
+    required this.isLunarLeap,
+    required this.nextOccurrenceDate,
+    required this.recentSchedules,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String familyId;
+  final AnniversaryCategory category;
+  final String title;
+  final AnniversaryCalendarType calendarType;
+  final int month;
+  final int day;
+  final bool isLunarLeap;
+  final DateTime? nextOccurrenceDate;
+  final List<AnniversaryScheduleOccurrence> recentSchedules;
+  final String createdAt;
+  final String updatedAt;
+
+  factory Anniversary.fromJson(Map<String, Object?> json) {
+    final nextOccurrenceDate = json['nextOccurrenceDate'] as String?;
+    final recentSchedules = json['recentSchedules'] as List<Object?>? ?? [];
+
+    return Anniversary(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      category: AnniversaryCategory.fromJson(json['category']),
+      title: json['title'] as String,
+      calendarType: AnniversaryCalendarType.fromJson(json['calendar_type']),
+      month: json['month'] as int,
+      day: json['day'] as int,
+      isLunarLeap: json['is_lunar_leap'] as bool? ?? false,
+      nextOccurrenceDate: nextOccurrenceDate == null
+          ? null
+          : DateTime.parse(nextOccurrenceDate),
+      recentSchedules: recentSchedules
+          .map(
+            (schedule) => AnniversaryScheduleOccurrence.fromJson(
+              schedule as Map<String, Object?>,
+            ),
+          )
+          .toList(),
+      createdAt: json['created_at'] as String,
+      updatedAt: json['updated_at'] as String,
+    );
+  }
+}
+
+class AnniversaryScheduleOccurrence {
+  const AnniversaryScheduleOccurrence({
+    required this.id,
+    required this.title,
+    required this.startsAt,
+    required this.endsAt,
+  });
+
+  final String id;
+  final String title;
+  final DateTime startsAt;
+  final DateTime endsAt;
+
+  factory AnniversaryScheduleOccurrence.fromJson(Map<String, Object?> json) {
+    return AnniversaryScheduleOccurrence(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      startsAt: DateTime.parse(json['starts_at'] as String).toLocal(),
+      endsAt: DateTime.parse(json['ends_at'] as String).toLocal(),
+    );
+  }
+}
+
 class EducationProgramInput {
   const EducationProgramInput({
     required this.familyMemberId,
@@ -1375,6 +1622,8 @@ class AppSchedule {
     required this.educationProgramId,
     required this.educationProgramName,
     required this.educationProgramPhoneContacts,
+    required this.anniversaryId,
+    required this.anniversaryCategory,
     required this.memberNickname,
   });
 
@@ -1390,6 +1639,8 @@ class AppSchedule {
   final String? educationProgramId;
   final String? educationProgramName;
   final List<EducationProgramPhoneContact> educationProgramPhoneContacts;
+  final String? anniversaryId;
+  final AnniversaryCategory? anniversaryCategory;
   final String memberNickname;
 
   factory AppSchedule.fromJson(Map<String, Object?> json) {
@@ -1398,6 +1649,7 @@ class AppSchedule {
     final memberNickname = familyMember?['nickname'] as String?;
     final educationProgram = json['education_program'] as Map<String, Object?>?;
     final phoneContacts = educationProgram?['phone_contacts'] as List<Object?>?;
+    final anniversary = json['anniversary'] as Map<String, Object?>?;
 
     return AppSchedule(
       id: json['id'] as String,
@@ -1425,6 +1677,10 @@ class AppSchedule {
                 )
                 .where((contact) => contact.phoneNumber.trim().isNotEmpty)
                 .toList(),
+      anniversaryId: json['anniversary_id'] as String?,
+      anniversaryCategory: anniversary == null
+          ? null
+          : AnniversaryCategory.fromJson(anniversary['category']),
       memberNickname:
           user?['nickname'] as String? ?? memberNickname ?? '담당자 없음',
     );

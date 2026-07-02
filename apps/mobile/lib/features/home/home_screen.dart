@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../core/api_client.dart';
 import '../../core/theme_preference.dart';
 import '../../design_system/app_colors.dart';
+import '../anniversary/anniversary_screen.dart';
 import '../education/education_screen.dart';
 import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
@@ -136,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openParkingTab() {
-    _tabController.index = 3;
+    _tabController.index = 4;
   }
 
   Future<void> _handleDeepLinkMethodCall(MethodCall call) async {
@@ -441,6 +442,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: '학교/학원',
             ),
             BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.gift),
+              activeIcon: Icon(CupertinoIcons.gift_fill),
+              label: '기념일',
+            ),
+            BottomNavigationBarItem(
               icon: Icon(CupertinoIcons.car_detailed),
               activeIcon: Icon(CupertinoIcons.car_detailed),
               label: '주차',
@@ -469,6 +475,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     onSelectFamily: _selectFamily,
                   );
                 case 3:
+                  return AnniversaryScreen(
+                    family: selectedFamily,
+                    families: families,
+                    sessionToken: widget.sessionToken,
+                    onSelectFamily: _selectFamily,
+                  );
+                case 4:
                   return ParkingScreen(
                     family: selectedFamily,
                     families: families,
