@@ -1126,6 +1126,19 @@ class EducationProgramInput {
   final List<EducationMonthlySchedule> monthlySchedules;
   final List<EducationProgramPhoneContact> phoneContacts;
 
+  EducationProgramInput copyWithFamilyMemberId(String familyMemberId) {
+    return EducationProgramInput(
+      familyMemberId: familyMemberId,
+      name: name,
+      startsOn: startsOn,
+      endsOn: endsOn,
+      recurrenceType: recurrenceType,
+      weeklySchedules: weeklySchedules,
+      monthlySchedules: monthlySchedules,
+      phoneContacts: phoneContacts,
+    );
+  }
+
   Map<String, Object?> toJson() {
     return {
       'familyMemberId': familyMemberId,
@@ -1361,6 +1374,7 @@ class AppSchedule {
     required this.vehicleDropoffAt,
     required this.educationProgramId,
     required this.educationProgramName,
+    required this.educationProgramPhoneContacts,
     required this.memberNickname,
   });
 
@@ -1375,6 +1389,7 @@ class AppSchedule {
   final DateTime? vehicleDropoffAt;
   final String? educationProgramId;
   final String? educationProgramName;
+  final List<EducationProgramPhoneContact> educationProgramPhoneContacts;
   final String memberNickname;
 
   factory AppSchedule.fromJson(Map<String, Object?> json) {
@@ -1382,6 +1397,7 @@ class AppSchedule {
     final user = familyMember?['user'] as Map<String, Object?>?;
     final memberNickname = familyMember?['nickname'] as String?;
     final educationProgram = json['education_program'] as Map<String, Object?>?;
+    final phoneContacts = educationProgram?['phone_contacts'] as List<Object?>?;
 
     return AppSchedule(
       id: json['id'] as String,
@@ -1399,6 +1415,16 @@ class AppSchedule {
       ),
       educationProgramId: json['education_program_id'] as String?,
       educationProgramName: educationProgram?['name'] as String?,
+      educationProgramPhoneContacts: phoneContacts == null
+          ? const []
+          : phoneContacts
+                .map(
+                  (contact) => EducationProgramPhoneContact.fromJson(
+                    contact as Map<String, Object?>,
+                  ),
+                )
+                .where((contact) => contact.phoneNumber.trim().isNotEmpty)
+                .toList(),
       memberNickname:
           user?['nickname'] as String? ?? memberNickname ?? '담당자 없음',
     );

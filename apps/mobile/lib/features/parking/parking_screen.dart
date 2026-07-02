@@ -2076,17 +2076,24 @@ class _EmptyState extends StatelessWidget {
           if (onPressed != null) ...[
             const SizedBox(height: 16),
             SizedBox(
-              height: 46,
+              height: 50,
               child: CupertinoButton.filled(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                minimumSize: const Size.fromHeight(50),
                 borderRadius: BorderRadius.circular(12),
                 onPressed: onPressed,
-                child: Text(
-                  actionLabel,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.1,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+                child: Center(
+                  child: Text(
+                    actionLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.25,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
               ),

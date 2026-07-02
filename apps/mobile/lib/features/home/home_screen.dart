@@ -10,6 +10,7 @@ import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
 import '../profile/profile_screen.dart';
 import '../schedule/schedule_screen.dart';
+import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
 const _preferencesChannel = MethodChannel('checky/preferences');
@@ -482,6 +483,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     family: selectedFamily,
                     families: families,
                     refreshToken: _homeRefreshToken,
+                    initialDashboardFamilyId: _resolveSelectedFamilyId(
+                      _families,
+                      widget.initialSelectedFamilyId,
+                    ),
                     initialScheduleDashboard: widget.initialScheduleDashboard,
                     initialParkingDashboard: widget.initialParkingDashboard,
                     message: _message,
@@ -644,6 +649,7 @@ class _HomeDashboardTab extends StatefulWidget {
     required this.family,
     required this.families,
     required this.refreshToken,
+    required this.initialDashboardFamilyId,
     required this.initialScheduleDashboard,
     required this.initialParkingDashboard,
     required this.message,
@@ -661,6 +667,7 @@ class _HomeDashboardTab extends StatefulWidget {
   final AppFamily family;
   final List<AppFamily> families;
   final int refreshToken;
+  final String? initialDashboardFamilyId;
   final ScheduleDashboard? initialScheduleDashboard;
   final ParkingDashboard? initialParkingDashboard;
   final String? message;
@@ -683,12 +690,19 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
   ParkingDashboard? _parkingDashboard;
   String? _message;
   bool _isLoading = true;
+  int _briefingLoadToken = 0;
 
   @override
   void initState() {
     super.initState();
-    _scheduleDashboard = widget.initialScheduleDashboard;
-    _parkingDashboard = widget.initialParkingDashboard;
+    final canUseInitialDashboard =
+        widget.initialDashboardFamilyId == widget.family.id;
+    _scheduleDashboard = canUseInitialDashboard
+        ? widget.initialScheduleDashboard
+        : null;
+    _parkingDashboard = canUseInitialDashboard
+        ? widget.initialParkingDashboard
+        : null;
     _isLoading = _scheduleDashboard == null && _parkingDashboard == null;
 
     if (_isLoading) {
@@ -703,11 +717,20 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     if (oldWidget.family.id != widget.family.id ||
         oldWidget.sessionToken != widget.sessionToken ||
         oldWidget.refreshToken != widget.refreshToken) {
+      setState(() {
+        _scheduleDashboard = null;
+        _parkingDashboard = null;
+        _isLoading = true;
+        _message = null;
+      });
       _loadBriefing();
     }
   }
 
   Future<void> _loadBriefing() async {
+    final loadToken = ++_briefingLoadToken;
+    final familyId = widget.family.id;
+
     setState(() {
       _isLoading = true;
       _message = null;
@@ -720,16 +743,16 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     try {
       final schedules = await _apiClient.getScheduleDashboard(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: familyId,
         rangeStart: dayStart,
         rangeEnd: dayEnd,
       );
       final parking = await _apiClient.getParkingDashboard(
         widget.sessionToken,
-        familyId: widget.family.id,
+        familyId: familyId,
       );
 
-      if (!mounted) {
+      if (!mounted || loadToken != _briefingLoadToken) {
         return;
       }
 
@@ -738,13 +761,13 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
         _parkingDashboard = parking;
       });
     } catch (error) {
-      if (mounted) {
+      if (mounted && loadToken == _briefingLoadToken) {
         setState(() {
           _message = error.toString();
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && loadToken == _briefingLoadToken) {
         setState(() {
           _isLoading = false;
         });
@@ -815,6 +838,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
             else ...[
               _ScheduleBriefingSection(
                 schedules: _scheduleDashboard?.schedules ?? const [],
+                members: _scheduleDashboard?.members ?? const [],
                 onPressed: widget.onOpenSchedule,
               ),
               _ParkingBriefingSection(
@@ -832,16 +856,19 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 class _ScheduleBriefingSection extends StatelessWidget {
   const _ScheduleBriefingSection({
     required this.schedules,
+    required this.members,
     required this.onPressed,
   });
 
   final List<AppSchedule> schedules;
+  final List<FamilyMember> members;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final orderedSchedules = [...schedules]
       ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    final memberColors = _homeMemberColors(members);
 
     return _BriefingSection(
       icon: CupertinoIcons.calendar,
@@ -851,7 +878,14 @@ class _ScheduleBriefingSection extends StatelessWidget {
       onPressed: onPressed,
       children: orderedSchedules
           .take(4)
-          .map((schedule) => _ScheduleBriefingTile(schedule: schedule))
+          .map(
+            (schedule) => _ScheduleBriefingTile(
+              schedule: schedule,
+              memberColor:
+                  memberColors[schedule.familyMemberId] ??
+                  MemberFilterColor.gray,
+            ),
+          )
           .toList(),
     );
   }
@@ -971,14 +1005,19 @@ class _BriefingSection extends StatelessWidget {
 }
 
 class _ScheduleBriefingTile extends StatelessWidget {
-  const _ScheduleBriefingTile({required this.schedule});
+  const _ScheduleBriefingTile({
+    required this.schedule,
+    required this.memberColor,
+  });
 
   final AppSchedule schedule;
+  final MemberFilterColor memberColor;
 
   @override
   Widget build(BuildContext context) {
     final timeText =
         '${_koreanTimeText(schedule.startsAt)}~${_koreanTimeText(schedule.endsAt)}';
+    final memberColorStyle = MemberFilterColorStyle.from(memberColor);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -1013,15 +1052,31 @@ class _ScheduleBriefingTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  schedule.memberNickname,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.darkTextSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 118),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: memberColorStyle.background,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: memberColorStyle.border),
+                    ),
+                    child: Text(
+                      schedule.memberNickname,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: memberColorStyle.foreground,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        height: 1.15,
+                        letterSpacing: 0,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -1097,6 +1152,15 @@ class _ParkingBriefingTile extends StatelessWidget {
       ),
     );
   }
+}
+
+Map<String, MemberFilterColor> _homeMemberColors(List<FamilyMember> members) {
+  return {
+    for (var index = 0; index < members.length; index++)
+      members[index].id:
+          MemberFilterColor.fromValue(members[index].color) ??
+          MemberFilterColor.values[index % MemberFilterColor.values.length],
+  };
 }
 
 String _koreanTimeText(DateTime value) {

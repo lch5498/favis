@@ -263,28 +263,40 @@ class _EducationScreenState extends State<EducationScreen> {
       }
 
       try {
-        final result = program == null
-            ? await _apiClient.createEducationProgram(
-                widget.sessionToken,
-                familyId: _family.id,
-                input: input,
-                calendarApplyScope: formResult.calendarApplyScope,
-              )
-            : await _apiClient.updateEducationProgram(
-                widget.sessionToken,
-                familyId: _family.id,
-                programId: program.id,
-                input: input,
-                calendarApplyScope: formResult.calendarApplyScope,
-              );
+        var generatedScheduleCount = 0;
+
+        if (program == null) {
+          final memberIds = formResult.memberIds.isEmpty
+              ? [input.familyMemberId]
+              : formResult.memberIds;
+
+          for (final memberId in memberIds) {
+            final result = await _apiClient.createEducationProgram(
+              widget.sessionToken,
+              familyId: _family.id,
+              input: input.copyWithFamilyMemberId(memberId),
+              calendarApplyScope: formResult.calendarApplyScope,
+            );
+            generatedScheduleCount += result.generatedScheduleCount;
+          }
+        } else {
+          final result = await _apiClient.updateEducationProgram(
+            widget.sessionToken,
+            familyId: _family.id,
+            programId: program.id,
+            input: input,
+            calendarApplyScope: formResult.calendarApplyScope,
+          );
+          generatedScheduleCount = result.generatedScheduleCount;
+        }
 
         await _loadPrograms();
 
         if (mounted) {
           setState(() {
-            _message = result.generatedScheduleCount == 0
+            _message = generatedScheduleCount == 0
                 ? '학교/학원 정보가 저장되었습니다.'
-                : '${result.generatedScheduleCount}개 일정이 캘린더에 반영되었습니다.';
+                : '$generatedScheduleCount개 일정이 캘린더에 반영되었습니다.';
           });
         }
       } finally {
@@ -770,6 +782,7 @@ class _EducationFilterCard extends StatelessWidget {
 class _EducationProgramFormResult {
   const _EducationProgramFormResult._({
     this.input,
+    this.memberIds = const [],
     required this.calendarApplyScope,
     required this.affectsCalendar,
     this.shouldDelete = false,
@@ -778,9 +791,11 @@ class _EducationProgramFormResult {
   const _EducationProgramFormResult.save(
     EducationProgramInput input,
     CalendarApplyScope calendarApplyScope, {
+    required List<String> memberIds,
     required bool affectsCalendar,
   }) : this._(
          input: input,
+         memberIds: memberIds,
          calendarApplyScope: calendarApplyScope,
          affectsCalendar: affectsCalendar,
        );
@@ -794,6 +809,7 @@ class _EducationProgramFormResult {
       );
 
   final EducationProgramInput? input;
+  final List<String> memberIds;
   final CalendarApplyScope calendarApplyScope;
   final bool affectsCalendar;
   final bool shouldDelete;
@@ -848,6 +864,7 @@ class _EducationProgramFormScreen extends StatefulWidget {
 class _EducationProgramFormScreenState
     extends State<_EducationProgramFormScreen> {
   late String _familyMemberId;
+  late Set<String> _selectedMemberIds;
   late final TextEditingController _nameController;
   late DateTime _startsOn;
   late DateTime _endsOn;
@@ -863,6 +880,7 @@ class _EducationProgramFormScreenState
     final program = widget.program;
     final now = DateTime.now();
     _familyMemberId = program?.familyMemberId ?? widget.members.first.id;
+    _selectedMemberIds = program == null ? <String>{} : {_familyMemberId};
     _nameController = TextEditingController(text: program?.name);
     _startsOn = _dateOnly(program?.startsOn ?? now);
     _endsOn = _dateOnly(program?.endsOn ?? now.add(const Duration(days: 30)));
@@ -925,6 +943,11 @@ class _EducationProgramFormScreenState
   }
 
   Future<void> _pickMember() async {
+    if (widget.program == null) {
+      await _pickMembers();
+      return;
+    }
+
     final selectedId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
@@ -948,8 +971,89 @@ class _EducationProgramFormScreenState
     if (selectedId != null) {
       setState(() {
         _familyMemberId = selectedId;
+        _selectedMemberIds = {selectedId};
       });
     }
+  }
+
+  Future<void> _pickMembers() async {
+    final nextSelectedIds = Set<String>.from(_selectedMemberIds);
+    final confirmed = await showCupertinoModalPopup<bool>(
+      context: context,
+      builder: (popupContext) => StatefulBuilder(
+        builder: (popupContext, setPopupState) => CupertinoActionSheet(
+          title: Text('구성원 선택'),
+          message: Text('등록할 구성원을 선택해 주세요.'),
+          actions: [
+            for (final member in widget.members)
+              CupertinoActionSheetAction(
+                onPressed: () {
+                  setPopupState(() {
+                    if (nextSelectedIds.contains(member.id)) {
+                      nextSelectedIds.remove(member.id);
+                    } else {
+                      nextSelectedIds.add(member.id);
+                    }
+                  });
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      nextSelectedIds.contains(member.id)
+                          ? CupertinoIcons.check_mark_circled_solid
+                          : CupertinoIcons.circle,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        member.userNickname,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            CupertinoActionSheetAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(popupContext).pop(true),
+              child: Text('선택 완료'),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.of(popupContext).pop(false),
+            child: Text('취소'),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _selectedMemberIds = nextSelectedIds;
+        if (nextSelectedIds.isNotEmpty) {
+          _familyMemberId = nextSelectedIds.first;
+        }
+      });
+    }
+  }
+
+  String _selectedMemberLabel() {
+    final selectedMembers = widget.members
+        .where((member) => _selectedMemberIds.contains(member.id))
+        .toList();
+
+    if (selectedMembers.isEmpty) {
+      return '구성원 선택';
+    }
+
+    if (selectedMembers.length == 1) {
+      return selectedMembers.first.userNickname;
+    }
+
+    return selectedMembers.map((member) => member.userNickname).join(', ');
   }
 
   Future<void> _addPhoneContact() async {
@@ -1348,6 +1452,11 @@ class _EducationProgramFormScreenState
       return;
     }
 
+    if (widget.program == null && _selectedMemberIds.isEmpty) {
+      await _showMissingMembersAlert();
+      return;
+    }
+
     if (_endsOn.isBefore(_startsOn)) {
       setState(() {
         _message = '종료 날짜는 시작 날짜 이후여야 합니다.';
@@ -1453,7 +1562,26 @@ class _EducationProgramFormScreenState
       _EducationProgramFormResult.save(
         input,
         calendarApplyScope,
+        memberIds: widget.program == null
+            ? _selectedMemberIds.toList()
+            : [_familyMemberId],
         affectsCalendar: needsCalendarApplyScope,
+      ),
+    );
+  }
+
+  Future<void> _showMissingMembersAlert() {
+    return showCupertinoDialog<void>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text('구성원 선택'),
+        content: Text('학교/학원을 등록할 구성원을 선택해 주세요.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text('확인'),
+          ),
+        ],
       ),
     );
   }
@@ -1606,6 +1734,9 @@ class _EducationProgramFormScreenState
       (member) => member.id == _familyMemberId,
       orElse: () => widget.members.first,
     );
+    final memberValue = widget.program == null
+        ? _selectedMemberLabel()
+        : selectedMember.userNickname;
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
@@ -1640,7 +1771,8 @@ class _EducationProgramFormScreenState
                 ),
                 _PickerRow(
                   label: '구성원',
-                  value: selectedMember.userNickname,
+                  value: memberValue,
+                  valueMaxLines: widget.program == null ? null : 1,
                   onPressed: _pickMember,
                 ),
                 _DateRangeRow(
@@ -2226,11 +2358,13 @@ class _PickerRow extends StatelessWidget {
     required this.label,
     required this.value,
     required this.onPressed,
+    this.valueMaxLines = 1,
   });
 
   final String label;
   final String value;
   final VoidCallback onPressed;
+  final int? valueMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -2255,8 +2389,10 @@ class _PickerRow extends StatelessWidget {
             child: Text(
               value,
               textAlign: TextAlign.right,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              maxLines: valueMaxLines,
+              overflow: valueMaxLines == null
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
               style: TextStyle(
                 color: CupertinoColors.systemBlue,
                 fontSize: 15,

@@ -34,6 +34,7 @@ export type Schedule = {
   education_program?: {
     id: string;
     name: string;
+    phone_contacts: Array<{ label: string; phoneNumber: string }>;
   } | null;
 };
 
@@ -369,6 +370,7 @@ const scheduleSelect = `
   ),
   education_program:education_programs (
     id,
-    name
+    name,
+    phone_contacts
   )
 `;

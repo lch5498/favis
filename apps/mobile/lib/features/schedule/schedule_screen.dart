@@ -7,6 +7,8 @@ import '../../shared/member_filter.dart';
 
 enum _CalendarMode { day, week, month }
 
+const _phoneChannel = MethodChannel('checky/phone');
+
 class ScheduleScreen extends StatefulWidget {
   const ScheduleScreen({
     super.key,
@@ -1419,40 +1421,17 @@ class _MonthCalendar extends StatelessWidget {
             ),
           ),
           Container(height: 1, color: AppColors.darkBorder),
-          ...weeks.map((week) {
-            final schedulesByDay = {
-              for (final day in week) day: _schedulesForDay(schedules, day),
-            };
-            final maxScheduleCount = schedulesByDay.values.fold<int>(
-              0,
-              (maxCount, daySchedules) => daySchedules.length > maxCount
-                  ? daySchedules.length
-                  : maxCount,
-            );
-            final rowHeight = _monthWeekRowHeight(maxScheduleCount);
-
-            return SizedBox(
-              height: rowHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: week.map((day) {
-                  return Expanded(
-                    child: _DateCell(
-                      date: day,
-                      schedules: schedulesByDay[day] ?? const [],
-                      memberColors: memberColors,
-                      canManage: canManage,
-                      isInCurrentMonth: day.month == monthStart.month,
-                      maxVisibleSchedules: maxScheduleCount,
-                      minHeight: rowHeight,
-                      onTapDate: () => onTapDate(day),
-                      onTapSchedule: onTapSchedule,
-                    ),
-                  );
-                }).toList(),
-              ),
-            );
-          }),
+          ...weeks.map(
+            (week) => _MonthWeekRow(
+              week: week,
+              monthStart: monthStart,
+              schedules: schedules,
+              memberColors: memberColors,
+              canManage: canManage,
+              onTapDate: onTapDate,
+              onTapSchedule: onTapSchedule,
+            ),
+          ),
         ],
       ),
     );
@@ -1588,34 +1567,97 @@ class _MonthWeekdayHeader extends StatelessWidget {
   }
 }
 
-class _DateCell extends StatelessWidget {
-  const _DateCell({
-    required this.date,
+class _MonthWeekRow extends StatelessWidget {
+  const _MonthWeekRow({
+    required this.week,
+    required this.monthStart,
     required this.schedules,
     required this.memberColors,
     required this.canManage,
-    required this.isInCurrentMonth,
-    required this.maxVisibleSchedules,
-    required this.minHeight,
     required this.onTapDate,
     required this.onTapSchedule,
   });
 
-  final DateTime date;
+  final List<DateTime> week;
+  final DateTime monthStart;
   final List<AppSchedule> schedules;
   final Map<String, MemberFilterColor> memberColors;
   final bool canManage;
-  final bool isInCurrentMonth;
-  final int maxVisibleSchedules;
-  final double minHeight;
-  final VoidCallback onTapDate;
+  final ValueChanged<DateTime> onTapDate;
   final ValueChanged<AppSchedule> onTapSchedule;
 
   @override
   Widget build(BuildContext context) {
+    final segments = _monthScheduleSegmentsForWeek(schedules, week.first);
+    final laneCount = segments.fold<int>(
+      0,
+      (count, segment) => segment.lane + 1 > count ? segment.lane + 1 : count,
+    );
+    final rowHeight = _monthWeekRowHeight(laneCount);
+
+    return SizedBox(
+      height: rowHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final dayWidth = constraints.maxWidth / 7;
+
+          return Stack(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: week.map((day) {
+                  return Expanded(
+                    child: _DateCell(
+                      date: day,
+                      isInCurrentMonth: day.month == monthStart.month,
+                      minHeight: rowHeight,
+                      canManage: canManage,
+                      onTapDate: () => onTapDate(day),
+                    ),
+                  );
+                }).toList(),
+              ),
+              for (final segment in segments)
+                Positioned(
+                  left: dayWidth * segment.startIndex + 2,
+                  top:
+                      _monthCellHeaderHeight +
+                      segment.lane * _monthScheduleSlotHeight,
+                  width: dayWidth * segment.daySpan - 4,
+                  height: _monthScheduleSlotHeight - 2,
+                  child: _MonthScheduleBar(
+                    segment: segment,
+                    color: _scheduleMemberColor(segment.schedule, memberColors),
+                    canManage: canManage,
+                    onTap: () => onTapSchedule(segment.schedule),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DateCell extends StatelessWidget {
+  const _DateCell({
+    required this.date,
+    required this.isInCurrentMonth,
+    required this.minHeight,
+    required this.canManage,
+    required this.onTapDate,
+  });
+
+  final DateTime date;
+  final bool isInCurrentMonth;
+  final double minHeight;
+  final bool canManage;
+  final VoidCallback onTapDate;
+
+  @override
+  Widget build(BuildContext context) {
     final isToday = _dateOnly(date) == _dateOnly(DateTime.now());
-    final visibleSchedules = schedules.take(maxVisibleSchedules).toList();
-    final hiddenCount = schedules.length - visibleSchedules.length;
 
     return CupertinoButton(
       padding: EdgeInsets.zero,
@@ -1632,74 +1674,45 @@ class _DateCell extends StatelessWidget {
               ? AppColors.darkSurface
               : AppColors.darkSurfaceElevated.withValues(alpha: 0.42),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: 24,
-                height: 20,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isToday ? CupertinoColors.systemTeal : null,
-                  borderRadius: BorderRadius.circular(11),
-                ),
-                child: Text(
-                  '${date.day}',
-                  style: TextStyle(
-                    color: isToday
-                        ? CupertinoColors.white
-                        : isInCurrentMonth
-                        ? AppColors.darkTextPrimary
-                        : AppColors.darkTextMuted,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Container(
+            width: 24,
+            height: 20,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: isToday ? CupertinoColors.systemTeal : null,
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Text(
+              '${date.day}',
+              style: TextStyle(
+                color: isToday
+                    ? CupertinoColors.white
+                    : isInCurrentMonth
+                    ? AppColors.darkTextPrimary
+                    : AppColors.darkTextMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
               ),
             ),
-            const SizedBox(height: 3),
-            ...visibleSchedules.map(
-              (schedule) => Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: _MiniScheduleChip(
-                  schedule: schedule,
-                  color: _scheduleMemberColor(schedule, memberColors),
-                  canManage: canManage,
-                  onTap: () => onTapSchedule(schedule),
-                ),
-              ),
-            ),
-            if (hiddenCount > 0)
-              Text(
-                '+$hiddenCount',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.darkTextSecondary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0,
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _MiniScheduleChip extends StatelessWidget {
-  const _MiniScheduleChip({
-    required this.schedule,
+class _MonthScheduleBar extends StatelessWidget {
+  const _MonthScheduleBar({
+    required this.segment,
     required this.color,
     required this.canManage,
     required this.onTap,
   });
 
-  final AppSchedule schedule;
+  final _MonthScheduleSegment segment;
   final MemberFilterColor color;
   final bool canManage;
   final VoidCallback onTap;
@@ -1714,14 +1727,17 @@ class _MiniScheduleChip extends StatelessWidget {
       onPressed: canManage ? onTap : null,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
         decoration: BoxDecoration(
           color: style.background,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.horizontal(
+            left: Radius.circular(segment.startsInWeek ? 6 : 2),
+            right: Radius.circular(segment.endsInWeek ? 6 : 2),
+          ),
           border: Border.all(color: style.border),
         ),
         child: Text(
-          _calendarTitleLabel(schedule.title),
+          _calendarTitleLabel(segment.schedule.title),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           softWrap: false,
@@ -1769,6 +1785,41 @@ class _ScheduleDetailScreen extends StatelessWidget {
 
     if (confirmed == true && context.mounted) {
       Navigator.of(context).pop('deleteConfirmed');
+    }
+  }
+
+  Future<void> _callPhoneNumber(
+    BuildContext context,
+    EducationProgramPhoneContact contact,
+  ) async {
+    final phoneNumber = contact.phoneNumber.trim();
+
+    if (phoneNumber.isEmpty) {
+      return;
+    }
+
+    try {
+      await _phoneChannel.invokeMethod<void>('dial', {
+        'phoneNumber': phoneNumber,
+      });
+    } catch (_) {
+      if (!context.mounted) {
+        return;
+      }
+
+      await showCupertinoDialog<void>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: Text('전화 연결 실패'),
+          content: Text('전화 앱을 열 수 없습니다. 번호를 확인해 주세요.'),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('확인'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -1852,6 +1903,16 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   label: '학교/학원',
                   value: schedule.educationProgramName ?? '선택 안 함',
                 ),
+                if (schedule.educationProgramPhoneContacts.isNotEmpty) ...[
+                  for (final contact
+                      in schedule.educationProgramPhoneContacts) ...[
+                    _DetailDivider(),
+                    _PhoneDetailRow(
+                      contact: contact,
+                      onPressed: () => _callPhoneNumber(context, contact),
+                    ),
+                  ],
+                ],
                 _DetailDivider(),
                 _DetailRow(
                   icon: CupertinoIcons.calendar,
@@ -1981,6 +2042,71 @@ class _DetailRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhoneDetailRow extends StatelessWidget {
+  const _PhoneDetailRow({required this.contact, required this.onPressed});
+
+  final EducationProgramPhoneContact contact;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      onPressed: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(
+              CupertinoIcons.phone_fill,
+              color: CupertinoColors.systemTeal,
+              size: 19,
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 86,
+              child: Text(
+                contact.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.darkTextSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                contact.phoneNumber,
+                textAlign: TextAlign.right,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: CupertinoColors.systemTeal,
+                  fontSize: 15,
+                  height: 1.35,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              CupertinoIcons.phone_arrow_up_right,
+              color: CupertinoColors.systemTeal,
+              size: 16,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2943,10 +3069,127 @@ BoxDecoration get _calendarDecoration => BoxDecoration(
   ),
 );
 
-List<AppSchedule> _schedulesForDay(List<AppSchedule> schedules, DateTime day) {
-  return schedules
-      .where((schedule) => _dateOnly(schedule.startsAt) == _dateOnly(day))
-      .toList();
+List<_MonthScheduleSegment> _monthScheduleSegmentsForWeek(
+  List<AppSchedule> schedules,
+  DateTime weekStart,
+) {
+  final weekEnd = weekStart.add(const Duration(days: 7));
+  final candidates =
+      schedules
+          .where(
+            (schedule) =>
+                schedule.startsAt.isBefore(weekEnd) &&
+                schedule.endsAt.isAfter(weekStart),
+          )
+          .map((schedule) {
+            final scheduleStart = _dateOnly(schedule.startsAt);
+            final scheduleEnd = _scheduleEndDateExclusive(schedule);
+            final clippedStart = scheduleStart.isBefore(weekStart)
+                ? weekStart
+                : scheduleStart;
+            final clippedEnd = scheduleEnd.isAfter(weekEnd)
+                ? weekEnd
+                : scheduleEnd;
+            final startIndex = clippedStart.difference(weekStart).inDays;
+            final daySpan = clippedEnd
+                .difference(clippedStart)
+                .inDays
+                .clamp(1, 7);
+
+            return _MonthScheduleSegmentDraft(
+              schedule: schedule,
+              startIndex: startIndex.clamp(0, 6),
+              daySpan: daySpan,
+              startsInWeek: !scheduleStart.isBefore(weekStart),
+              endsInWeek: !scheduleEnd.isAfter(weekEnd),
+            );
+          })
+          .toList()
+        ..sort((a, b) {
+          final startCompare = a.startIndex.compareTo(b.startIndex);
+          if (startCompare != 0) {
+            return startCompare;
+          }
+
+          final spanCompare = b.daySpan.compareTo(a.daySpan);
+          if (spanCompare != 0) {
+            return spanCompare;
+          }
+
+          return a.schedule.startsAt.compareTo(b.schedule.startsAt);
+        });
+
+  final laneEnds = <int>[];
+  final segments = <_MonthScheduleSegment>[];
+
+  for (final draft in candidates) {
+    var lane = laneEnds.indexWhere((endIndex) => endIndex <= draft.startIndex);
+    if (lane == -1) {
+      lane = laneEnds.length;
+      laneEnds.add(0);
+    }
+
+    final endIndex = (draft.startIndex + draft.daySpan).clamp(1, 7);
+    laneEnds[lane] = endIndex;
+    segments.add(draft.toSegment(lane: lane));
+  }
+
+  return segments;
+}
+
+DateTime _scheduleEndDateExclusive(AppSchedule schedule) {
+  final endDate = _dateOnly(schedule.endsAt);
+
+  if (schedule.endsAt == endDate) {
+    return endDate;
+  }
+
+  return endDate.add(const Duration(days: 1));
+}
+
+class _MonthScheduleSegmentDraft {
+  const _MonthScheduleSegmentDraft({
+    required this.schedule,
+    required this.startIndex,
+    required this.daySpan,
+    required this.startsInWeek,
+    required this.endsInWeek,
+  });
+
+  final AppSchedule schedule;
+  final int startIndex;
+  final int daySpan;
+  final bool startsInWeek;
+  final bool endsInWeek;
+
+  _MonthScheduleSegment toSegment({required int lane}) {
+    return _MonthScheduleSegment(
+      schedule: schedule,
+      startIndex: startIndex,
+      daySpan: daySpan,
+      lane: lane,
+      startsInWeek: startsInWeek,
+      endsInWeek: endsInWeek,
+    );
+  }
+}
+
+class _MonthScheduleSegment {
+  const _MonthScheduleSegment({
+    required this.schedule,
+    required this.startIndex,
+    required this.daySpan,
+    required this.lane,
+    required this.startsInWeek,
+    required this.endsInWeek,
+  });
+
+  final AppSchedule schedule;
+  final int startIndex;
+  final int daySpan;
+  final int lane;
+  final bool startsInWeek;
+  final bool endsInWeek;
 }
 
 Map<String, MemberFilterColor> _memberFilterColors(List<FamilyMember> members) {
