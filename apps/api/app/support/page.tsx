@@ -31,7 +31,7 @@ const faqs = [
   {
     title: '계정을 삭제할 수 있나요?',
     description:
-      '앱의 프로필 화면에서 탈퇴하기를 선택하면 계정 삭제를 요청할 수 있습니다. 삭제된 데이터는 복구되지 않습니다.',
+      '앱의 프로필 화면에서 탈퇴하기를 선택하면 계정과 관련 데이터를 삭제할 수 있습니다. 자세한 방법은 계정 삭제 안내에서 확인할 수 있습니다.',
   },
 ];
 
@@ -80,8 +80,8 @@ export default function SupportPage() {
           <article className="support-item">
             <h3>로그인 정보</h3>
             <p>
-              체키는 사용자 인증을 위해 카카오 로그인을 사용합니다. 앱 사용에
-              필요한 최소한의 사용자 식별 정보만 저장합니다.
+              체키는 사용자 인증을 위해 카카오 및 Apple 로그인을 사용할 수 있습니다.
+              앱 사용에 필요한 최소한의 사용자 식별 정보만 저장합니다.
             </p>
           </article>
           <article className="support-item">
@@ -95,7 +95,8 @@ export default function SupportPage() {
             <h3>계정 삭제</h3>
             <p>
               프로필 화면에서 로그아웃과 탈퇴를 진행할 수 있습니다. 탈퇴 시
-              계정과 관련 데이터가 삭제되며 복구되지 않습니다.
+              계정과 관련 데이터가 삭제되며 복구되지 않습니다. 자세한 절차는{' '}
+              <a href="/account-deletion">계정 삭제 안내</a>를 확인해 주세요.
             </p>
           </article>
           <article className="support-item">
