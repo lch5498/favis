@@ -35,6 +35,25 @@ class ApiClient {
     return AuthResponse.fromJson(json);
   }
 
+  Future<AuthResponse> loginWithAppleIdentityToken(
+    String identityToken, {
+    String? nickname,
+  }) async {
+    final body = <String, Object?>{'identityToken': identityToken};
+
+    if (nickname != null) {
+      body['nickname'] = nickname;
+    }
+
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/auth/apple',
+      body: body,
+    );
+
+    return AuthResponse.fromJson(json);
+  }
+
   Future<AppUser> getMe(String sessionToken) async {
     final json = await _requestJson(
       'GET',

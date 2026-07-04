@@ -10,11 +10,14 @@ export type AppUser = {
 };
 
 const KAKAO_PROVIDER = 'kakao';
+const APPLE_PROVIDER = 'apple';
 
-type KakaoLoginResult =
+type OAuthProvider = typeof KAKAO_PROVIDER | typeof APPLE_PROVIDER;
+
+type OAuthLoginResult =
   | {
       requiresProfile: true;
-      provider: typeof KAKAO_PROVIDER;
+      provider: OAuthProvider;
       providerId: string;
     }
   | {
@@ -26,16 +29,31 @@ type KakaoLoginResult =
 export async function findOrCreateUserFromKakao(
   kakaoUser: KakaoUser,
   options: { nickname?: string } = {},
-): Promise<KakaoLoginResult> {
-  const supabase = getSupabaseAdmin();
+): Promise<OAuthLoginResult> {
   const providerId = String(kakaoUser.id);
+  return findOrCreateUserFromProvider(KAKAO_PROVIDER, providerId, options);
+}
+
+export async function findOrCreateUserFromApple(
+  appleUser: { sub: string },
+  options: { nickname?: string } = {},
+): Promise<OAuthLoginResult> {
+  return findOrCreateUserFromProvider(APPLE_PROVIDER, appleUser.sub, options);
+}
+
+async function findOrCreateUserFromProvider(
+  provider: OAuthProvider,
+  providerId: string,
+  options: { nickname?: string } = {},
+): Promise<OAuthLoginResult> {
+  const supabase = getSupabaseAdmin();
   const nickname = normalizeNickname(options.nickname);
   const now = new Date().toISOString();
 
   const { data: authentication, error: authenticationError } = await supabase
     .from('authentications')
     .select('user_id')
-    .eq('oauth_provider', KAKAO_PROVIDER)
+    .eq('oauth_provider', provider)
     .eq('oauth_provider_id', providerId)
     .maybeSingle();
 
@@ -67,7 +85,7 @@ export async function findOrCreateUserFromKakao(
   if (!nickname) {
     return {
       requiresProfile: true,
-      provider: KAKAO_PROVIDER,
+      provider,
       providerId,
     };
   }
@@ -89,7 +107,7 @@ export async function findOrCreateUserFromKakao(
     .from('authentications')
     .insert({
       user_id: user.id,
-      oauth_provider: KAKAO_PROVIDER,
+      oauth_provider: provider,
       oauth_provider_id: providerId,
     });
 

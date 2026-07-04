@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
@@ -26,14 +27,29 @@ class _AuthGateState extends State<AuthGate> {
   AuthResponse? _auth;
   _InitialHomeData? _initialHomeData;
   String? _pendingKakaoAccessToken;
+  String? _pendingAppleIdentityToken;
   String? _message;
   bool _isLoading = false;
   bool _isRestoringSession = true;
+  bool _isAppleSignInAvailable = false;
 
   @override
   void initState() {
     super.initState();
     _restoreSession();
+    _loadAppleSignInAvailability();
+  }
+
+  Future<void> _loadAppleSignInAvailability() async {
+    final isAvailable = await SignInWithApple.isAvailable();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isAppleSignInAvailable = isAvailable;
+    });
   }
 
   Future<void> _restoreSession() async {
@@ -199,6 +215,32 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
+  Future<void> _loginWithApple() async {
+    await _run(() async {
+      try {
+        final credential = await SignInWithApple.getAppleIDCredential(
+          scopes: const [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+        );
+        final identityToken = credential.identityToken;
+
+        if (identityToken == null || identityToken.trim().isEmpty) {
+          throw const ApiConnectionException('Apple 로그인 토큰을 받지 못했습니다.');
+        }
+
+        await _completeAppleLogin(identityToken);
+      } on SignInWithAppleAuthorizationException catch (error) {
+        if (error.code == AuthorizationErrorCode.canceled) {
+          return;
+        }
+
+        rethrow;
+      }
+    });
+  }
+
   Future<void> _completeKakaoLogin(
     String accessToken, {
     String? nickname,
@@ -214,11 +256,43 @@ class _AuthGateState extends State<AuthGate> {
       setState(() {
         _auth = auth;
         _pendingKakaoAccessToken = null;
+        _pendingAppleIdentityToken = null;
       });
     } on ApiException catch (error) {
       if (error.isProfileRequired && nickname == null) {
         setState(() {
           _pendingKakaoAccessToken = accessToken;
+          _pendingAppleIdentityToken = null;
+        });
+        return;
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<void> _completeAppleLogin(
+    String identityToken, {
+    String? nickname,
+  }) async {
+    try {
+      final auth = await _apiClient.loginWithAppleIdentityToken(
+        identityToken,
+        nickname: nickname,
+      );
+
+      await _sessionStore.save(auth);
+
+      setState(() {
+        _auth = auth;
+        _pendingKakaoAccessToken = null;
+        _pendingAppleIdentityToken = null;
+      });
+    } on ApiException catch (error) {
+      if (error.isProfileRequired && nickname == null) {
+        setState(() {
+          _pendingKakaoAccessToken = null;
+          _pendingAppleIdentityToken = identityToken;
         });
         return;
       }
@@ -228,16 +302,26 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _createProfile(String nickname) async {
-    final accessToken = _pendingKakaoAccessToken;
+    final kakaoAccessToken = _pendingKakaoAccessToken;
+    final appleIdentityToken = _pendingAppleIdentityToken;
 
-    if (accessToken == null) {
+    if (kakaoAccessToken == null && appleIdentityToken == null) {
       setState(() {
-        _message = '카카오 로그인부터 다시 진행해 주세요.';
+        _message = '로그인부터 다시 진행해 주세요.';
       });
       return;
     }
 
-    await _run(() => _completeKakaoLogin(accessToken, nickname: nickname));
+    if (kakaoAccessToken != null) {
+      await _run(
+        () => _completeKakaoLogin(kakaoAccessToken, nickname: nickname),
+      );
+      return;
+    }
+
+    await _run(
+      () => _completeAppleLogin(appleIdentityToken!, nickname: nickname),
+    );
   }
 
   Future<AppUser> _updateProfile(String nickname) async {
@@ -280,6 +364,7 @@ class _AuthGateState extends State<AuthGate> {
       _auth = null;
       _initialHomeData = null;
       _pendingKakaoAccessToken = null;
+      _pendingAppleIdentityToken = null;
       _message = null;
     });
   }
@@ -342,9 +427,10 @@ class _AuthGateState extends State<AuthGate> {
       );
     }
 
-    final pendingKakaoAccessToken = _pendingKakaoAccessToken;
+    final hasPendingProfile =
+        _pendingKakaoAccessToken != null || _pendingAppleIdentityToken != null;
 
-    if (pendingKakaoAccessToken != null) {
+    if (hasPendingProfile) {
       return _NicknameSetupScreen(
         isLoading: _isLoading,
         message: _message,
@@ -354,6 +440,7 @@ class _AuthGateState extends State<AuthGate> {
             : () {
                 setState(() {
                   _pendingKakaoAccessToken = null;
+                  _pendingAppleIdentityToken = null;
                   _message = null;
                 });
               },
@@ -377,6 +464,13 @@ class _AuthGateState extends State<AuthGate> {
                 _ErrorMessage(message: _message!),
               ],
               const Spacer(),
+              if (_isAppleSignInAvailable) ...[
+                _AppleLoginButton(
+                  isLoading: _isLoading,
+                  onPressed: _isLoading ? null : _loginWithApple,
+                ),
+                const SizedBox(height: 10),
+              ],
               _KakaoLoginButton(
                 isLoading: _isLoading,
                 onPressed: _isLoading ? null : _loginWithKakaoSdk,
@@ -548,7 +642,7 @@ class _NicknameSetupScreenState extends State<_NicknameSetupScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                '카카오 계정 정보 대신 가족이 보기 편한 이름으로 저장됩니다.',
+                '로그인 계정 정보 대신 함께 보기 편한 이름으로 저장됩니다.',
                 style: TextStyle(
                   color: AppColors.darkTextSecondary,
                   fontSize: 16,
@@ -739,6 +833,23 @@ class _ErrorMessage extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AppleLoginButton extends StatelessWidget {
+  const _AppleLoginButton({required this.isLoading, required this.onPressed});
+
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SignInWithAppleButton(
+      text: 'Apple로 계속하기',
+      height: 56,
+      borderRadius: BorderRadius.circular(14),
+      onPressed: isLoading ? null : onPressed,
     );
   }
 }
