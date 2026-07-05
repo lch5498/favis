@@ -7,6 +7,7 @@ export type PushTokenRecord = {
   id: string;
   token: string;
   platform: PushPlatform;
+  userId?: string;
 };
 
 export function normalizePushPlatform(platform: string): PushPlatform {
@@ -56,6 +57,21 @@ export async function listPushTokensForUser(userId: string) {
     .from('push_tokens')
     .select('id, token, platform')
     .eq('user_id', userId)
+    .eq('enabled', true)
+    .order('last_seen_at', { ascending: false });
+
+  if (error) {
+    throw new HttpError(500, { error: 'push_token_list_failed' });
+  }
+
+  return (data ?? []) as PushTokenRecord[];
+}
+
+export async function listAllPushTokens() {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('push_tokens')
+    .select('id, token, platform, userId:user_id')
     .eq('enabled', true)
     .order('last_seen_at', { ascending: false });
 
