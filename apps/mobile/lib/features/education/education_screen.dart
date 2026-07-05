@@ -581,11 +581,11 @@ class _MemberNameIcon extends StatelessWidget {
         child: Text(
           name,
           textAlign: TextAlign.center,
-          maxLines: 2,
+          maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: style.foreground,
-            fontSize: 11,
+            fontSize: 10,
             height: 1.05,
             fontWeight: FontWeight.w900,
             letterSpacing: 0,
@@ -1792,7 +1792,7 @@ class _EducationProgramFormScreenState
                 _PickerRow(
                   label: '구성원',
                   value: memberValue,
-                  valueMaxLines: widget.program == null ? null : 1,
+                  valueMaxLines: 1,
                   onPressed: _pickMember,
                 ),
                 _DateRangeRow(

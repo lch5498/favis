@@ -328,7 +328,6 @@ class _AnniversaryTile extends StatelessWidget {
                         const SizedBox(width: 7),
                         _OrdinalBadge(
                           ordinal: anniversary.nextOccurrenceOrdinal!,
-                          elapsedDays: anniversary.elapsedDays,
                         ),
                       ],
                     ],
@@ -374,10 +373,9 @@ class _AnniversaryTile extends StatelessWidget {
 }
 
 class _OrdinalBadge extends StatelessWidget {
-  const _OrdinalBadge({required this.ordinal, required this.elapsedDays});
+  const _OrdinalBadge({required this.ordinal});
 
   final int ordinal;
-  final int? elapsedDays;
 
   @override
   Widget build(BuildContext context) {
@@ -385,10 +383,6 @@ class _OrdinalBadge extends StatelessWidget {
       CupertinoColors.systemPink,
       context,
     );
-    final elapsedLabel = elapsedDays == null ? null : "D+$elapsedDays일";
-    final label = elapsedLabel == null
-        ? "$ordinal번째"
-        : "$ordinal번째 · $elapsedLabel";
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
@@ -398,7 +392,7 @@ class _OrdinalBadge extends StatelessWidget {
         border: Border.all(color: badgeColor.withValues(alpha: 0.34)),
       ),
       child: Text(
-        label,
+        '$ordinal번째',
         style: TextStyle(
           color: badgeColor,
           fontSize: 11,
