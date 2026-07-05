@@ -36,21 +36,34 @@ Authorization: Bearer {CRON_SECRET}
 1. Supabase Dashboard 접속
 2. 프로젝트 선택
 3. `Database > Extensions`에서 `pg_net` 활성화
-4. `Integrations > Cron` 또는 `Database > Cron` 메뉴로 이동
-5. 새 job 생성
-6. 이름 입력
+4. `Database > Extensions`에서 `pg_cron` 활성화
+5. SQL Editor에서 아래 쿼리로 `cron.job`이 보이는지 확인
+
+```sql
+select extname
+from pg_extension
+where extname in ('pg_net', 'pg_cron');
+
+select *
+from cron.job
+limit 1;
+```
+
+6. `Integrations > Cron` 또는 `Database > Cron` 메뉴로 이동
+7. 새 job 생성
+8. 이름 입력
 
 ```text
 favis-schedule-alerts-every-minute
 ```
 
-7. 스케줄 입력
+9. 스케줄 입력
 
 ```text
 * * * * *
 ```
 
-8. 실행 SQL 입력
+10. 실행 SQL 입력
 
 ```sql
 select net.http_get(
@@ -62,22 +75,21 @@ select net.http_get(
 );
 ```
 
-9. 저장 후 다음 분에 실행되는지 확인
+11. 저장 후 다음 분에 실행되는지 확인
 
 ## 3. SQL Editor에서 설정하기
 
 Dashboard UI 대신 SQL Editor에서 직접 설정할 수도 있습니다.
 
 ```sql
-create extension if not exists pg_net with schema extensions;
 create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
 
-select cron.unschedule('favis-schedule-alerts-every-minute')
-where exists (
-  select 1
-  from cron.job
-  where jobname = 'favis-schedule-alerts-every-minute'
-);
+select *
+from cron.job
+limit 1;
+
+select cron.unschedule('favis-schedule-alerts-every-minute');
 
 select cron.schedule(
   'favis-schedule-alerts-every-minute',
@@ -95,6 +107,8 @@ select cron.schedule(
 ```
 
 주의: 위 SQL에는 실제 `CRON_SECRET` 값이 들어가므로 migration 파일로 커밋하지 않습니다. 운영 Supabase SQL Editor에서만 실행합니다.
+
+`select cron.unschedule(...)`는 기존 job이 없으면 실패할 수 있습니다. 처음 설정하는 경우 이 줄은 건너뛰고 `cron.schedule(...)`부터 실행해도 됩니다.
 
 ## 4. 수동 테스트
 
@@ -145,7 +159,35 @@ order by start_time desc
 limit 20;
 ```
 
-## 5. 운영 메모
+## 5. 문제 해결
+
+### `relation "cron.job" does not exist`
+
+아래 오류가 나면 Supabase 프로젝트에서 `pg_cron`이 아직 활성화되지 않은 상태입니다.
+
+```text
+ERROR: 42P01: relation "cron.job" does not exist
+```
+
+처리 순서:
+
+1. Supabase Dashboard에서 `Database > Extensions` 이동
+2. `pg_cron` 검색 후 활성화
+3. SQL Editor에서 아래 쿼리 실행
+
+```sql
+select extname
+from pg_extension
+where extname = 'pg_cron';
+
+select *
+from cron.job
+limit 1;
+```
+
+`cron.job` 조회가 성공해야 Cron job 생성이 가능합니다.
+
+## 6. 운영 메모
 
 - API는 기본적으로 최근 5분 사이 `alert_due_at`이 지난 일정만 조회합니다.
 - 중복 발송 방지는 `schedule_alert_deliveries`의 `(schedule_id, alert_due_at)` unique 제약으로 처리합니다.
