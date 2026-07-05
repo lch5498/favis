@@ -27,6 +27,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       month: requiredNumber(payload, 'month'),
       day: requiredNumber(payload, 'day'),
       isLunarLeap: optionalBoolean(payload, 'isLunarLeap'),
+      year: optionalNumberOrNull(payload, 'year'),
       alertOffsetMinutes: optionalNumberOrNull(payload, 'alertOffsetMinutes'),
       timeZoneOffsetMinutes: optionalNumber(payload, 'timeZoneOffsetMinutes'),
     });

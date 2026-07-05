@@ -19,6 +19,7 @@ export type Anniversary = {
   month: number;
   day: number;
   is_lunar_leap: boolean;
+  year: number | null;
   alert_offset_minutes: number | null;
   created_by_user_id: string | null;
   created_at: string;
@@ -40,6 +41,7 @@ export type AnniversaryInput = {
   month: number;
   day: number;
   isLunarLeap?: boolean;
+  year?: number | null;
   alertOffsetMinutes?: number | null;
   timeZoneOffsetMinutes?: number;
 };
@@ -51,6 +53,7 @@ type NormalizedAnniversaryInput = {
   month: number;
   day: number;
   isLunarLeap: boolean;
+  year: number | null;
   alertOffsetMinutes: number | null;
   timeZoneOffsetMinutes: number;
 };
@@ -67,11 +70,17 @@ export async function getAnniversaryDashboard(userId: string, familyId: string) 
 
   return {
     canManage: membership.role === 'owner',
-    anniversaries: anniversaries.map((anniversary) => ({
-      ...anniversary,
-      nextOccurrenceDate: nextOccurrenceDate(anniversary),
-      recentSchedules: recentSchedulesByAnniversaryId.get(anniversary.id) ?? [],
-    })),
+    anniversaries: anniversaries.map((anniversary) => {
+      const nextOccurrence = nextOccurrenceForAnniversary(anniversary);
+
+      return {
+        ...anniversary,
+        nextOccurrenceDate: nextOccurrence?.date ?? null,
+        nextOccurrenceOrdinal: nextOccurrence?.ordinal ?? null,
+        recentSchedules:
+          recentSchedulesByAnniversaryId.get(anniversary.id) ?? [],
+      };
+    }),
   };
 }
 
@@ -116,6 +125,7 @@ export async function createAnniversary(
       month: normalized.month,
       day: normalized.day,
       is_lunar_leap: normalized.isLunarLeap,
+      year: normalized.year,
       alert_offset_minutes: normalized.alertOffsetMinutes,
       created_by_user_id: userId,
     })
@@ -137,7 +147,7 @@ export async function createAnniversary(
     return {
       anniversary: {
         ...(data as unknown as Anniversary),
-        nextOccurrenceDate: nextOccurrenceDate(data as unknown as Anniversary),
+        ...nextOccurrencePayload(data as unknown as Anniversary),
         recentSchedules: await getRecentAnniversarySchedules(
           familyId,
           data.id as string,
@@ -169,6 +179,7 @@ export async function updateAnniversary(
       month: normalized.month,
       day: normalized.day,
       is_lunar_leap: normalized.isLunarLeap,
+      year: normalized.year,
       alert_offset_minutes: normalized.alertOffsetMinutes,
     })
     .eq('id', anniversaryId)
@@ -194,7 +205,7 @@ export async function updateAnniversary(
   return {
     anniversary: {
       ...(data as unknown as Anniversary),
-      nextOccurrenceDate: nextOccurrenceDate(data as unknown as Anniversary),
+      ...nextOccurrencePayload(data as unknown as Anniversary),
       recentSchedules: await getRecentAnniversarySchedules(
         familyId,
         anniversaryId,
@@ -380,7 +391,7 @@ function occurrenceDateForYear(input: NormalizedAnniversaryInput, year: number) 
   }
 }
 
-function nextOccurrenceDate(anniversary: Anniversary) {
+function nextOccurrenceForAnniversary(anniversary: Anniversary) {
   const today = dateOnlyInTimeZone(new Date(), 540);
   const input: NormalizedAnniversaryInput = {
     category: anniversary.category,
@@ -389,6 +400,7 @@ function nextOccurrenceDate(anniversary: Anniversary) {
     month: anniversary.month,
     day: anniversary.day,
     isLunarLeap: anniversary.is_lunar_leap,
+    year: anniversary.year,
     alertOffsetMinutes: anniversary.alert_offset_minutes,
     timeZoneOffsetMinutes: 540,
   };
@@ -401,11 +413,25 @@ function nextOccurrenceDate(anniversary: Anniversary) {
     const occurrence = occurrenceDateForYear(input, year);
 
     if (occurrence && occurrence.getTime() >= today.getTime()) {
-      return formatDateOnly(occurrence);
+      return {
+        date: formatDateOnly(occurrence),
+        ordinal: anniversary.year
+          ? anniversaryOrdinal(anniversary.year, year)
+          : null,
+      };
     }
   }
 
   return null;
+}
+
+function nextOccurrencePayload(anniversary: Anniversary) {
+  const nextOccurrence = nextOccurrenceForAnniversary(anniversary);
+
+  return {
+    nextOccurrenceDate: nextOccurrence?.date ?? null,
+    nextOccurrenceOrdinal: nextOccurrence?.ordinal ?? null,
+  };
 }
 
 function normalizeAnniversaryInput(
@@ -416,6 +442,7 @@ function normalizeAnniversaryInput(
   const month = normalizeInteger(input.month, 'month', 1, 12);
   const day = normalizeInteger(input.day, 'day', 1, 31);
   const isLunarLeap = Boolean(input.isLunarLeap);
+  const year = normalizeOptionalYear(input.year);
   const normalized: NormalizedAnniversaryInput = {
     category,
     title: normalizeText(input.title, 'title', 80),
@@ -423,6 +450,7 @@ function normalizeAnniversaryInput(
     month,
     day,
     isLunarLeap: calendarType === 'lunar' ? isLunarLeap : false,
+    year,
     alertOffsetMinutes: normalizeAlertOffsetMinutes(input.alertOffsetMinutes),
     timeZoneOffsetMinutes: normalizeTimeZoneOffset(input.timeZoneOffsetMinutes),
   };
@@ -480,6 +508,22 @@ function normalizeInteger(
   }
 
   return numberValue;
+}
+
+function normalizeOptionalYear(value: number | null | undefined) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const currentYear = new Date().getUTCFullYear();
+
+  return normalizeInteger(value, 'year', 1900, currentYear);
+}
+
+function anniversaryOrdinal(year: number, occurrenceYear: number) {
+  const ordinal = occurrenceYear - year;
+
+  return ordinal > 0 ? ordinal : null;
 }
 
 function normalizeText(value: string, field: string, maxLength: number) {

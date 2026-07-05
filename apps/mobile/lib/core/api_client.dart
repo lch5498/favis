@@ -1259,6 +1259,7 @@ class AnniversaryInput {
     required this.month,
     required this.day,
     required this.isLunarLeap,
+    required this.year,
     required this.alertOffsetMinutes,
   });
 
@@ -1268,6 +1269,7 @@ class AnniversaryInput {
   final int month;
   final int day;
   final bool isLunarLeap;
+  final int? year;
   final int? alertOffsetMinutes;
 
   Map<String, Object?> toJson() {
@@ -1278,6 +1280,7 @@ class AnniversaryInput {
       'month': month,
       'day': day,
       'isLunarLeap': isLunarLeap,
+      'year': year,
       'alertOffsetMinutes': alertOffsetMinutes,
       'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
     };
@@ -1334,8 +1337,10 @@ class Anniversary {
     required this.month,
     required this.day,
     required this.isLunarLeap,
+    required this.year,
     required this.alertOffsetMinutes,
     required this.nextOccurrenceDate,
+    required this.nextOccurrenceOrdinal,
     required this.recentSchedules,
     required this.createdAt,
     required this.updatedAt,
@@ -1349,8 +1354,10 @@ class Anniversary {
   final int month;
   final int day;
   final bool isLunarLeap;
+  final int? year;
   final int? alertOffsetMinutes;
   final DateTime? nextOccurrenceDate;
+  final int? nextOccurrenceOrdinal;
   final List<AnniversaryScheduleOccurrence> recentSchedules;
   final String createdAt;
   final String updatedAt;
@@ -1368,10 +1375,12 @@ class Anniversary {
       month: json['month'] as int,
       day: json['day'] as int,
       isLunarLeap: json['is_lunar_leap'] as bool? ?? false,
+      year: json['year'] as int?,
       alertOffsetMinutes: json['alert_offset_minutes'] as int?,
       nextOccurrenceDate: nextOccurrenceDate == null
           ? null
           : DateTime.parse(nextOccurrenceDate),
+      nextOccurrenceOrdinal: json['nextOccurrenceOrdinal'] as int?,
       recentSchedules: recentSchedules
           .map(
             (schedule) => AnniversaryScheduleOccurrence.fromJson(

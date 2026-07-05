@@ -309,16 +309,28 @@ class _AnniversaryTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    anniversary.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.darkTextPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          anniversary.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.darkTextPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      if (anniversary.nextOccurrenceOrdinal != null) ...[
+                        const SizedBox(width: 7),
+                        _OrdinalBadge(
+                          ordinal: anniversary.nextOccurrenceOrdinal!,
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 5),
                   Text(
@@ -360,6 +372,35 @@ class _AnniversaryTile extends StatelessWidget {
   }
 }
 
+class _OrdinalBadge extends StatelessWidget {
+  const _OrdinalBadge({required this.ordinal});
+
+  final int ordinal;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.darkPrimary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: AppColors.darkPrimary.withValues(alpha: 0.32),
+        ),
+      ),
+      child: Text(
+        '$ordinal번째',
+        style: TextStyle(
+          color: AppColors.darkPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
 class _AnniversaryFormResult {
   const _AnniversaryFormResult.save(this.input) : shouldDelete = false;
   const _AnniversaryFormResult.delete() : input = null, shouldDelete = true;
@@ -381,6 +422,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _monthController;
   late final TextEditingController _dayController;
+  late final TextEditingController _yearController;
   late AnniversaryCategory _category;
   late AnniversaryCalendarType _calendarType;
   late bool _isLunarLeap;
@@ -402,6 +444,9 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
     _dayController = TextEditingController(
       text: anniversary == null ? '' : '${anniversary.day}',
     );
+    _yearController = TextEditingController(
+      text: anniversary?.year == null ? '' : '${anniversary!.year}',
+    );
   }
 
   @override
@@ -409,6 +454,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
     _titleController.dispose();
     _monthController.dispose();
     _dayController.dispose();
+    _yearController.dispose();
     super.dispose();
   }
 
@@ -494,6 +540,8 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
     final title = _titleController.text.trim();
     final month = int.tryParse(_monthController.text.trim());
     final day = int.tryParse(_dayController.text.trim());
+    final yearText = _yearController.text.trim();
+    final year = yearText.isEmpty ? null : int.tryParse(yearText);
 
     if (title.isEmpty) {
       setState(() => _message = '기념일 제목을 입력해 주세요.');
@@ -507,6 +555,13 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
 
     if (day == null || day < 1 || day > 31) {
       setState(() => _message = '일은 1부터 31까지 입력해 주세요.');
+      return;
+    }
+
+    final currentYear = DateTime.now().year;
+    if (yearText.isNotEmpty &&
+        (year == null || year < 1900 || year > currentYear)) {
+      setState(() => _message = '년은 1900년부터 올해까지 입력해 주세요.');
       return;
     }
 
@@ -524,6 +579,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
               _category == AnniversaryCategory.birthday &&
               _calendarType == AnniversaryCalendarType.lunar &&
               _isLunarLeap,
+          year: year,
           alertOffsetMinutes: _alertOffsetMinutes,
         ),
       ),
@@ -571,7 +627,8 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
                   controller: _titleController,
                   placeholder: '예: 엄마 생일',
                 ),
-                _MonthDayRow(
+                _AnniversaryDateRow(
+                  yearController: _yearController,
                   monthController: _monthController,
                   dayController: _dayController,
                 ),
@@ -755,12 +812,14 @@ class _RecentScheduleRow extends StatelessWidget {
   }
 }
 
-class _MonthDayRow extends StatelessWidget {
-  const _MonthDayRow({
+class _AnniversaryDateRow extends StatelessWidget {
+  const _AnniversaryDateRow({
+    required this.yearController,
     required this.monthController,
     required this.dayController,
   });
 
+  final TextEditingController yearController;
   final TextEditingController monthController;
   final TextEditingController dayController;
 
@@ -774,23 +833,38 @@ class _MonthDayRow extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                Expanded(
+                Flexible(
+                  flex: 2,
                   child: _NumberField(
-                    controller: monthController,
-                    placeholder: '월',
+                    controller: yearController,
+                    placeholder: '선택',
+                    fontSize: 14,
+                    horizontalPadding: 6,
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
+                  child: Text('년', style: _suffixStyle),
+                ),
+                Flexible(
+                  child: _NumberField(
+                    controller: monthController,
+                    placeholder: '월',
+                    horizontalPadding: 6,
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 5),
                   child: Text('월', style: _suffixStyle),
                 ),
-                Expanded(
+                Flexible(
                   child: _NumberField(
                     controller: dayController,
                     placeholder: '일',
+                    horizontalPadding: 6,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 5),
                 Text('일', style: _suffixStyle),
               ],
             ),
@@ -802,10 +876,17 @@ class _MonthDayRow extends StatelessWidget {
 }
 
 class _NumberField extends StatelessWidget {
-  const _NumberField({required this.controller, required this.placeholder});
+  const _NumberField({
+    required this.controller,
+    required this.placeholder,
+    this.fontSize = 16,
+    this.horizontalPadding = 10,
+  });
 
   final TextEditingController controller;
   final String placeholder;
+  final double fontSize;
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -814,13 +895,16 @@ class _NumberField extends StatelessWidget {
       placeholder: placeholder,
       keyboardType: TextInputType.number,
       textAlign: TextAlign.center,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
         color: AppColors.darkSurfaceElevated,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.darkBorder),
       ),
-      style: TextStyle(fontSize: 16, letterSpacing: 0),
+      style: TextStyle(fontSize: fontSize, letterSpacing: 0),
     );
   }
 }
