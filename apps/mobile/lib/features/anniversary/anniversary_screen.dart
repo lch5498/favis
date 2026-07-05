@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
+import '../../shared/alert_offset_picker.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
 class AnniversaryScreen extends StatefulWidget {
@@ -383,6 +384,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
   late AnniversaryCategory _category;
   late AnniversaryCalendarType _calendarType;
   late bool _isLunarLeap;
+  int? _alertOffsetMinutes;
   String? _message;
 
   @override
@@ -392,6 +394,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
     _category = anniversary?.category ?? AnniversaryCategory.birthday;
     _calendarType = anniversary?.calendarType ?? AnniversaryCalendarType.solar;
     _isLunarLeap = anniversary?.isLunarLeap ?? false;
+    _alertOffsetMinutes = anniversary?.alertOffsetMinutes;
     _titleController = TextEditingController(text: anniversary?.title ?? '');
     _monthController = TextEditingController(
       text: anniversary == null ? '' : '${anniversary.month}',
@@ -472,6 +475,21 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
     }
   }
 
+  Future<void> _pickAlertOffset() async {
+    final picked = await pickAlertOffset(
+      context,
+      currentValue: _alertOffsetMinutes,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _alertOffsetMinutes = picked;
+    });
+  }
+
   void _submit() {
     final title = _titleController.text.trim();
     final month = int.tryParse(_monthController.text.trim());
@@ -506,6 +524,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
               _category == AnniversaryCategory.birthday &&
               _calendarType == AnniversaryCalendarType.lunar &&
               _isLunarLeap,
+          alertOffsetMinutes: _alertOffsetMinutes,
         ),
       ),
     );
@@ -555,6 +574,11 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
                 _MonthDayRow(
                   monthController: _monthController,
                   dayController: _dayController,
+                ),
+                _PickerRow(
+                  label: '알림',
+                  value: alertOffsetLabel(_alertOffsetMinutes),
+                  onPressed: _pickAlertOffset,
                 ),
               ],
             ),

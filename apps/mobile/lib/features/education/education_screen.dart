@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
+import '../../shared/alert_offset_picker.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
@@ -872,6 +873,7 @@ class _EducationProgramFormScreenState
   late final Map<int, _DayRule> _dayRules;
   late final Map<int, _MonthlyRule> _monthlyRules;
   late final List<_PhoneContactDraft> _phoneContacts;
+  int? _alertOffsetMinutes;
   String? _message;
 
   @override
@@ -885,6 +887,7 @@ class _EducationProgramFormScreenState
     _startsOn = _dateOnly(program?.startsOn ?? now);
     _endsOn = _dateOnly(program?.endsOn ?? now.add(const Duration(days: 30)));
     _recurrenceType = program?.recurrenceType ?? EducationRecurrenceType.weekly;
+    _alertOffsetMinutes = program?.alertOffsetMinutes;
     _dayRules = {
       for (var weekday = 0; weekday < 7; weekday++)
         weekday: _DayRule(
@@ -1241,6 +1244,21 @@ class _EducationProgramFormScreenState
     });
   }
 
+  Future<void> _pickAlertOffset() async {
+    final picked = await pickAlertOffset(
+      context,
+      currentValue: _alertOffsetMinutes,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _alertOffsetMinutes = picked;
+    });
+  }
+
   Future<void> _pickRuleTime(int weekday, {required bool isStart}) async {
     final rule = _dayRules[weekday]!;
     final picked = await _showTimePicker(isStart ? rule.startsAt : rule.endsAt);
@@ -1535,6 +1553,7 @@ class _EducationProgramFormScreenState
           ? monthlySchedules
           : const [],
       phoneContacts: phoneContacts,
+      alertOffsetMinutes: _alertOffsetMinutes,
     );
 
     if (!_hasAnyChanges(input)) {
@@ -1647,7 +1666,8 @@ class _EducationProgramFormScreenState
         !_sameMonthlySchedules(
           program.monthlySchedules,
           input.monthlySchedules,
-        );
+        ) ||
+        program.alertOffsetMinutes != input.alertOffsetMinutes;
   }
 
   Future<CalendarApplyScope?> _pickCalendarApplyScope({
@@ -1780,6 +1800,11 @@ class _EducationProgramFormScreenState
                   endValue: _dateText(_endsOn),
                   onPickStart: () => _pickDate(isStart: true),
                   onPickEnd: () => _pickDate(isStart: false),
+                ),
+                _PickerRow(
+                  label: '알림',
+                  value: alertOffsetLabel(_alertOffsetMinutes),
+                  onPressed: _pickAlertOffset,
                 ),
               ],
             ),

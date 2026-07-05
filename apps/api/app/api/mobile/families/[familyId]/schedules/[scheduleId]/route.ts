@@ -34,6 +34,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       educationProgramId:
         optionalText(payload, 'educationTemplateId') ??
         optionalText(payload, 'educationProgramId'),
+      alertOffsetMinutes: optionalNumberOrNull(payload, 'alertOffsetMinutes'),
     });
 
     return Response.json({ schedule });
@@ -63,6 +64,20 @@ function optionalText(payload: Record<string, unknown>, key: string) {
   }
 
   if (typeof value !== 'string') {
+    throw new HttpError(400, { error: 'invalid_payload', field: key });
+  }
+
+  return value;
+}
+
+function optionalNumberOrNull(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value !== 'number') {
     throw new HttpError(400, { error: 'invalid_payload', field: key });
   }
 

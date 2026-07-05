@@ -27,6 +27,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       month: requiredNumber(payload, 'month'),
       day: requiredNumber(payload, 'day'),
       isLunarLeap: optionalBoolean(payload, 'isLunarLeap'),
+      alertOffsetMinutes: optionalNumberOrNull(payload, 'alertOffsetMinutes'),
       timeZoneOffsetMinutes: optionalNumber(payload, 'timeZoneOffsetMinutes'),
     });
 
@@ -86,6 +87,20 @@ function optionalNumber(payload: Record<string, unknown>, key: string) {
 
   if (value === undefined || value === null) {
     return undefined;
+  }
+
+  if (typeof value !== 'number') {
+    throw new HttpError(400, { error: 'invalid_payload', field: key });
+  }
+
+  return value;
+}
+
+function optionalNumberOrNull(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return null;
   }
 
   if (typeof value !== 'number') {

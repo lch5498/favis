@@ -1,5 +1,6 @@
 import { Lunar } from 'lunar-javascript';
 
+import { normalizeAlertOffsetMinutes } from './alert-offset';
 import { requireFamilyManager, requireMembership } from './families';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
@@ -18,6 +19,7 @@ export type Anniversary = {
   month: number;
   day: number;
   is_lunar_leap: boolean;
+  alert_offset_minutes: number | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -38,6 +40,7 @@ export type AnniversaryInput = {
   month: number;
   day: number;
   isLunarLeap?: boolean;
+  alertOffsetMinutes?: number | null;
   timeZoneOffsetMinutes?: number;
 };
 
@@ -48,6 +51,7 @@ type NormalizedAnniversaryInput = {
   month: number;
   day: number;
   isLunarLeap: boolean;
+  alertOffsetMinutes: number | null;
   timeZoneOffsetMinutes: number;
 };
 
@@ -112,6 +116,7 @@ export async function createAnniversary(
       month: normalized.month,
       day: normalized.day,
       is_lunar_leap: normalized.isLunarLeap,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
       created_by_user_id: userId,
     })
     .select('*')
@@ -164,6 +169,7 @@ export async function updateAnniversary(
       month: normalized.month,
       day: normalized.day,
       is_lunar_leap: normalized.isLunarLeap,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
     })
     .eq('id', anniversaryId)
     .eq('family_id', familyId)
@@ -350,6 +356,7 @@ function generateSchedules(
       ),
       vehicle_boarding_at: null,
       vehicle_dropoff_at: null,
+      alert_offset_minutes: input.alertOffsetMinutes,
       created_by_user_id: userId,
     });
   }
@@ -382,6 +389,7 @@ function nextOccurrenceDate(anniversary: Anniversary) {
     month: anniversary.month,
     day: anniversary.day,
     isLunarLeap: anniversary.is_lunar_leap,
+    alertOffsetMinutes: anniversary.alert_offset_minutes,
     timeZoneOffsetMinutes: 540,
   };
 
@@ -415,6 +423,7 @@ function normalizeAnniversaryInput(
     month,
     day,
     isLunarLeap: calendarType === 'lunar' ? isLunarLeap : false,
+    alertOffsetMinutes: normalizeAlertOffsetMinutes(input.alertOffsetMinutes),
     timeZoneOffsetMinutes: normalizeTimeZoneOffset(input.timeZoneOffsetMinutes),
   };
 

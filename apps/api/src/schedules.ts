@@ -3,6 +3,7 @@ import {
   requireFamilyManager,
   requireMembership,
 } from './families';
+import { normalizeAlertOffsetMinutes } from './alert-offset';
 import { listEducationPrograms } from './education-programs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
@@ -19,6 +20,7 @@ export type Schedule = {
   vehicle_dropoff_at: string | null;
   education_program_id: string | null;
   anniversary_id: string | null;
+  alert_offset_minutes: number | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -53,6 +55,7 @@ export type ScheduleInput = {
   vehicleBoardingAt?: string;
   vehicleDropoffAt?: string;
   educationProgramId?: string;
+  alertOffsetMinutes?: number | null;
 };
 
 type MembershipCheckOptions = {
@@ -137,6 +140,7 @@ export async function createSchedule(
       vehicle_boarding_at: normalized.vehicleBoardingAt,
       vehicle_dropoff_at: normalized.vehicleDropoffAt,
       education_program_id: normalized.educationProgramId,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
       created_by_user_id: userId,
     })
     .select(scheduleSelect)
@@ -170,6 +174,7 @@ export async function updateSchedule(
       vehicle_boarding_at: normalized.vehicleBoardingAt,
       vehicle_dropoff_at: normalized.vehicleDropoffAt,
       education_program_id: normalized.educationProgramId,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
     })
     .eq('id', scheduleId)
     .eq('family_id', familyId)
@@ -239,6 +244,7 @@ async function normalizeScheduleInput(familyId: string, input: ScheduleInput) {
       'vehicleDropoffAt',
     ),
     educationProgramId,
+    alertOffsetMinutes: normalizeAlertOffsetMinutes(input.alertOffsetMinutes),
   };
 }
 

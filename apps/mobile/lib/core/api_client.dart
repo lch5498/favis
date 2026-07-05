@@ -439,6 +439,7 @@ class ApiClient {
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
     String? educationProgramId,
+    int? alertOffsetMinutes,
   }) async {
     final json = await _requestJson(
       'POST',
@@ -453,6 +454,7 @@ class ApiClient {
         vehicleBoardingAt: vehicleBoardingAt,
         vehicleDropoffAt: vehicleDropoffAt,
         educationProgramId: educationProgramId,
+        alertOffsetMinutes: alertOffsetMinutes,
       ),
     );
 
@@ -471,6 +473,7 @@ class ApiClient {
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
     String? educationProgramId,
+    int? alertOffsetMinutes,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -485,6 +488,7 @@ class ApiClient {
         vehicleBoardingAt: vehicleBoardingAt,
         vehicleDropoffAt: vehicleDropoffAt,
         educationProgramId: educationProgramId,
+        alertOffsetMinutes: alertOffsetMinutes,
       ),
     );
 
@@ -635,12 +639,14 @@ class ApiClient {
     DateTime? vehicleBoardingAt,
     DateTime? vehicleDropoffAt,
     String? educationProgramId,
+    int? alertOffsetMinutes,
   }) {
     final body = <String, Object?>{
       'familyMemberId': familyMemberId,
       'title': title,
       'startsAt': startsAt.toUtc().toIso8601String(),
       'endsAt': endsAt.toUtc().toIso8601String(),
+      'alertOffsetMinutes': alertOffsetMinutes,
     };
 
     if (content != null) {
@@ -1253,6 +1259,7 @@ class AnniversaryInput {
     required this.month,
     required this.day,
     required this.isLunarLeap,
+    required this.alertOffsetMinutes,
   });
 
   final AnniversaryCategory category;
@@ -1261,6 +1268,7 @@ class AnniversaryInput {
   final int month;
   final int day;
   final bool isLunarLeap;
+  final int? alertOffsetMinutes;
 
   Map<String, Object?> toJson() {
     return {
@@ -1270,6 +1278,7 @@ class AnniversaryInput {
       'month': month,
       'day': day,
       'isLunarLeap': isLunarLeap,
+      'alertOffsetMinutes': alertOffsetMinutes,
       'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
     };
   }
@@ -1325,6 +1334,7 @@ class Anniversary {
     required this.month,
     required this.day,
     required this.isLunarLeap,
+    required this.alertOffsetMinutes,
     required this.nextOccurrenceDate,
     required this.recentSchedules,
     required this.createdAt,
@@ -1339,6 +1349,7 @@ class Anniversary {
   final int month;
   final int day;
   final bool isLunarLeap;
+  final int? alertOffsetMinutes;
   final DateTime? nextOccurrenceDate;
   final List<AnniversaryScheduleOccurrence> recentSchedules;
   final String createdAt;
@@ -1357,6 +1368,7 @@ class Anniversary {
       month: json['month'] as int,
       day: json['day'] as int,
       isLunarLeap: json['is_lunar_leap'] as bool? ?? false,
+      alertOffsetMinutes: json['alert_offset_minutes'] as int?,
       nextOccurrenceDate: nextOccurrenceDate == null
           ? null
           : DateTime.parse(nextOccurrenceDate),
@@ -1406,6 +1418,7 @@ class EducationProgramInput {
     required this.weeklySchedules,
     required this.monthlySchedules,
     required this.phoneContacts,
+    required this.alertOffsetMinutes,
   });
 
   final String familyMemberId;
@@ -1416,6 +1429,7 @@ class EducationProgramInput {
   final List<EducationWeeklySchedule> weeklySchedules;
   final List<EducationMonthlySchedule> monthlySchedules;
   final List<EducationProgramPhoneContact> phoneContacts;
+  final int? alertOffsetMinutes;
 
   EducationProgramInput copyWithFamilyMemberId(String familyMemberId) {
     return EducationProgramInput(
@@ -1427,6 +1441,7 @@ class EducationProgramInput {
       weeklySchedules: weeklySchedules,
       monthlySchedules: monthlySchedules,
       phoneContacts: phoneContacts,
+      alertOffsetMinutes: alertOffsetMinutes,
     );
   }
 
@@ -1446,6 +1461,7 @@ class EducationProgramInput {
       'phoneContacts': phoneContacts
           .map((contact) => contact.toJson())
           .toList(),
+      'alertOffsetMinutes': alertOffsetMinutes,
       'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
     };
   }
@@ -1463,6 +1479,7 @@ class EducationProgram {
     required this.weeklySchedules,
     required this.monthlySchedules,
     required this.phoneContacts,
+    required this.alertOffsetMinutes,
     required this.memberNickname,
     required this.createdAt,
     required this.updatedAt,
@@ -1478,6 +1495,7 @@ class EducationProgram {
   final List<EducationWeeklySchedule> weeklySchedules;
   final List<EducationMonthlySchedule> monthlySchedules;
   final List<EducationProgramPhoneContact> phoneContacts;
+  final int? alertOffsetMinutes;
   final String memberNickname;
   final String createdAt;
   final String updatedAt;
@@ -1521,6 +1539,7 @@ class EducationProgram {
             ),
           )
           .toList(),
+      alertOffsetMinutes: json['alert_offset_minutes'] as int?,
       memberNickname:
           user?['nickname'] as String? ?? memberNickname ?? '담당자 없음',
       createdAt: json['created_at'] as String,
@@ -1668,6 +1687,7 @@ class AppSchedule {
     required this.educationProgramPhoneContacts,
     required this.anniversaryId,
     required this.anniversaryCategory,
+    required this.alertOffsetMinutes,
     required this.memberNickname,
   });
 
@@ -1685,6 +1705,7 @@ class AppSchedule {
   final List<EducationProgramPhoneContact> educationProgramPhoneContacts;
   final String? anniversaryId;
   final AnniversaryCategory? anniversaryCategory;
+  final int? alertOffsetMinutes;
   final String memberNickname;
 
   factory AppSchedule.fromJson(Map<String, Object?> json) {
@@ -1725,6 +1746,7 @@ class AppSchedule {
       anniversaryCategory: anniversary == null
           ? null
           : AnniversaryCategory.fromJson(anniversary['category']),
+      alertOffsetMinutes: json['alert_offset_minutes'] as int?,
       memberNickname:
           user?['nickname'] as String? ?? memberNickname ?? '담당자 없음',
     );

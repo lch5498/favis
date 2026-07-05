@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
+import '../../shared/alert_offset_picker.dart';
 import '../../shared/member_filter.dart';
 
 enum _CalendarMode { day, week, month }
@@ -332,6 +333,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           vehicleBoardingAt: input.vehicleBoardingAt,
           vehicleDropoffAt: input.vehicleDropoffAt,
           educationProgramId: input.educationProgramId,
+          alertOffsetMinutes: input.alertOffsetMinutes,
         );
       } else {
         await _apiClient.updateSchedule(
@@ -346,6 +348,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           vehicleBoardingAt: input.vehicleBoardingAt,
           vehicleDropoffAt: input.vehicleDropoffAt,
           educationProgramId: input.educationProgramId,
+          alertOffsetMinutes: input.alertOffsetMinutes,
         );
       }
 
@@ -1994,6 +1997,12 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   label: 'To',
                   value: _fullDateTimeLabel(schedule.endsAt),
                 ),
+                _DetailDivider(),
+                _DetailRow(
+                  icon: CupertinoIcons.bell,
+                  label: '알림',
+                  value: alertOffsetLabel(schedule.alertOffsetMinutes),
+                ),
               ],
             ),
             const SizedBox(height: 14),
@@ -2214,6 +2223,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
   DateTime? _vehicleBoardingAt;
   DateTime? _vehicleDropoffAt;
   String? _educationProgramId;
+  int? _alertOffsetMinutes;
   String? _message;
 
   @override
@@ -2228,6 +2238,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     _vehicleBoardingAt = schedule?.vehicleBoardingAt;
     _vehicleDropoffAt = schedule?.vehicleDropoffAt;
     _educationProgramId = schedule?.educationProgramId;
+    _alertOffsetMinutes = schedule?.alertOffsetMinutes;
   }
 
   @override
@@ -2382,6 +2393,21 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     );
   }
 
+  Future<void> _pickAlertOffset() async {
+    final picked = await pickAlertOffset(
+      context,
+      currentValue: _alertOffsetMinutes,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _alertOffsetMinutes = picked;
+    });
+  }
+
   void _submit() {
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
@@ -2410,6 +2436,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
         vehicleBoardingAt: _vehicleBoardingAt,
         vehicleDropoffAt: _vehicleDropoffAt,
         educationProgramId: _educationProgramId,
+        alertOffsetMinutes: _alertOffsetMinutes,
       ),
     );
   }
@@ -2494,6 +2521,12 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                   label: '종료 시각',
                   value: _dateTimeLabel(_endsAt),
                   onPressed: () => _pickDateTime(isStart: false),
+                ),
+                _FormDivider(),
+                _PickerRow(
+                  label: '알림',
+                  value: alertOffsetLabel(_alertOffsetMinutes),
+                  onPressed: _pickAlertOffset,
                 ),
               ],
             ),
@@ -3068,6 +3101,7 @@ class _ScheduleInput {
     required this.vehicleBoardingAt,
     required this.vehicleDropoffAt,
     required this.educationProgramId,
+    required this.alertOffsetMinutes,
   });
 
   final String familyMemberId;
@@ -3078,6 +3112,7 @@ class _ScheduleInput {
   final DateTime? vehicleBoardingAt;
   final DateTime? vehicleDropoffAt;
   final String? educationProgramId;
+  final int? alertOffsetMinutes;
 }
 
 DateTime _startOfRange(DateTime date, _CalendarMode mode) {

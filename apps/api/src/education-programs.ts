@@ -3,6 +3,7 @@ import {
   requireFamilyManager,
   requireMembership,
 } from './families';
+import { normalizeAlertOffsetMinutes } from './alert-offset';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -45,6 +46,7 @@ export type EducationProgram = {
   weekly_schedules: EducationWeeklySchedule[];
   monthly_schedules: EducationMonthlySchedule[];
   phone_contacts: EducationProgramPhoneContact[];
+  alert_offset_minutes: number | null;
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
@@ -69,6 +71,7 @@ export type EducationProgramInput = {
   weeklySchedules?: EducationWeeklySchedule[];
   monthlySchedules?: EducationMonthlySchedule[];
   phoneContacts?: EducationProgramPhoneContact[];
+  alertOffsetMinutes?: number | null;
   timeZoneOffsetMinutes?: number;
 };
 
@@ -87,6 +90,7 @@ type NormalizedEducationProgramInput = {
   weeklySchedules: EducationWeeklySchedule[];
   monthlySchedules: EducationMonthlySchedule[];
   phoneContacts: EducationProgramPhoneContact[];
+  alertOffsetMinutes: number | null;
   timeZoneOffsetMinutes: number;
 };
 
@@ -151,6 +155,7 @@ export async function createEducationProgram(
       weekly_schedules: normalized.weeklySchedules,
       monthly_schedules: normalized.monthlySchedules,
       phone_contacts: normalized.phoneContacts,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
       created_by_user_id: userId,
     })
     .select(programSelect)
@@ -221,6 +226,7 @@ export async function updateEducationProgram(
       weekly_schedules: normalized.weeklySchedules,
       monthly_schedules: normalized.monthlySchedules,
       phone_contacts: normalized.phoneContacts,
+      alert_offset_minutes: normalized.alertOffsetMinutes,
     })
     .eq('id', programId)
     .eq('family_id', familyId)
@@ -390,6 +396,7 @@ function generateSchedules(
       vehicle_dropoff_at: rule.vehicleDropoffTime
         ? zonedDateTimeIso(cursor, rule.vehicleDropoffTime, input.timeZoneOffsetMinutes)
         : null,
+      alert_offset_minutes: input.alertOffsetMinutes,
       created_by_user_id: userId,
     });
   }
@@ -442,6 +449,7 @@ async function normalizeEducationProgramInput(
     weeklySchedules,
     monthlySchedules,
     phoneContacts: normalizePhoneContacts(input.phoneContacts),
+    alertOffsetMinutes: normalizeAlertOffsetMinutes(input.alertOffsetMinutes),
     timeZoneOffsetMinutes,
   };
 }
@@ -587,7 +595,8 @@ function hasScheduleImpactingChanges(
     existing.ends_on !== input.endsOn ||
     existing.recurrence_type !== input.recurrenceType ||
     stableJson(existing.weekly_schedules ?? []) !== stableJson(input.weeklySchedules) ||
-    stableJson(existing.monthly_schedules ?? []) !== stableJson(input.monthlySchedules)
+    stableJson(existing.monthly_schedules ?? []) !== stableJson(input.monthlySchedules) ||
+    existing.alert_offset_minutes !== input.alertOffsetMinutes
   );
 }
 
