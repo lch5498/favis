@@ -8,6 +8,11 @@ type FamilyRelation = {
   name: string;
 };
 
+type FamilyMemberRelation = {
+  id: string;
+  nickname: string;
+};
+
 type DueScheduleRow = {
   id: string;
   family_id: string;
@@ -16,6 +21,7 @@ type DueScheduleRow = {
   alert_offset_minutes: number;
   alert_due_at: string;
   family: FamilyRelation | FamilyRelation[] | null;
+  family_member: FamilyMemberRelation | FamilyMemberRelation[] | null;
 };
 
 type PushTokenRow = {
@@ -215,6 +221,10 @@ async function listDueSchedules(windowStart: Date, windowEnd: Date) {
         family:families (
           id,
           name
+        ),
+        family_member:family_members (
+          id,
+          nickname
         )
       `,
     )
@@ -354,15 +364,12 @@ async function updateDelivery(
 }
 
 function notificationTitle(schedule: DueScheduleRow) {
-  return `${familyName(schedule)} - ${schedule.title}`;
-}
+  const member = Array.isArray(schedule.family_member)
+    ? schedule.family_member[0]
+    : schedule.family_member;
+  const memberName = member?.nickname?.trim();
 
-function familyName(schedule: DueScheduleRow) {
-  const family = Array.isArray(schedule.family)
-    ? schedule.family[0]
-    : schedule.family;
-
-  return family?.name ?? '체키';
+  return memberName ? `${schedule.title} (${memberName})` : schedule.title;
 }
 
 function summarizeErrors(results: FcmSendResult[]) {

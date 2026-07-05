@@ -27,12 +27,17 @@ export async function POST(request: Request) {
     const calendarTitle = optionalString(payload, 'calendarTitle', {
       maxLength: 80,
     });
+    const memberName = optionalString(payload, 'memberName', {
+      maxLength: 80,
+    });
     const alertLabel = resolveAlertLabel(payload);
     const title =
       optionalString(payload, 'title', { maxLength: 80 }) ??
-      (familyName && calendarTitle
-        ? `${familyName} - ${calendarTitle}`
-        : '체키 테스트 알림');
+      (calendarTitle
+        ? scheduleAlertTitle(calendarTitle, memberName)
+        : familyName
+          ? `${familyName} 테스트 알림`
+          : '체키 테스트 알림');
     const body =
       optionalString(payload, 'body', { maxLength: 200 }) ??
       alertLabel ??
@@ -88,6 +93,10 @@ export async function POST(request: Request) {
   } catch (error) {
     return jsonFromError(error, 'push_test_failed');
   }
+}
+
+function scheduleAlertTitle(calendarTitle: string, memberName?: string) {
+  return memberName ? `${calendarTitle} (${memberName})` : calendarTitle;
 }
 
 async function resolveUserTargets(request: Request) {
