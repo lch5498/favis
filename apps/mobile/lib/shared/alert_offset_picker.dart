@@ -12,6 +12,10 @@ String alertOffsetLabel(int? minutes) {
     return '알림 없음';
   }
 
+  if (minutes == 0) {
+    return '정시';
+  }
+
   if (minutes % (60 * 24) == 0) {
     return '${minutes ~/ (60 * 24)}일 전';
   }
@@ -38,7 +42,7 @@ Future<int?> pickAlertOffset(
           onPressed: () => Navigator.of(popupContext).pop(_noAlertOffsetValue),
           child: const Text('알림 없음'),
         ),
-        for (final minutes in const [10, 30, 60, 360, 1440])
+        for (final minutes in const [0, 10, 30, 60, 360, 1440])
           CupertinoActionSheetAction(
             isDefaultAction: currentValue == minutes,
             onPressed: () => Navigator.of(popupContext).pop(minutes),
@@ -106,7 +110,10 @@ class _AlertOffsetInputSheetState extends State<_AlertOffsetInputSheet> {
   @override
   void initState() {
     super.initState();
-    final initialValue = widget.initialValue ?? 10;
+    final initialValue =
+        widget.initialValue == null || widget.initialValue! <= 0
+        ? 10
+        : widget.initialValue!;
     if (initialValue % (60 * 24) == 0) {
       _unit = _AlertOffsetUnit.day;
       _amountController = TextEditingController(

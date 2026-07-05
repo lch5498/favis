@@ -12,7 +12,7 @@ export function normalizeAlertOffsetMinutes(
 
   if (
     !Number.isInteger(value) ||
-    value < 1 ||
+    value < 0 ||
     value > MAX_ALERT_OFFSET_MINUTES
   ) {
     throw new HttpError(400, { error: 'invalid_payload', field });
