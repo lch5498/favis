@@ -76,6 +76,8 @@ export async function POST(request: Request) {
         ok: successCount > 0,
         authMode: isAdmin ? 'admin' : 'user',
         validateOnly,
+        notificationTitle: title,
+        notificationBody: body,
         tokenCount: tokens.length,
         successCount,
         failureCount,
