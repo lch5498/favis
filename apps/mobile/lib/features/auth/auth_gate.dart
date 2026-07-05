@@ -262,7 +262,13 @@ class _AuthGateState extends State<AuthGate> {
           throw const ApiConnectionException('Apple 로그인 토큰을 받지 못했습니다.');
         }
 
-        await _completeAppleLogin(identityToken);
+        await _completeAppleLogin(
+          identityToken,
+          nickname: _appleDisplayName(
+            givenName: credential.givenName,
+            familyName: credential.familyName,
+          ),
+        );
       } on SignInWithAppleAuthorizationException catch (error) {
         if (error.code == AuthorizationErrorCode.canceled) {
           throw const ApiConnectionException('로그인이 취소되었습니다.');
@@ -350,10 +356,7 @@ class _AuthGateState extends State<AuthGate> {
       unawaited(_pushNotificationService.attachSession(auth.accessToken));
     } on ApiException catch (error) {
       if (error.isProfileRequired && nickname == null) {
-        setState(() {
-          _pendingKakaoAccessToken = null;
-          _pendingAppleIdentityToken = identityToken;
-        });
+        await _completeAppleLogin(identityToken, nickname: '체키 사용자');
         return;
       }
 
@@ -543,6 +546,16 @@ class _AuthGateState extends State<AuthGate> {
       ),
     );
   }
+}
+
+String? _appleDisplayName({String? givenName, String? familyName}) {
+  final displayName = [familyName, givenName]
+      .whereType<String>()
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .join('');
+
+  return displayName.isEmpty ? null : displayName;
 }
 
 class _InitialHomeData {
