@@ -86,6 +86,31 @@ class ApiClient {
     );
   }
 
+  Future<void> upsertPushToken(
+    String sessionToken, {
+    required String token,
+    required String platform,
+  }) async {
+    await _requestJson(
+      'POST',
+      '/api/mobile/push-tokens',
+      bearerToken: sessionToken,
+      body: {'token': token, 'platform': platform},
+    );
+  }
+
+  Future<void> deletePushToken(
+    String sessionToken, {
+    required String token,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/push-tokens',
+      bearerToken: sessionToken,
+      body: {'token': token},
+    );
+  }
+
   Future<List<FamilySummary>> listFamilies(String sessionToken) async {
     final json = await _requestJson(
       'GET',

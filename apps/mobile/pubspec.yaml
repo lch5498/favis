@@ -37,6 +37,8 @@ dependencies:
   kakao_flutter_sdk_user: ^2.0.0+1
   flutter_secure_storage: ^10.3.0
   sign_in_with_apple: ^8.1.0
+  firebase_core: ^4.11.0
+  firebase_messaging: ^16.4.1
 
 dev_dependencies:
   flutter_test:

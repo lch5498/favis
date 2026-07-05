@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
 import '../../core/api_config.dart';
 import '../../core/auth_session_store.dart';
+import '../../core/push_notification_service.dart';
 import '../home/home_screen.dart';
 
 const _startupSplashDuration = Duration(milliseconds: 1500);
@@ -24,6 +27,7 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   final _apiClient = ApiClient();
   final _sessionStore = AuthSessionStore();
+  final _pushNotificationService = PushNotificationService();
 
   AuthResponse? _auth;
   _InitialHomeData? _initialHomeData;
@@ -39,6 +43,12 @@ class _AuthGateState extends State<AuthGate> {
     super.initState();
     _restoreSession();
     _loadAppleSignInAvailability();
+  }
+
+  @override
+  void dispose() {
+    unawaited(_pushNotificationService.dispose());
+    super.dispose();
   }
 
   Future<void> _loadAppleSignInAvailability() async {
@@ -91,6 +101,9 @@ class _AuthGateState extends State<AuthGate> {
         );
         _initialHomeData = initialHomeData;
       });
+      unawaited(
+        _pushNotificationService.attachSession(storedSession.accessToken),
+      );
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
         await _sessionStore.clear();
@@ -303,6 +316,7 @@ class _AuthGateState extends State<AuthGate> {
         _pendingKakaoAccessToken = null;
         _pendingAppleIdentityToken = null;
       });
+      unawaited(_pushNotificationService.attachSession(auth.accessToken));
     } on ApiException catch (error) {
       if (error.isProfileRequired && nickname == null) {
         setState(() {
@@ -333,6 +347,7 @@ class _AuthGateState extends State<AuthGate> {
         _pendingKakaoAccessToken = null;
         _pendingAppleIdentityToken = null;
       });
+      unawaited(_pushNotificationService.attachSession(auth.accessToken));
     } on ApiException catch (error) {
       if (error.isProfileRequired && nickname == null) {
         setState(() {
@@ -398,6 +413,7 @@ class _AuthGateState extends State<AuthGate> {
       throw const ApiConnectionException('로그인 정보가 없습니다.');
     }
 
+    await _pushNotificationService.detachSession();
     await _apiClient.deleteMyAccount(auth.accessToken);
     await _sessionStore.clear();
 
@@ -456,6 +472,7 @@ class _AuthGateState extends State<AuthGate> {
         onUpdateProfile: _updateProfile,
         onDeleteAccount: _deleteAccount,
         onLogout: () async {
+          await _pushNotificationService.detachSession();
           await _sessionStore.clear();
 
           if (!mounted) {

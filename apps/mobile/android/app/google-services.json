@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "281616262914",
+    "project_id": "checky-32d6f",
+    "storage_bucket": "checky-32d6f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:281616262914:android:49986622af6e216a82c41b",
+        "android_client_info": {
+          "package_name": "com.family.checky.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCzFquc6enUkoKMrJlKrx4n9bTSzqN5X6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

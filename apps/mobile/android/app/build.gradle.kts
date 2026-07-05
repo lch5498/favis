@@ -7,6 +7,10 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 fun dartDefine(name: String, defaultValue: String): String {
     val encodedDefines = (project.findProperty("dart-defines") as String?)
         ?.split(",")
