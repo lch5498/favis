@@ -8,6 +8,7 @@ import {
   listPushTokensForUser,
   type PushTokenRecord,
 } from '../../../../src/push-tokens';
+import { formatScheduleAlertOffset } from '../../../../src/schedule-alerts';
 import { getBearerToken } from '../../../../src/session';
 import { optionalString, readJsonObject } from '../../../../src/validation';
 
@@ -22,10 +23,19 @@ type PushTarget = PushTokenRecord | {
 export async function POST(request: Request) {
   try {
     const payload = await readJsonObject(request);
+    const familyName = optionalString(payload, 'familyName', { maxLength: 80 });
+    const calendarTitle = optionalString(payload, 'calendarTitle', {
+      maxLength: 80,
+    });
+    const alertLabel = resolveAlertLabel(payload);
     const title =
-      optionalString(payload, 'title', { maxLength: 80 }) ?? '체키 테스트 알림';
+      optionalString(payload, 'title', { maxLength: 80 }) ??
+      (familyName && calendarTitle
+        ? `${familyName} - ${calendarTitle}`
+        : '체키 테스트 알림');
     const body =
       optionalString(payload, 'body', { maxLength: 200 }) ??
+      alertLabel ??
       '푸시 알림 연결이 정상입니다.';
     const validateOnly = payload.validateOnly === true;
     const isAdmin = isAdminRequest(request);
@@ -123,4 +133,47 @@ function isAdminRequest(request: Request) {
   }
 
   return timingSafeEqual(bearerTokenBuffer, adminKeyBuffer);
+}
+
+function resolveAlertLabel(payload: Record<string, unknown>) {
+  const explicitAlertLabel = optionalString(payload, 'alertLabel', {
+    maxLength: 40,
+  });
+
+  if (explicitAlertLabel) {
+    return explicitAlertLabel;
+  }
+
+  const alertOffsetMinutes = optionalNumber(payload, 'alertOffsetMinutes');
+
+  if (alertOffsetMinutes === undefined) {
+    return undefined;
+  }
+
+  if (
+    !Number.isInteger(alertOffsetMinutes) ||
+    alertOffsetMinutes < 0 ||
+    alertOffsetMinutes > 60 * 24 * 365
+  ) {
+    throw new HttpError(400, {
+      error: 'invalid_payload',
+      field: 'alertOffsetMinutes',
+    });
+  }
+
+  return formatScheduleAlertOffset(alertOffsetMinutes);
+}
+
+function optionalNumber(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'number') {
+    throw new HttpError(400, { error: 'invalid_payload', field: key });
+  }
+
+  return value;
 }
