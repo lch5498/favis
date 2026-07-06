@@ -1897,7 +1897,8 @@ class _ScheduleDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canModifySchedule = canManage && schedule.anniversaryId == null;
+    final isAnniversarySchedule = schedule.anniversaryId != null;
+    final canModifySchedule = canManage && !isAnniversarySchedule;
 
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
@@ -1925,18 +1926,20 @@ class _ScheduleDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    schedule.memberNickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: CupertinoColors.systemTeal,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0,
+                  if (!isAnniversarySchedule) ...[
+                    Text(
+                      schedule.memberNickname,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: CupertinoColors.systemTeal,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
+                    const SizedBox(height: 8),
+                  ],
                   Text(
                     schedule.title,
                     style: TextStyle(
@@ -1947,7 +1950,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                       letterSpacing: 0,
                     ),
                   ),
-                  if (schedule.content != null) ...[
+                  if (!isAnniversarySchedule && schedule.content != null) ...[
                     const SizedBox(height: 14),
                     Text(
                       schedule.content!,
@@ -1964,73 +1967,89 @@ class _ScheduleDetailScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            _DetailSection(
-              children: [
-                _DetailRow(
-                  icon: CupertinoIcons.person_crop_circle,
-                  label: '구성원',
-                  value: schedule.memberNickname,
-                ),
-                _DetailDivider(),
-                _DetailRow(
-                  icon: CupertinoIcons.building_2_fill,
-                  label: '학교/학원',
-                  value: schedule.educationProgramName ?? '선택 안 함',
-                ),
-                if (schedule.educationProgramPhoneContacts.isNotEmpty) ...[
-                  for (final contact
-                      in schedule.educationProgramPhoneContacts) ...[
-                    _DetailDivider(),
-                    _PhoneDetailRow(
-                      contact: contact,
-                      onPressed: () => _callPhoneNumber(context, contact),
+            if (isAnniversarySchedule)
+              _DetailSection(
+                children: [
+                  _DetailRow(
+                    icon: CupertinoIcons.calendar,
+                    label: '기념일 날짜',
+                    value: _anniversaryDateDetailLabel(schedule.startsAt),
+                  ),
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.bell,
+                    label: '알림',
+                    value: _anniversaryScheduleAlertLabel(
+                      schedule.alertOffsetMinutes,
                     ),
-                  ],
+                  ),
                 ],
-                _DetailDivider(),
-                _DetailRow(
-                  icon: CupertinoIcons.calendar,
-                  label: 'From',
-                  value: _fullDateTimeLabel(schedule.startsAt),
-                ),
-                _DetailDivider(),
-                _DetailRow(
-                  icon: CupertinoIcons.clock,
-                  label: 'To',
-                  value: _fullDateTimeLabel(schedule.endsAt),
-                ),
-                _DetailDivider(),
-                _DetailRow(
-                  icon: CupertinoIcons.bell,
-                  label: '알림',
-                  value: schedule.anniversaryId == null
-                      ? alertOffsetLabel(schedule.alertOffsetMinutes)
-                      : _anniversaryScheduleAlertLabel(
-                          schedule.alertOffsetMinutes,
-                        ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            _DetailSection(
-              children: [
-                _DetailRow(
-                  icon: CupertinoIcons.car_detailed,
-                  label: '차량승차시각',
-                  value: schedule.vehicleBoardingAt == null
-                      ? '선택 안 함'
-                      : _fullDateTimeLabel(schedule.vehicleBoardingAt!),
-                ),
-                _DetailDivider(),
-                _DetailRow(
-                  icon: CupertinoIcons.location,
-                  label: '차량하차시각',
-                  value: schedule.vehicleDropoffAt == null
-                      ? '선택 안 함'
-                      : _fullDateTimeLabel(schedule.vehicleDropoffAt!),
-                ),
-              ],
-            ),
+              )
+            else ...[
+              _DetailSection(
+                children: [
+                  _DetailRow(
+                    icon: CupertinoIcons.person_crop_circle,
+                    label: '구성원',
+                    value: schedule.memberNickname,
+                  ),
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.building_2_fill,
+                    label: '학교/학원',
+                    value: schedule.educationProgramName ?? '선택 안 함',
+                  ),
+                  if (schedule.educationProgramPhoneContacts.isNotEmpty) ...[
+                    for (final contact
+                        in schedule.educationProgramPhoneContacts) ...[
+                      _DetailDivider(),
+                      _PhoneDetailRow(
+                        contact: contact,
+                        onPressed: () => _callPhoneNumber(context, contact),
+                      ),
+                    ],
+                  ],
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.calendar,
+                    label: 'From',
+                    value: _fullDateTimeLabel(schedule.startsAt),
+                  ),
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.clock,
+                    label: 'To',
+                    value: _fullDateTimeLabel(schedule.endsAt),
+                  ),
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.bell,
+                    label: '알림',
+                    value: alertOffsetLabel(schedule.alertOffsetMinutes),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _DetailSection(
+                children: [
+                  _DetailRow(
+                    icon: CupertinoIcons.car_detailed,
+                    label: '차량승차시각',
+                    value: schedule.vehicleBoardingAt == null
+                        ? '선택 안 함'
+                        : _fullDateTimeLabel(schedule.vehicleBoardingAt!),
+                  ),
+                  _DetailDivider(),
+                  _DetailRow(
+                    icon: CupertinoIcons.location,
+                    label: '차량하차시각',
+                    value: schedule.vehicleDropoffAt == null
+                        ? '선택 안 함'
+                        : _fullDateTimeLabel(schedule.vehicleDropoffAt!),
+                  ),
+                ],
+              ),
+            ],
             if (canModifySchedule) ...[
               const SizedBox(height: 18),
               SizedBox(
@@ -3402,6 +3421,10 @@ String _dateTimeLabel(DateTime date) {
 
 String _fullDateTimeLabel(DateTime date) {
   return '${_dateLabel(date)} ${_weekdayLabel(date.weekday)} ${_timeLabel(date)}';
+}
+
+String _anniversaryDateDetailLabel(DateTime date) {
+  return _dayLabel(date);
 }
 
 String _anniversaryScheduleAlertLabel(int? minutes) {

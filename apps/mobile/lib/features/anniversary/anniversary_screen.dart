@@ -1086,126 +1086,133 @@ class _AnniversaryAlertInputSheetState
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        left: 18,
-        right: 18,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.darkSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.86;
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Container(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+        decoration: BoxDecoration(
+          color: AppColors.darkSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: widget.onCancel,
-                  child: const Text('취소'),
-                ),
-                const Spacer(),
-                Text(
-                  '기념일 알림',
-                  style: TextStyle(
-                    color: AppColors.darkTextPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const Spacer(),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: _submit,
-                  child: const Text('완료'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (_message != null) ...[
-              _InlineMessage(message: _message!),
-              const SizedBox(height: 12),
-            ],
-            Row(
-              children: [
-                Expanded(
-                  child: _NumberField(
-                    controller: _daysController,
-                    placeholder: '1',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text('일 전', style: _suffixStyle),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                CupertinoSlidingSegmentedControl<_AnniversaryAlertPeriod>(
-                  groupValue: _period,
-                  children: const {
-                    _AnniversaryAlertPeriod.am: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('오전'),
+                Row(
+                  children: [
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: widget.onCancel,
+                      child: const Text('취소'),
                     ),
-                    _AnniversaryAlertPeriod.pm: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('오후'),
+                    const Spacer(),
+                    Text(
+                      '기념일 알림',
+                      style: TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
                     ),
-                  },
-                  onValueChanged: (value) {
-                    if (value != null) {
-                      setState(() => _period = value);
-                    }
-                  },
+                    const Spacer(),
+                    CupertinoButton(
+                      padding: EdgeInsets.zero,
+                      onPressed: _submit,
+                      child: const Text('완료'),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _NumberField(
-                    controller: _hourController,
-                    placeholder: '9',
+                const SizedBox(height: 10),
+                if (_message != null) ...[
+                  _InlineMessage(message: _message!),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: _NumberField(
+                        controller: _daysController,
+                        placeholder: '1',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Text('일 전', style: _suffixStyle),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    CupertinoSlidingSegmentedControl<_AnniversaryAlertPeriod>(
+                      groupValue: _period,
+                      children: const {
+                        _AnniversaryAlertPeriod.am: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('오전'),
+                        ),
+                        _AnniversaryAlertPeriod.pm: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Text('오후'),
+                        ),
+                      },
+                      onValueChanged: (value) {
+                        if (value != null) {
+                          setState(() => _period = value);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _NumberField(
+                        controller: _hourController,
+                        placeholder: '9',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Text('시', style: _suffixStyle),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _NumberField(
+                        controller: _minuteController,
+                        placeholder: '0',
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 10),
+                      child: Text('분', style: _suffixStyle),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '예: 1일 전 오전 9시 30분은 기념일 전날 오전 9시 30분에 알림을 보냅니다.',
+                    style: TextStyle(
+                      color: AppColors.darkTextMuted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                      letterSpacing: 0,
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 10),
-                  child: Text('시', style: _suffixStyle),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _NumberField(
-                    controller: _minuteController,
-                    placeholder: '0',
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 10),
-                  child: Text('분', style: _suffixStyle),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '예: 1일 전 오전 9시 30분은 기념일 전날 오전 9시 30분에 알림을 보냅니다.',
-                style: TextStyle(
-                  color: AppColors.darkTextMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  height: 1.35,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
