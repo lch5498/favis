@@ -160,6 +160,7 @@ export async function updateSchedule(
   input: ScheduleInput,
 ) {
   await requireFamilyManager(userId, familyId);
+  await requireEditableSchedule(familyId, scheduleId);
   const normalized = await normalizeScheduleInput(familyId, input);
 
   const supabase = getSupabaseAdmin();
@@ -198,6 +199,7 @@ export async function deleteSchedule(
   scheduleId: string,
 ) {
   await requireFamilyManager(userId, familyId);
+  await requireEditableSchedule(familyId, scheduleId);
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
@@ -208,6 +210,28 @@ export async function deleteSchedule(
 
   if (error) {
     throw error;
+  }
+}
+
+async function requireEditableSchedule(familyId: string, scheduleId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('schedules')
+    .select('id, anniversary_id')
+    .eq('id', scheduleId)
+    .eq('family_id', familyId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new HttpError(404, { error: 'schedule_not_found' });
+  }
+
+  if (data.anniversary_id) {
+    throw new HttpError(400, { error: 'anniversary_schedule_readonly' });
   }
 }
 

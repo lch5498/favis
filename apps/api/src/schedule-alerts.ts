@@ -18,6 +18,7 @@ type DueScheduleRow = {
   family_id: string;
   title: string;
   starts_at: string;
+  anniversary_id: string | null;
   alert_offset_minutes: number;
   alert_due_at: string;
   family: FamilyRelation | FamilyRelation[] | null;
@@ -94,9 +95,7 @@ export async function dispatchDueScheduleAlerts(now = new Date()) {
           familyId: schedule.family_id,
           title: schedule.title,
           notificationTitle: notificationTitle(schedule),
-          notificationBody: formatScheduleAlertOffset(
-            schedule.alert_offset_minutes,
-          ),
+          notificationBody: notificationBody(schedule),
           tokenCount: 0,
           successCount: 0,
           failureCount: 0,
@@ -107,7 +106,7 @@ export async function dispatchDueScheduleAlerts(now = new Date()) {
 
       const tokens = tokensByFamilyId.get(schedule.family_id) ?? [];
       const title = notificationTitle(schedule);
-      const body = formatScheduleAlertOffset(schedule.alert_offset_minutes);
+      const body = notificationBody(schedule);
 
       if (tokens.length === 0) {
         await updateDelivery(delivery.id, {
@@ -216,6 +215,7 @@ async function listDueSchedules(windowStart: Date, windowEnd: Date) {
         family_id,
         title,
         starts_at,
+        anniversary_id,
         alert_offset_minutes,
         alert_due_at,
         family:families (
@@ -370,6 +370,47 @@ function notificationTitle(schedule: DueScheduleRow) {
   const memberName = member?.nickname?.trim();
 
   return memberName ? `${schedule.title} (${memberName})` : schedule.title;
+}
+
+function notificationBody(schedule: DueScheduleRow) {
+  if (schedule.anniversary_id) {
+    return formatAnniversaryAlertOffset(schedule.alert_offset_minutes);
+  }
+
+  return formatScheduleAlertOffset(schedule.alert_offset_minutes);
+}
+
+function formatAnniversaryAlertOffset(minutes: number) {
+  if (minutes >= 0) {
+    if (minutes === 0) {
+      return '정시';
+    }
+
+    const daysBefore = Math.ceil(minutes / (60 * 24));
+    const hourMinutes = daysBefore * 60 * 24 - minutes;
+
+    if (hourMinutes >= 0) {
+      const hour = Math.floor(hourMinutes / 60);
+      const minute = hourMinutes % 60;
+
+      if (hour >= 0 && hour <= 23) {
+        const period = hour < 12 ? '오전' : '오후';
+        const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+
+        if (minute === 0) {
+          return `${daysBefore}일전 ${period} ${displayHour}시`;
+        }
+
+        return `${daysBefore}일전 ${period} ${displayHour}시 ${two(minute)}분`;
+      }
+    }
+  }
+
+  return formatScheduleAlertOffset(minutes);
+}
+
+function two(value: number) {
+  return String(value).padStart(2, '0');
 }
 
 function summarizeErrors(results: FcmSendResult[]) {

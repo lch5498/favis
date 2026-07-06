@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
-import '../../shared/alert_offset_picker.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
 class AnniversaryScreen extends StatefulWidget {
@@ -530,7 +529,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
   }
 
   Future<void> _pickAlertOffset() async {
-    final picked = await pickAlertOffset(
+    final picked = await _pickAnniversaryAlertOffset(
       context,
       currentValue: _alertOffsetMinutes,
     );
@@ -716,7 +715,7 @@ class _AnniversaryFormScreenState extends State<_AnniversaryFormScreen> {
                 ],
                 _PickerRow(
                   label: '알림',
-                  value: alertOffsetLabel(_alertOffsetMinutes),
+                  value: _anniversaryAlertLabel(_alertOffsetMinutes),
                   onPressed: _pickAlertOffset,
                 ),
               ],
@@ -848,6 +847,381 @@ class _RecentScheduleRow extends StatelessWidget {
       ),
     );
   }
+}
+
+const int _anniversaryNoAlertValue = -1;
+const int _anniversaryCustomAlertValue = -2;
+
+Future<int?> _pickAnniversaryAlertOffset(
+  BuildContext context, {
+  required int? currentValue,
+}) async {
+  final selected = await showCupertinoModalPopup<int>(
+    context: context,
+    builder: (popupContext) => CupertinoActionSheet(
+      title: const Text('기념일 알림'),
+      message: const Text('기념일 며칠 전, 몇 시에 알림을 받을지 선택해 주세요.'),
+      actions: [
+        CupertinoActionSheetAction(
+          isDefaultAction: currentValue == null,
+          onPressed: () =>
+              Navigator.of(popupContext).pop(_anniversaryNoAlertValue),
+          child: const Text('알림 없음'),
+        ),
+        for (final setting in const [
+          _AnniversaryAlertSetting(daysBefore: 1, hour: 9, minute: 0),
+          _AnniversaryAlertSetting(daysBefore: 3, hour: 9, minute: 0),
+          _AnniversaryAlertSetting(daysBefore: 7, hour: 9, minute: 0),
+        ])
+          CupertinoActionSheetAction(
+            isDefaultAction: currentValue == setting.offsetMinutes,
+            onPressed: () =>
+                Navigator.of(popupContext).pop(setting.offsetMinutes),
+            child: Text(_anniversaryAlertSettingLabel(setting)),
+          ),
+        CupertinoActionSheetAction(
+          onPressed: () =>
+              Navigator.of(popupContext).pop(_anniversaryCustomAlertValue),
+          child: const Text('직접 설정'),
+        ),
+      ],
+      cancelButton: CupertinoActionSheetAction(
+        onPressed: () => Navigator.of(popupContext).pop(currentValue),
+        child: const Text('취소'),
+      ),
+    ),
+  );
+
+  if (selected == _anniversaryCustomAlertValue) {
+    if (!context.mounted) {
+      return currentValue;
+    }
+
+    final parsedSetting = _anniversaryAlertSettingFromOffset(currentValue);
+    final initialSetting = parsedSetting == null || parsedSetting.daysBefore < 1
+        ? const _AnniversaryAlertSetting(daysBefore: 1, hour: 9, minute: 0)
+        : parsedSetting;
+    final customValue = await showCupertinoModalPopup<int>(
+      context: context,
+      builder: (popupContext) => _AnniversaryAlertInputSheet(
+        initialSetting: initialSetting,
+        onCancel: () => Navigator.of(popupContext).pop(),
+        onDone: (value) => Navigator.of(popupContext).pop(value),
+      ),
+    );
+
+    return customValue ?? currentValue;
+  }
+
+  if (selected == _anniversaryNoAlertValue) {
+    return null;
+  }
+
+  return selected ?? currentValue;
+}
+
+String _anniversaryAlertLabel(int? minutes) {
+  if (minutes == null) {
+    return '알림 없음';
+  }
+
+  final setting = _anniversaryAlertSettingFromOffset(minutes);
+  if (setting != null) {
+    return _anniversaryAlertSettingLabel(setting);
+  }
+
+  if (minutes == 0) {
+    return '정시';
+  }
+
+  if (minutes % (60 * 24) == 0) {
+    return '${minutes ~/ (60 * 24)}일 전';
+  }
+
+  if (minutes % 60 == 0) {
+    return '${minutes ~/ 60}시간 전';
+  }
+
+  return '$minutes분 전';
+}
+
+String _anniversaryAlertSettingLabel(_AnniversaryAlertSetting setting) {
+  return '${setting.daysBefore}일 전 ${_anniversaryTimeLabel(setting.hour, setting.minute)}';
+}
+
+String _anniversaryTimeLabel(int hour, int minute) {
+  final period = hour < 12 ? '오전' : '오후';
+  final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+
+  if (minute == 0) {
+    return '$period $displayHour시';
+  }
+
+  return '$period $displayHour시 ${_two(minute)}분';
+}
+
+_AnniversaryAlertSetting? _anniversaryAlertSettingFromOffset(int? minutes) {
+  if (minutes == null || minutes < 0) {
+    return null;
+  }
+
+  if (minutes == 0) {
+    return const _AnniversaryAlertSetting(daysBefore: 0, hour: 0, minute: 0);
+  }
+
+  final daysBefore = (minutes + 60 * 24 - 1) ~/ (60 * 24);
+  final hourMinutes = daysBefore * 60 * 24 - minutes;
+
+  if (hourMinutes < 0) {
+    return null;
+  }
+
+  final hour = hourMinutes ~/ 60;
+  final minute = hourMinutes % 60;
+
+  if (hour < 0 || hour > 23) {
+    return null;
+  }
+
+  return _AnniversaryAlertSetting(
+    daysBefore: daysBefore,
+    hour: hour,
+    minute: minute,
+  );
+}
+
+class _AnniversaryAlertSetting {
+  const _AnniversaryAlertSetting({
+    required this.daysBefore,
+    required this.hour,
+    required this.minute,
+  });
+
+  final int daysBefore;
+  final int hour;
+  final int minute;
+
+  int get offsetMinutes => daysBefore * 60 * 24 - hour * 60 - minute;
+}
+
+enum _AnniversaryAlertPeriod { am, pm }
+
+class _AnniversaryAlertInputSheet extends StatefulWidget {
+  const _AnniversaryAlertInputSheet({
+    required this.initialSetting,
+    required this.onCancel,
+    required this.onDone,
+  });
+
+  final _AnniversaryAlertSetting initialSetting;
+  final VoidCallback onCancel;
+  final ValueChanged<int> onDone;
+
+  @override
+  State<_AnniversaryAlertInputSheet> createState() =>
+      _AnniversaryAlertInputSheetState();
+}
+
+class _AnniversaryAlertInputSheetState
+    extends State<_AnniversaryAlertInputSheet> {
+  late final TextEditingController _daysController;
+  late final TextEditingController _hourController;
+  late final TextEditingController _minuteController;
+  late _AnniversaryAlertPeriod _period;
+  String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _period = widget.initialSetting.hour < 12
+        ? _AnniversaryAlertPeriod.am
+        : _AnniversaryAlertPeriod.pm;
+    _daysController = TextEditingController(
+      text: '${widget.initialSetting.daysBefore}',
+    );
+    _hourController = TextEditingController(
+      text: '${_displayHour(widget.initialSetting.hour)}',
+    );
+    _minuteController = TextEditingController(
+      text: '${widget.initialSetting.minute}',
+    );
+  }
+
+  @override
+  void dispose() {
+    _daysController.dispose();
+    _hourController.dispose();
+    _minuteController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final daysBefore = int.tryParse(_daysController.text.trim());
+    final hour = int.tryParse(_hourController.text.trim());
+    final minute = int.tryParse(_minuteController.text.trim());
+
+    if (daysBefore == null || daysBefore < 1 || daysBefore > 365) {
+      setState(() => _message = '며칠 전은 1부터 365까지 입력해 주세요.');
+      return;
+    }
+
+    if (hour == null || hour < 1 || hour > 12) {
+      setState(() => _message = '시간은 1부터 12까지 입력해 주세요.');
+      return;
+    }
+
+    if (minute == null || minute < 0 || minute > 59) {
+      setState(() => _message = '분은 0부터 59까지 입력해 주세요.');
+      return;
+    }
+
+    widget.onDone(
+      _AnniversaryAlertSetting(
+        daysBefore: daysBefore,
+        hour: _hour24(hour, _period),
+        minute: minute,
+      ).offsetMinutes,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 18,
+        right: 18,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: widget.onCancel,
+                  child: const Text('취소'),
+                ),
+                const Spacer(),
+                Text(
+                  '기념일 알림',
+                  style: TextStyle(
+                    color: AppColors.darkTextPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const Spacer(),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  onPressed: _submit,
+                  child: const Text('완료'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (_message != null) ...[
+              _InlineMessage(message: _message!),
+              const SizedBox(height: 12),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: _NumberField(
+                    controller: _daysController,
+                    placeholder: '1',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('일 전', style: _suffixStyle),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                CupertinoSlidingSegmentedControl<_AnniversaryAlertPeriod>(
+                  groupValue: _period,
+                  children: const {
+                    _AnniversaryAlertPeriod.am: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('오전'),
+                    ),
+                    _AnniversaryAlertPeriod.pm: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('오후'),
+                    ),
+                  },
+                  onValueChanged: (value) {
+                    if (value != null) {
+                      setState(() => _period = value);
+                    }
+                  },
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _NumberField(
+                    controller: _hourController,
+                    placeholder: '9',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text('시', style: _suffixStyle),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _NumberField(
+                    controller: _minuteController,
+                    placeholder: '0',
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: Text('분', style: _suffixStyle),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '예: 1일 전 오전 9시 30분은 기념일 전날 오전 9시 30분에 알림을 보냅니다.',
+                style: TextStyle(
+                  color: AppColors.darkTextMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+int _displayHour(int hour24) {
+  return hour24 % 12 == 0 ? 12 : hour24 % 12;
+}
+
+int _hour24(int hour12, _AnniversaryAlertPeriod period) {
+  if (period == _AnniversaryAlertPeriod.am) {
+    return hour12 == 12 ? 0 : hour12;
+  }
+
+  return hour12 == 12 ? 12 : hour12 + 12;
 }
 
 class _AnniversaryDateRow extends StatelessWidget {

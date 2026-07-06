@@ -1897,11 +1897,13 @@ class _ScheduleDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canModifySchedule = canManage && schedule.anniversaryId == null;
+
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
         middle: Text('일정 상세'),
-        trailing: canManage
+        trailing: canModifySchedule
             ? CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: () => Navigator.of(context).pop('edit'),
@@ -2001,7 +2003,11 @@ class _ScheduleDetailScreen extends StatelessWidget {
                 _DetailRow(
                   icon: CupertinoIcons.bell,
                   label: '알림',
-                  value: alertOffsetLabel(schedule.alertOffsetMinutes),
+                  value: schedule.anniversaryId == null
+                      ? alertOffsetLabel(schedule.alertOffsetMinutes)
+                      : _anniversaryScheduleAlertLabel(
+                          schedule.alertOffsetMinutes,
+                        ),
                 ),
               ],
             ),
@@ -2025,7 +2031,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                 ),
               ],
             ),
-            if (canManage) ...[
+            if (canModifySchedule) ...[
               const SizedBox(height: 18),
               SizedBox(
                 height: 56,
@@ -3396,6 +3402,39 @@ String _dateTimeLabel(DateTime date) {
 
 String _fullDateTimeLabel(DateTime date) {
   return '${_dateLabel(date)} ${_weekdayLabel(date.weekday)} ${_timeLabel(date)}';
+}
+
+String _anniversaryScheduleAlertLabel(int? minutes) {
+  if (minutes == null) {
+    return '알림 없음';
+  }
+
+  if (minutes >= 0) {
+    if (minutes == 0) {
+      return '정시';
+    }
+
+    final daysBefore = (minutes + 60 * 24 - 1) ~/ (60 * 24);
+    final hourMinutes = daysBefore * 60 * 24 - minutes;
+
+    if (hourMinutes >= 0) {
+      final hour = hourMinutes ~/ 60;
+      final minute = hourMinutes % 60;
+
+      if (hour >= 0 && hour <= 23) {
+        final period = hour < 12 ? '오전' : '오후';
+        final displayHour = hour % 12 == 0 ? 12 : hour % 12;
+
+        if (minute == 0) {
+          return '$daysBefore일 전 $period $displayHour시';
+        }
+
+        return '$daysBefore일 전 $period $displayHour시 ${_two(minute)}분';
+      }
+    }
+  }
+
+  return alertOffsetLabel(minutes);
 }
 
 String _calendarTitleLabel(String title) {
