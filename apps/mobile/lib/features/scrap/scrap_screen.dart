@@ -1,0 +1,1579 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/api_client.dart';
+import '../../design_system/app_colors.dart';
+import '../../shared/refreshable_scroll_view.dart';
+
+class ScrapScreen extends StatefulWidget {
+  const ScrapScreen({
+    super.key,
+    required this.family,
+    required this.families,
+    required this.sessionToken,
+    required this.onSelectFamily,
+  });
+
+  final AppFamily family;
+  final List<AppFamily> families;
+  final String sessionToken;
+  final Future<void> Function(AppFamily family) onSelectFamily;
+
+  @override
+  State<ScrapScreen> createState() => _ScrapScreenState();
+}
+
+class _ScrapScreenState extends State<ScrapScreen> {
+  final _apiClient = ApiClient();
+
+  late AppFamily _family;
+  ScrapDashboard? _dashboard;
+  String? _message;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _family = widget.family;
+    _loadScraps();
+  }
+
+  @override
+  void didUpdateWidget(covariant ScrapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.family.id != widget.family.id) {
+      _family = widget.family;
+      _dashboard = null;
+      _loadScraps();
+    }
+  }
+
+  Future<void> _loadScraps() async {
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    try {
+      final dashboard = await _apiClient.getScrapDashboard(
+        widget.sessionToken,
+        familyId: _family.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _dashboard = dashboard;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _switchFamily() async {
+    final selected = await showCupertinoModalPopup<AppFamily>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('스크랩을 볼 모임을 선택해 주세요'),
+        actions: widget.families
+            .map(
+              (family) => CupertinoActionSheetAction(
+                onPressed: () => Navigator.of(context).pop(family),
+                child: Text(family.name),
+              ),
+            )
+            .toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (selected == null) {
+      return;
+    }
+
+    setState(() {
+      _family = selected;
+    });
+    await widget.onSelectFamily(selected);
+  }
+
+  Future<void> _createChannel() async {
+    final name = await _showTextSheet(
+      context,
+      title: '새 채널 만들기',
+      placeholder: '예: 주말 맛집, 가고 싶은 곳',
+      actionLabel: '만들기',
+      maxLines: 1,
+    );
+
+    if (name == null) {
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    try {
+      final channel = await _apiClient.createScrapChannel(
+        widget.sessionToken,
+        familyId: _family.id,
+        name: name,
+      );
+      await _loadScraps();
+
+      if (!mounted) {
+        return;
+      }
+
+      await Navigator.of(context).push(
+        CupertinoPageRoute(
+          builder: (_) => ScrapChannelScreen(
+            family: _family,
+            sessionToken: widget.sessionToken,
+            channel: channel,
+          ),
+        ),
+      );
+      await _loadScraps();
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _openChannel(ScrapChannel channel) {
+    Navigator.of(context)
+        .push(
+          CupertinoPageRoute(
+            builder: (_) => ScrapChannelScreen(
+              family: _family,
+              sessionToken: widget.sessionToken,
+              channel: channel,
+            ),
+          ),
+        )
+        .then((_) => _loadScraps());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dashboard = _dashboard;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppColors.darkBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: _FeatureFamilyTitle(
+          family: _family,
+          featureName: '스크랩',
+          canSwitch: widget.families.length > 1,
+          onPressed: _switchFamily,
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(32, 32),
+          onPressed: _isLoading ? null : _createChannel,
+          child: const Icon(CupertinoIcons.plus),
+        ),
+      ),
+      child: SafeArea(
+        child: RefreshableScrollView(
+          onRefresh: _loadScraps,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+          children: [
+            if (_message != null) ...[
+              _InlineMessage(message: _message!),
+              const SizedBox(height: 16),
+            ],
+            if (_isLoading && dashboard == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 72),
+                child: Center(child: CupertinoActivityIndicator()),
+              )
+            else if (dashboard == null)
+              _EmptyState(
+                icon: CupertinoIcons.exclamationmark_circle,
+                title: '스크랩을 불러오지 못했습니다.',
+                subtitle: '잠시 후 다시 시도해 주세요.',
+                actionLabel: '다시 불러오기',
+                onPressed: _loadScraps,
+              )
+            else if (dashboard.channels.isEmpty)
+              _EmptyState(
+                icon: CupertinoIcons.bookmark,
+                title: '함께 보고 싶은 링크를 모아두세요.',
+                subtitle: '맛집, 장소, 읽을거리처럼 나중에 다시 볼 내용을 채널별로 정리할 수 있어요.',
+                actionLabel: '새 채널 만들기',
+                onPressed: _createChannel,
+              )
+            else ...[
+              for (final channel in dashboard.channels)
+                _ChannelRow(
+                  channel: channel,
+                  onPressed: () => _openChannel(channel),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class ScrapChannelScreen extends StatefulWidget {
+  const ScrapChannelScreen({
+    super.key,
+    required this.family,
+    required this.sessionToken,
+    required this.channel,
+  });
+
+  final AppFamily family;
+  final String sessionToken;
+  final ScrapChannel channel;
+
+  @override
+  State<ScrapChannelScreen> createState() => _ScrapChannelScreenState();
+}
+
+class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
+  final _apiClient = ApiClient();
+
+  ScrapChannelDetail? _detail;
+  String? _message;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChannel();
+  }
+
+  Future<void> _loadChannel() async {
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    try {
+      final detail = await _apiClient.getScrapChannel(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _detail = detail;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _createPost() async {
+    final content = await _showPostComposerSheet(
+      context,
+      apiClient: _apiClient,
+      sessionToken: widget.sessionToken,
+      familyId: widget.family.id,
+      title: '글 등록',
+      placeholder: '링크나 메모를 남겨 주세요',
+      actionLabel: '등록',
+    );
+
+    if (content == null) {
+      return;
+    }
+
+    await _runTask(() async {
+      await _apiClient.createScrapPost(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        content: content,
+      );
+      await _loadChannel();
+    });
+  }
+
+  Future<void> _createComment(ScrapPost post) async {
+    final content = await _showTextSheet(
+      context,
+      title: '댓글 달기',
+      placeholder: '댓글을 입력해 주세요',
+      actionLabel: '등록',
+      maxLines: 4,
+    );
+
+    if (content == null) {
+      return;
+    }
+
+    await _runTask(() async {
+      await _apiClient.createScrapComment(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        postId: post.id,
+        content: content,
+      );
+      await _loadChannel();
+    });
+  }
+
+  Future<void> _deletePost(ScrapPost post) async {
+    final confirmed = await _confirmDelete('글을 삭제할까요?', '댓글도 함께 삭제됩니다.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    await _runTask(() async {
+      await _apiClient.deleteScrapPost(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        postId: post.id,
+      );
+      await _loadChannel();
+    });
+  }
+
+  Future<void> _deleteComment(ScrapPost post, ScrapComment comment) async {
+    final confirmed = await _confirmDelete('댓글을 삭제할까요?', '삭제한 댓글은 복구할 수 없습니다.');
+
+    if (!confirmed) {
+      return;
+    }
+
+    await _runTask(() async {
+      await _apiClient.deleteScrapComment(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        postId: post.id,
+        commentId: comment.id,
+      );
+      await _loadChannel();
+    });
+  }
+
+  Future<bool> _confirmDelete(String title, String content) async {
+    final result = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (dialogContext) => CupertinoAlertDialog(
+        title: Text(title),
+        content: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Text(content),
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    return result == true;
+  }
+
+  Future<void> _runTask(Future<void> Function() task) async {
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    try {
+      await task();
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = _detail;
+
+    return CupertinoPageScaffold(
+      backgroundColor: AppColors.darkBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: Text(
+          detail?.channel.name ?? widget.channel.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            inherit: false,
+            color: AppColors.darkTextPrimary,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+        trailing: CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(32, 32),
+          onPressed: _isLoading ? null : _createPost,
+          child: const Icon(CupertinoIcons.plus),
+        ),
+      ),
+      child: SafeArea(
+        child: RefreshableScrollView(
+          onRefresh: _loadChannel,
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+          children: [
+            if (_message != null) ...[
+              _InlineMessage(message: _message!),
+              const SizedBox(height: 16),
+            ],
+            if (_isLoading && detail == null)
+              const Padding(
+                padding: EdgeInsets.only(top: 72),
+                child: Center(child: CupertinoActivityIndicator()),
+              )
+            else if (detail == null)
+              _EmptyState(
+                icon: CupertinoIcons.exclamationmark_circle,
+                title: '채널을 불러오지 못했습니다.',
+                subtitle: '잠시 후 다시 시도해 주세요.',
+                actionLabel: '다시 불러오기',
+                onPressed: _loadChannel,
+              )
+            else if (detail.posts.isEmpty)
+              _EmptyState(
+                icon: CupertinoIcons.doc_text,
+                title: '아직 등록된 글이 없습니다.',
+                subtitle: '+ 버튼으로 링크나 메모를 남겨 보세요.',
+                actionLabel: '글 등록',
+                onPressed: _createPost,
+              )
+            else
+              for (final post in detail.posts)
+                _PostThread(
+                  post: post,
+                  onComment: () => _createComment(post),
+                  onDeletePost: post.canDelete ? () => _deletePost(post) : null,
+                  onDeleteComment: (comment) => _deleteComment(post, comment),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureFamilyTitle extends StatelessWidget {
+  const _FeatureFamilyTitle({
+    required this.family,
+    required this.featureName,
+    required this.canSwitch,
+    required this.onPressed,
+  });
+
+  final AppFamily family;
+  final String featureName;
+  final bool canSwitch;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = '${family.name} $featureName';
+
+    if (!canSwitch) {
+      return Text(
+        title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          inherit: false,
+          color: AppColors.darkTextPrimary,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0,
+        ),
+      );
+    }
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(44, 32),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                inherit: false,
+                color: AppColors.darkTextPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          const Icon(CupertinoIcons.chevron_down, size: 15),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelRow extends StatelessWidget {
+  const _ChannelRow({required this.channel, required this.onPressed});
+
+  final ScrapChannel channel;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: onPressed,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: AppColors.darkBorder.withValues(alpha: 0.8),
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.darkPrimarySoft,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                CupertinoIcons.bookmark_fill,
+                size: 19,
+                color: AppColors.darkPrimary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    channel.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${channel.authorNickname} · ${_formatDateTime(channel.createdAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextMuted,
+                      fontSize: 12,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              CupertinoIcons.chevron_forward,
+              color: AppColors.darkTextMuted,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostThread extends StatelessWidget {
+  const _PostThread({
+    required this.post,
+    required this.onComment,
+    required this.onDeletePost,
+    required this.onDeleteComment,
+  });
+
+  final ScrapPost post;
+  final VoidCallback onComment;
+  final VoidCallback? onDeletePost;
+  final void Function(ScrapComment comment) onDeleteComment;
+
+  @override
+  Widget build(BuildContext context) {
+    final postContent = post.linkPreview == null
+        ? post.content
+        : _contentWithoutFirstLink(post.content);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.only(bottom: 18),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.darkBorder.withValues(alpha: 0.8),
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _MessageBlock(
+            authorNickname: post.authorNickname,
+            createdAt: post.createdAt,
+            content: postContent,
+            onDelete: onDeletePost,
+          ),
+          if (post.linkPreview != null) ...[
+            const SizedBox(height: 12),
+            _LinkPreviewCard(preview: post.linkPreview!),
+          ],
+          const SizedBox(height: 10),
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: const Size(36, 28),
+            onPressed: onComment,
+            child: Text(
+              '댓글 달기',
+              style: TextStyle(
+                color: AppColors.darkPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          if (post.comments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final comment in post.comments)
+              Padding(
+                padding: const EdgeInsets.only(left: 14, top: 12),
+                child: _MessageBlock(
+                  authorNickname: comment.authorNickname,
+                  createdAt: comment.createdAt,
+                  content: comment.content,
+                  onDelete: comment.canDelete
+                      ? () => onDeleteComment(comment)
+                      : null,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageBlock extends StatelessWidget {
+  const _MessageBlock({
+    required this.authorNickname,
+    required this.createdAt,
+    required this.content,
+    this.onDelete,
+  });
+
+  final String authorNickname;
+  final DateTime createdAt;
+  final String content;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: authorNickname,
+                      style: TextStyle(
+                        color: AppColors.darkTextPrimary,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    TextSpan(
+                      text: '  ${_formatDateTime(createdAt)}',
+                      style: TextStyle(
+                        color: AppColors.darkTextMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+                style: const TextStyle(fontSize: 13, letterSpacing: 0),
+              ),
+            ),
+            if (onDelete != null) ...[
+              const SizedBox(width: 8),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(32, 24),
+                onPressed: onDelete,
+                child: Text(
+                  '삭제',
+                  style: TextStyle(
+                    color: AppColors.darkDanger,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (content.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 15,
+              height: 1.45,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _LinkPreviewCard extends StatelessWidget {
+  const _LinkPreviewCard({required this.preview});
+
+  final ScrapLinkPreview preview;
+
+  Future<void> _openLink() async {
+    final uri = Uri.tryParse(preview.url);
+
+    if (uri == null) {
+      return;
+    }
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = preview.title ?? preview.siteName ?? preview.url;
+    final siteName = preview.siteName ?? Uri.tryParse(preview.url)?.host;
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      onPressed: _openLink,
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: AppColors.darkSurfaceElevated,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.darkBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (preview.imageUrl != null)
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Image.network(
+                  preview.imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    color: AppColors.darkPrimarySoft,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      CupertinoIcons.link,
+                      color: AppColors.darkPrimary,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (siteName != null) ...[
+                    Text(
+                      siteName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.darkPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                  ],
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  if (preview.description != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      preview.description!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.darkTextSecondary,
+                        fontSize: 13,
+                        height: 1.35,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        CupertinoIcons.arrow_up_right_square,
+                        size: 14,
+                        color: AppColors.darkTextMuted,
+                      ),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          preview.url,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.darkTextMuted,
+                            fontSize: 12,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.actionLabel,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String actionLabel;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 42),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.darkPrimarySoft,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(icon, color: AppColors.darkPrimary, size: 24),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            title,
+            style: TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: AppColors.darkTextSecondary,
+              fontSize: 14,
+              height: 1.45,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoButton.filled(
+              minimumSize: const Size(double.infinity, 48),
+              borderRadius: BorderRadius.circular(14),
+              onPressed: onPressed,
+              child: Text(
+                actionLabel,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineMessage extends StatelessWidget {
+  const _InlineMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkDanger.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.darkDanger.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: AppColors.darkDanger,
+          fontSize: 13,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+Future<String?> _showTextSheet(
+  BuildContext context, {
+  required String title,
+  required String placeholder,
+  required String actionLabel,
+  required int maxLines,
+}) {
+  return showCupertinoModalPopup<String>(
+    context: context,
+    builder: (_) => _BottomSheetFrame(
+      child: _TextInputSheet(
+        title: title,
+        placeholder: placeholder,
+        actionLabel: actionLabel,
+        maxLines: maxLines,
+      ),
+    ),
+  );
+}
+
+Future<String?> _showPostComposerSheet(
+  BuildContext context, {
+  required ApiClient apiClient,
+  required String sessionToken,
+  required String familyId,
+  required String title,
+  required String placeholder,
+  required String actionLabel,
+}) {
+  return showCupertinoModalPopup<String>(
+    context: context,
+    builder: (_) => _BottomSheetFrame(
+      child: _PostComposerSheet(
+        apiClient: apiClient,
+        sessionToken: sessionToken,
+        familyId: familyId,
+        title: title,
+        placeholder: placeholder,
+        actionLabel: actionLabel,
+      ),
+    ),
+  );
+}
+
+class _BottomSheetFrame extends StatelessWidget {
+  const _BottomSheetFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
+    final sheetHeight = (screenHeight * 0.88 - keyboardHeight).clamp(
+      screenHeight * 0.52,
+      screenHeight * 0.88,
+    );
+
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardHeight),
+      child: SafeArea(
+        top: false,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            width: double.infinity,
+            height: sheetHeight,
+            decoration: BoxDecoration(
+              color: AppColors.darkSurface,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(24),
+              ),
+              border: Border(top: BorderSide(color: AppColors.darkBorder)),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TextInputSheet extends StatefulWidget {
+  const _TextInputSheet({
+    required this.title,
+    required this.placeholder,
+    required this.actionLabel,
+    required this.maxLines,
+  });
+
+  final String title;
+  final String placeholder;
+  final String actionLabel;
+  final int maxLines;
+
+  @override
+  State<_TextInputSheet> createState() => _TextInputSheetState();
+}
+
+class _TextInputSheetState extends State<_TextInputSheet> {
+  late final TextEditingController _controller;
+  bool _canSubmit = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController()..addListener(_handleChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_handleChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleChanged() {
+    final canSubmit = _controller.text.trim().isNotEmpty;
+    if (canSubmit != _canSubmit) {
+      setState(() {
+        _canSubmit = canSubmit;
+      });
+    }
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ComposerScaffold(
+      title: widget.title,
+      actionLabel: widget.actionLabel,
+      canSubmit: _canSubmit,
+      onCancel: () => Navigator.of(context).pop(),
+      onSubmit: _submit,
+      child: CupertinoTextField(
+        controller: _controller,
+        autofocus: true,
+        minLines: widget.maxLines == 1 ? 2 : 5,
+        maxLines: widget.maxLines == 1 ? 2 : widget.maxLines,
+        placeholder: widget.placeholder,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
+        ),
+        style: TextStyle(
+          color: AppColors.darkTextPrimary,
+          fontSize: 20,
+          height: 1.35,
+          letterSpacing: 0,
+        ),
+        placeholderStyle: TextStyle(
+          color: AppColors.darkTextMuted,
+          fontSize: 20,
+          height: 1.35,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+class _PostComposerSheet extends StatefulWidget {
+  const _PostComposerSheet({
+    required this.apiClient,
+    required this.sessionToken,
+    required this.familyId,
+    required this.title,
+    required this.placeholder,
+    required this.actionLabel,
+  });
+
+  final ApiClient apiClient;
+  final String sessionToken;
+  final String familyId;
+  final String title;
+  final String placeholder;
+  final String actionLabel;
+
+  @override
+  State<_PostComposerSheet> createState() => _PostComposerSheetState();
+}
+
+class _PostComposerSheetState extends State<_PostComposerSheet> {
+  late final TextEditingController _controller;
+  Timer? _previewDebounce;
+  ScrapLinkPreview? _preview;
+  String? _previewUrl;
+  String? _previewMessage;
+  bool _isPreviewLoading = false;
+  bool _canSubmit = false;
+  int _previewRequestId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController()..addListener(_handleChanged);
+  }
+
+  @override
+  void dispose() {
+    _previewDebounce?.cancel();
+    _controller
+      ..removeListener(_handleChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleChanged() {
+    final content = _controller.text.trim();
+    final canSubmit = content.isNotEmpty;
+    final url = _extractFirstUrl(content);
+
+    if (canSubmit != _canSubmit) {
+      setState(() {
+        _canSubmit = canSubmit;
+      });
+    }
+
+    if (url == null) {
+      _previewDebounce?.cancel();
+      if (_preview != null ||
+          _previewUrl != null ||
+          _previewMessage != null ||
+          _isPreviewLoading) {
+        setState(() {
+          _preview = null;
+          _previewUrl = null;
+          _previewMessage = null;
+          _isPreviewLoading = false;
+        });
+      }
+      return;
+    }
+
+    if (url == _previewUrl && (_preview != null || _isPreviewLoading)) {
+      return;
+    }
+
+    _previewDebounce?.cancel();
+    _previewDebounce = Timer(const Duration(milliseconds: 650), () {
+      _loadPreview(content, url);
+    });
+  }
+
+  Future<void> _loadPreview(String content, String url) async {
+    final requestId = ++_previewRequestId;
+    setState(() {
+      _previewUrl = url;
+      _preview = null;
+      _previewMessage = null;
+      _isPreviewLoading = true;
+    });
+
+    try {
+      final preview = await widget.apiClient.previewScrapLink(
+        widget.sessionToken,
+        familyId: widget.familyId,
+        content: content,
+      );
+
+      if (!mounted || requestId != _previewRequestId) {
+        return;
+      }
+
+      setState(() {
+        _preview = preview;
+        _previewMessage = preview == null ? '링크 미리보기를 찾지 못했습니다.' : null;
+      });
+    } catch (_) {
+      if (!mounted || requestId != _previewRequestId) {
+        return;
+      }
+
+      setState(() {
+        _previewMessage = '링크 미리보기를 불러오지 못했습니다.';
+      });
+    } finally {
+      if (mounted && requestId == _previewRequestId) {
+        setState(() {
+          _isPreviewLoading = false;
+        });
+      }
+    }
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (value.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _ComposerScaffold(
+      title: widget.title,
+      actionLabel: widget.actionLabel,
+      canSubmit: _canSubmit,
+      onCancel: () => Navigator.of(context).pop(),
+      onSubmit: _submit,
+      child: Expanded(
+        child: Column(
+          children: [
+            Expanded(
+              child: CupertinoTextField(
+                controller: _controller,
+                autofocus: true,
+                minLines: null,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                placeholder: widget.placeholder,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: AppColors.darkBorder),
+                  ),
+                ),
+                style: TextStyle(
+                  color: AppColors.darkTextPrimary,
+                  fontSize: 18,
+                  height: 1.42,
+                  letterSpacing: 0,
+                ),
+                placeholderStyle: TextStyle(
+                  color: AppColors.darkTextMuted,
+                  fontSize: 18,
+                  height: 1.42,
+                  letterSpacing: 0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (_isPreviewLoading)
+              _PreviewLoading(url: _previewUrl)
+            else if (_preview != null)
+              _LinkPreviewCard(preview: _preview!)
+            else if (_previewMessage != null)
+              _PreviewMessage(message: _previewMessage!),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ComposerScaffold extends StatelessWidget {
+  const _ComposerScaffold({
+    required this.title,
+    required this.actionLabel,
+    required this.canSubmit,
+    required this.onCancel,
+    required this.onSubmit,
+    required this.child,
+  });
+
+  final String title;
+  final String actionLabel;
+  final bool canSubmit;
+  final VoidCallback onCancel;
+  final VoidCallback onSubmit;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+      child: Column(
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Container(
+            width: 36,
+            height: 5,
+            decoration: BoxDecoration(
+              color: AppColors.darkTextMuted.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(44, 36),
+                onPressed: onCancel,
+                child: Text(
+                  '취소',
+                  style: TextStyle(
+                    color: AppColors.darkTextMuted,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.darkTextPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(44, 36),
+                onPressed: canSubmit ? onSubmit : null,
+                child: Text(
+                  actionLabel,
+                  style: TextStyle(
+                    color: canSubmit
+                        ? AppColors.darkPrimary
+                        : AppColors.darkTextMuted.withValues(alpha: 0.45),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewLoading extends StatelessWidget {
+  const _PreviewLoading({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.darkSurfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Row(
+        children: [
+          const CupertinoActivityIndicator(),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              url == null ? '링크 미리보기를 불러오는 중입니다.' : '$url 미리보기 분석 중',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: AppColors.darkTextSecondary,
+                fontSize: 13,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewMessage extends StatelessWidget {
+  const _PreviewMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.darkPrimarySoft.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.darkBorder),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: AppColors.darkTextSecondary,
+          fontSize: 13,
+          letterSpacing: 0,
+        ),
+      ),
+    );
+  }
+}
+
+String _formatDateTime(DateTime value) {
+  final year = value.year.toString().padLeft(4, '0');
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  final hour = value.hour.toString().padLeft(2, '0');
+  final minute = value.minute.toString().padLeft(2, '0');
+
+  return '$year.$month.$day $hour:$minute';
+}
+
+String _contentWithoutFirstLink(String content) {
+  return content
+      .replaceFirst(
+        RegExp(r"""https?:\/\/[^\s<>"']+""", caseSensitive: false),
+        '',
+      )
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+      .trim();
+}
+
+String? _extractFirstUrl(String content) {
+  final match = RegExp(
+    r"""https?:\/\/[^\s<>"']+""",
+    caseSensitive: false,
+  ).firstMatch(content);
+
+  if (match == null) {
+    return null;
+  }
+
+  return match.group(0)?.replaceFirst(RegExp(r'[)\].,!?]+$'), '');
+}

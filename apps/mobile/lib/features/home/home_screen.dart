@@ -11,6 +11,7 @@ import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
 import '../profile/profile_screen.dart';
 import '../schedule/schedule_screen.dart';
+import '../scrap/scrap_screen.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
@@ -143,7 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openParkingTab() {
-    _tabController.index = 4;
+    _tabController.index = 5;
   }
 
   Future<void> _handleDeepLinkMethodCall(MethodCall call) async {
@@ -429,7 +430,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           backgroundColor: AppColors.darkSurfaceElevated,
           activeColor: AppColors.darkPrimary,
           inactiveColor: AppColors.darkTextMuted,
-          iconSize: 24,
+          iconSize: 22,
           border: Border(top: BorderSide(color: AppColors.darkBorder)),
           items: const [
             BottomNavigationBarItem(
@@ -451,6 +452,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               icon: Icon(CupertinoIcons.gift),
               activeIcon: Icon(CupertinoIcons.gift_fill),
               label: '기념일',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(CupertinoIcons.bookmark),
+              activeIcon: Icon(CupertinoIcons.bookmark_fill),
+              label: '스크랩',
             ),
             BottomNavigationBarItem(
               icon: Icon(CupertinoIcons.car_detailed),
@@ -488,6 +494,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     onSelectFamily: _selectFamily,
                   );
                 case 4:
+                  return ScrapScreen(
+                    family: selectedFamily,
+                    families: families,
+                    sessionToken: widget.sessionToken,
+                    onSelectFamily: _selectFamily,
+                  );
+                case 5:
                   return ParkingScreen(
                     family: selectedFamily,
                     families: families,

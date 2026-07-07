@@ -650,6 +650,129 @@ class ApiClient {
     );
   }
 
+  Future<ScrapDashboard> getScrapDashboard(
+    String sessionToken, {
+    required String familyId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      '/api/mobile/families/$familyId/scraps',
+      bearerToken: sessionToken,
+    );
+
+    return ScrapDashboard.fromJson(json);
+  }
+
+  Future<ScrapChannel> createScrapChannel(
+    String sessionToken, {
+    required String familyId,
+    required String name,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps',
+      bearerToken: sessionToken,
+      body: {'name': name},
+    );
+
+    return ScrapChannel.fromJson(json);
+  }
+
+  Future<ScrapLinkPreview?> previewScrapLink(
+    String sessionToken, {
+    required String familyId,
+    required String content,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps/link-preview',
+      bearerToken: sessionToken,
+      body: {'content': content},
+    );
+    final preview = json['preview'] as Map<String, Object?>?;
+    final linkUrl = preview?['link_url'] as String?;
+
+    if (preview == null || linkUrl == null) {
+      return null;
+    }
+
+    return ScrapLinkPreview.fromJson(preview, linkUrl: linkUrl);
+  }
+
+  Future<ScrapChannelDetail> getScrapChannel(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      '/api/mobile/families/$familyId/scraps/$channelId',
+      bearerToken: sessionToken,
+    );
+
+    return ScrapChannelDetail.fromJson(json);
+  }
+
+  Future<ScrapPost> createScrapPost(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String content,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps/$channelId',
+      bearerToken: sessionToken,
+      body: {'content': content},
+    );
+
+    return ScrapPost.fromJson(json);
+  }
+
+  Future<ScrapComment> createScrapComment(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String postId,
+    required String content,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps/$channelId/posts/$postId/comments',
+      bearerToken: sessionToken,
+      body: {'content': content},
+    );
+
+    return ScrapComment.fromJson(json);
+  }
+
+  Future<void> deleteScrapPost(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String postId,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/families/$familyId/scraps/$channelId/posts/$postId',
+      bearerToken: sessionToken,
+    );
+  }
+
+  Future<void> deleteScrapComment(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String postId,
+    required String commentId,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/families/$familyId/scraps/$channelId/posts/$postId/comments/$commentId',
+      bearerToken: sessionToken,
+    );
+  }
+
   Map<String, Object?> _scheduleBody({
     required String familyMemberId,
     required String title,
@@ -1306,6 +1429,181 @@ class AnniversaryInput {
       'alertOffsetMinutes': alertOffsetMinutes,
       'timeZoneOffsetMinutes': DateTime.now().timeZoneOffset.inMinutes,
     };
+  }
+}
+
+class ScrapDashboard {
+  const ScrapDashboard({required this.channels});
+
+  final List<ScrapChannel> channels;
+
+  factory ScrapDashboard.fromJson(Map<String, Object?> json) {
+    final channels = json['channels'] as List<Object?>? ?? [];
+
+    return ScrapDashboard(
+      channels: channels
+          .map((item) => ScrapChannel.fromJson(item as Map<String, Object?>))
+          .toList(),
+    );
+  }
+}
+
+class ScrapChannelDetail {
+  const ScrapChannelDetail({required this.channel, required this.posts});
+
+  final ScrapChannel channel;
+  final List<ScrapPost> posts;
+
+  factory ScrapChannelDetail.fromJson(Map<String, Object?> json) {
+    final posts = json['posts'] as List<Object?>? ?? [];
+
+    return ScrapChannelDetail(
+      channel: ScrapChannel.fromJson(json['channel'] as Map<String, Object?>),
+      posts: posts
+          .map((item) => ScrapPost.fromJson(item as Map<String, Object?>))
+          .toList(),
+    );
+  }
+}
+
+class ScrapChannel {
+  const ScrapChannel({
+    required this.id,
+    required this.familyId,
+    required this.name,
+    required this.authorNickname,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String familyId;
+  final String name;
+  final String authorNickname;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory ScrapChannel.fromJson(Map<String, Object?> json) {
+    return ScrapChannel(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      name: json['name'] as String,
+      authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    );
+  }
+}
+
+class ScrapPost {
+  const ScrapPost({
+    required this.id,
+    required this.familyId,
+    required this.channelId,
+    required this.content,
+    required this.linkPreview,
+    required this.authorNickname,
+    required this.canDelete,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.comments,
+  });
+
+  final String id;
+  final String familyId;
+  final String channelId;
+  final String content;
+  final ScrapLinkPreview? linkPreview;
+  final String authorNickname;
+  final bool canDelete;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final List<ScrapComment> comments;
+
+  factory ScrapPost.fromJson(Map<String, Object?> json) {
+    final comments = json['comments'] as List<Object?>? ?? [];
+    final linkUrl = json['link_url'] as String?;
+
+    return ScrapPost(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      channelId: json['channel_id'] as String,
+      content: json['content'] as String,
+      linkPreview: linkUrl == null
+          ? null
+          : ScrapLinkPreview.fromJson(json, linkUrl: linkUrl),
+      authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
+      canDelete: json['canDelete'] as bool? ?? false,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+      comments: comments
+          .map((item) => ScrapComment.fromJson(item as Map<String, Object?>))
+          .toList(),
+    );
+  }
+}
+
+class ScrapComment {
+  const ScrapComment({
+    required this.id,
+    required this.familyId,
+    required this.postId,
+    required this.content,
+    required this.authorNickname,
+    required this.canDelete,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String familyId;
+  final String postId;
+  final String content;
+  final String authorNickname;
+  final bool canDelete;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory ScrapComment.fromJson(Map<String, Object?> json) {
+    return ScrapComment(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      postId: json['post_id'] as String,
+      content: json['content'] as String,
+      authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
+      canDelete: json['canDelete'] as bool? ?? false,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    );
+  }
+}
+
+class ScrapLinkPreview {
+  const ScrapLinkPreview({
+    required this.url,
+    required this.title,
+    required this.description,
+    required this.imageUrl,
+    required this.siteName,
+  });
+
+  final String url;
+  final String? title;
+  final String? description;
+  final String? imageUrl;
+  final String? siteName;
+
+  factory ScrapLinkPreview.fromJson(
+    Map<String, Object?> json, {
+    required String linkUrl,
+  }) {
+    return ScrapLinkPreview(
+      url: linkUrl,
+      title: json['link_title'] as String?,
+      description: json['link_description'] as String?,
+      imageUrl: json['link_image_url'] as String?,
+      siteName: json['link_site_name'] as String?,
+    );
   }
 }
 

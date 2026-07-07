@@ -1,0 +1,759 @@
+import { requireMembership } from './families';
+import { HttpError } from './http';
+import { getSupabaseAdmin } from './supabase';
+
+type FamilyRole = 'owner' | 'member';
+
+export type ScrapChannel = {
+  id: string;
+  family_id: string;
+  name: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  authorNickname?: string;
+};
+
+export type ScrapPost = {
+  id: string;
+  family_id: string;
+  channel_id: string;
+  content: string;
+  link_url: string | null;
+  link_title: string | null;
+  link_description: string | null;
+  link_image_url: string | null;
+  link_site_name: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  authorNickname?: string;
+  canDelete?: boolean;
+  comments?: ScrapComment[];
+};
+
+export type ScrapComment = {
+  id: string;
+  family_id: string;
+  post_id: string;
+  content: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  authorNickname?: string;
+  canDelete?: boolean;
+};
+
+type FamilyMemberAuthor = {
+  user_id: string | null;
+  nickname: string;
+};
+
+export async function getScrapDashboard(userId: string, familyId: string) {
+  await requireMembership(userId, familyId);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_channels')
+    .select('*')
+    .eq('family_id', familyId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    channels: await attachAuthorNicknames(familyId, (data ?? []) as ScrapChannel[]),
+  };
+}
+
+export async function createScrapChannel(
+  userId: string,
+  familyId: string,
+  input: { name: string },
+) {
+  await requireMembership(userId, familyId);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_channels')
+    .insert({
+      family_id: familyId,
+      name: normalizeText(input.name, 60),
+      created_by_user_id: userId,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const [channel] = await attachAuthorNicknames(familyId, [data as ScrapChannel]);
+  return channel;
+}
+
+export async function previewScrapLink(
+  userId: string,
+  familyId: string,
+  input: { content: string },
+) {
+  await requireMembership(userId, familyId);
+  const preview = await fetchLinkPreview(input.content);
+
+  return {
+    preview: preview ? serializeLinkPreview(preview) : null,
+  };
+}
+
+export async function getScrapChannel(
+  userId: string,
+  familyId: string,
+  channelId: string,
+) {
+  const membership = await requireMembership(userId, familyId);
+  const channel = await getChannelOrThrow(familyId, channelId);
+  const supabase = getSupabaseAdmin();
+
+  const { data: posts, error: postsError } = await supabase
+    .from('scrap_posts')
+    .select('*')
+    .eq('family_id', familyId)
+    .eq('channel_id', channelId)
+    .order('created_at', { ascending: false });
+
+  if (postsError) {
+    throw postsError;
+  }
+
+  const postRows = (posts ?? []) as ScrapPost[];
+  const postIds = postRows.map((post) => post.id);
+  const commentsByPostId = new Map<string, ScrapComment[]>();
+
+  if (postIds.length > 0) {
+    const { data: comments, error: commentsError } = await supabase
+      .from('scrap_comments')
+      .select('*')
+      .eq('family_id', familyId)
+      .in('post_id', postIds)
+      .order('created_at', { ascending: true });
+
+    if (commentsError) {
+      throw commentsError;
+    }
+
+    const commentsWithAuthors = await attachAuthorNicknames(
+      familyId,
+      (comments ?? []) as ScrapComment[],
+    );
+
+    for (const comment of commentsWithAuthors) {
+      const commentWithPermissions = withDeletePermission(
+        comment,
+        userId,
+        membership.role,
+      );
+      const bucket = commentsByPostId.get(comment.post_id) ?? [];
+      bucket.push(commentWithPermissions);
+      commentsByPostId.set(comment.post_id, bucket);
+    }
+  }
+
+  const postsWithAuthors = await attachAuthorNicknames(familyId, postRows);
+
+  return {
+    channel,
+    posts: postsWithAuthors.map((post) => ({
+      ...post,
+      canDelete: canDelete(post.created_by_user_id, userId, membership.role),
+      comments: commentsByPostId.get(post.id) ?? [],
+    })),
+  };
+}
+
+export async function createScrapPost(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  input: { content: string },
+) {
+  const membership = await requireMembership(userId, familyId);
+  await getChannelOrThrow(familyId, channelId);
+  const content = normalizeText(input.content, 2000);
+  const linkPreview = await fetchLinkPreview(content);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_posts')
+    .insert({
+      family_id: familyId,
+      channel_id: channelId,
+      content,
+      link_url: linkPreview?.url ?? null,
+      link_title: linkPreview?.title ?? null,
+      link_description: linkPreview?.description ?? null,
+      link_image_url: linkPreview?.imageUrl ?? null,
+      link_site_name: linkPreview?.siteName ?? null,
+      created_by_user_id: userId,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const [post] = await attachAuthorNicknames(familyId, [data as ScrapPost]);
+  return {
+    ...post,
+    canDelete: canDelete(post.created_by_user_id, userId, membership.role),
+    comments: [],
+  };
+}
+
+export async function createScrapComment(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  postId: string,
+  input: { content: string },
+) {
+  const membership = await requireMembership(userId, familyId);
+  await getPostOrThrow(familyId, channelId, postId);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_comments')
+    .insert({
+      family_id: familyId,
+      post_id: postId,
+      content: normalizeText(input.content, 1000),
+      created_by_user_id: userId,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const [comment] = await attachAuthorNicknames(familyId, [data as ScrapComment]);
+  return withDeletePermission(comment, userId, membership.role);
+}
+
+export async function deleteScrapPost(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  postId: string,
+) {
+  const membership = await requireMembership(userId, familyId);
+  const post = await getPostOrThrow(familyId, channelId, postId);
+
+  assertCanDelete(post.created_by_user_id, userId, membership.role);
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from('scrap_posts')
+    .delete()
+    .eq('family_id', familyId)
+    .eq('channel_id', channelId)
+    .eq('id', postId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function deleteScrapComment(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  postId: string,
+  commentId: string,
+) {
+  const membership = await requireMembership(userId, familyId);
+  await getPostOrThrow(familyId, channelId, postId);
+
+  const supabase = getSupabaseAdmin();
+  const { data: comment, error: commentError } = await supabase
+    .from('scrap_comments')
+    .select('*')
+    .eq('family_id', familyId)
+    .eq('post_id', postId)
+    .eq('id', commentId)
+    .maybeSingle();
+
+  if (commentError) {
+    throw commentError;
+  }
+
+  if (!comment) {
+    throw new HttpError(404, { error: 'scrap_comment_not_found' });
+  }
+
+  assertCanDelete(
+    (comment as ScrapComment).created_by_user_id,
+    userId,
+    membership.role,
+  );
+
+  const { error } = await supabase
+    .from('scrap_comments')
+    .delete()
+    .eq('family_id', familyId)
+    .eq('post_id', postId)
+    .eq('id', commentId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function getChannelOrThrow(familyId: string, channelId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_channels')
+    .select('*')
+    .eq('family_id', familyId)
+    .eq('id', channelId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new HttpError(404, { error: 'scrap_channel_not_found' });
+  }
+
+  const [channel] = await attachAuthorNicknames(familyId, [data as ScrapChannel]);
+  return channel;
+}
+
+async function getPostOrThrow(
+  familyId: string,
+  channelId: string,
+  postId: string,
+) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_posts')
+    .select('*')
+    .eq('family_id', familyId)
+    .eq('channel_id', channelId)
+    .eq('id', postId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new HttpError(404, { error: 'scrap_post_not_found' });
+  }
+
+  return data as ScrapPost;
+}
+
+async function attachAuthorNicknames<T extends { created_by_user_id: string | null }>(
+  familyId: string,
+  rows: T[],
+) {
+  const userIds = [
+    ...new Set(
+      rows
+        .map((row) => row.created_by_user_id)
+        .filter((userId): userId is string => Boolean(userId)),
+    ),
+  ];
+
+  if (userIds.length === 0) {
+    return rows.map((row) => ({ ...row, authorNickname: '알 수 없음' }));
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('family_members')
+    .select('user_id, nickname')
+    .eq('family_id', familyId)
+    .in('user_id', userIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const nicknameByUserId = new Map(
+    ((data ?? []) as FamilyMemberAuthor[])
+      .filter((member) => member.user_id)
+      .map((member) => [member.user_id as string, member.nickname]),
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    authorNickname:
+      (row.created_by_user_id && nicknameByUserId.get(row.created_by_user_id)) ||
+      '알 수 없음',
+  }));
+}
+
+function normalizeText(value: string, maxLength: number) {
+  const normalized = value.trim();
+
+  if (!normalized || normalized.length > maxLength) {
+    throw new HttpError(400, { error: 'invalid_payload' });
+  }
+
+  return normalized;
+}
+
+function withDeletePermission<T extends { created_by_user_id: string | null }>(
+  row: T,
+  userId: string,
+  role: FamilyRole,
+) {
+  return {
+    ...row,
+    canDelete: canDelete(row.created_by_user_id, userId, role),
+  };
+}
+
+function canDelete(createdByUserId: string | null, userId: string, role: FamilyRole) {
+  return role === 'owner' || createdByUserId === userId;
+}
+
+function assertCanDelete(
+  createdByUserId: string | null,
+  userId: string,
+  role: FamilyRole,
+) {
+  if (!canDelete(createdByUserId, userId, role)) {
+    throw new HttpError(403, { error: 'scrap_delete_forbidden' });
+  }
+}
+
+type LinkPreview = {
+  url: string;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+};
+
+function serializeLinkPreview(preview: LinkPreview) {
+  return {
+    link_url: preview.url,
+    link_title: preview.title,
+    link_description: preview.description,
+    link_image_url: preview.imageUrl,
+    link_site_name: preview.siteName,
+  };
+}
+
+async function fetchLinkPreview(content: string): Promise<LinkPreview | null> {
+  const url = extractFirstHttpUrl(content);
+
+  if (!url) {
+    return null;
+  }
+
+  const fallback = {
+    url,
+    title: hostFromUrl(url),
+    description: null,
+    imageUrl: null,
+    siteName: hostFromUrl(url),
+  };
+
+  const naverPlaceId = extractNaverPlaceId(url);
+  if (naverPlaceId) {
+    const naverPreview = await fetchNaverPlacePreview(url, naverPlaceId, fallback);
+    if (naverPreview) {
+      return naverPreview;
+    }
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: 'text/html,application/xhtml+xml',
+        'user-agent': 'facebookexternalhit/1.1',
+      },
+      redirect: 'follow',
+    });
+    clearTimeout(timeout);
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!response.ok || !contentType.toLowerCase().includes('text/html')) {
+      return fallback;
+    }
+
+    const html = (await response.text()).slice(0, 300_000);
+    const title = pickMetaContent(html, ['og:title', 'twitter:title']) ?? pickTitle(html);
+    const description = pickMetaContent(html, [
+      'og:description',
+      'twitter:description',
+      'description',
+    ]);
+    const imageUrl = absoluteUrl(
+      pickMetaContent(html, ['og:image', 'twitter:image']),
+      url,
+    );
+    const siteName = pickMetaContent(html, ['og:site_name']) ?? hostFromUrl(url);
+
+    return {
+      url,
+      title: truncateText(title ?? fallback.title, 180),
+      description: truncateText(description, 280),
+      imageUrl: truncateText(imageUrl, 1000),
+      siteName: truncateText(siteName, 120),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+async function fetchNaverPlacePreview(
+  url: string,
+  placeId: string,
+  fallback: LinkPreview,
+): Promise<LinkPreview | null> {
+  try {
+    const mapEntryUrl = `https://map.naver.com/p/entry/place/${placeId}`;
+    const [sourceHtml, mapHtml, placeHtml] = await Promise.all([
+      fetchPreviewHtml(url, 'facebookexternalhit/1.1', 300_000),
+      fetchPreviewHtml(mapEntryUrl, 'facebookexternalhit/1.1', 300_000),
+      fetchPreviewHtml(
+        `https://m.place.naver.com/place/${placeId}/home`,
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148',
+        1_500_000,
+      ),
+    ]);
+
+    const sourceTitle = pickMetaContent(sourceHtml, ['og:title', 'twitter:title']);
+    const sourceDescription = pickMetaContent(sourceHtml, [
+      'og:description',
+      'twitter:description',
+      'description',
+    ]);
+    const entryDescription = pickMetaContent(mapHtml, [
+      'og:description',
+      'twitter:description',
+      'description',
+    ]);
+    const placeTitle = normalizeNaverPlaceTitle(
+      pickMetaContent(placeHtml, ['og:title', 'twitter:title']) ?? sourceTitle,
+    );
+    const roadAddress =
+      pickJsonString(placeHtml, 'roadAddress') ?? pickNaverRoadAddress(placeHtml);
+    const imageUrl =
+      absoluteUrl(pickMetaContent(placeHtml, ['og:image', 'twitter:image']), url) ??
+      absoluteUrl(pickMetaContent(sourceHtml, ['og:image', 'twitter:image']), url) ??
+      absoluteUrl(pickMetaContent(mapHtml, ['og:image', 'twitter:image']), mapEntryUrl);
+
+    return {
+      url,
+      title: truncateText(
+        placeTitle ?? sourceDescription ?? entryDescription ?? fallback.title,
+        180,
+      ),
+      description: truncateText(roadAddress ?? sourceDescription ?? entryDescription, 280),
+      imageUrl: truncateText(imageUrl, 1000),
+      siteName: '네이버 플레이스',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchPreviewHtml(url: string, userAgent: string, maxLength: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: 'text/html,application/xhtml+xml',
+        'user-agent': userAgent,
+      },
+      redirect: 'follow',
+    });
+
+    const contentType = response.headers.get('content-type') ?? '';
+    if (!response.ok || !contentType.toLowerCase().includes('text/html')) {
+      return '';
+    }
+
+    return (await response.text()).slice(0, maxLength);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractFirstHttpUrl(content: string) {
+  const match = content.match(/https?:\/\/[^\s<>"']+/i);
+
+  if (!match) {
+    return null;
+  }
+
+  const rawUrl = match[0].replace(/[)\].,!?]+$/g, '');
+
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractNaverPlaceId(value: string) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.replace(/^www\./, '');
+
+    if (
+      ![
+        'map.naver.com',
+        'm.place.naver.com',
+        'pcmap.place.naver.com',
+      ].includes(host)
+    ) {
+      return null;
+    }
+
+    const match = url.pathname.match(
+      /\/(?:p\/entry\/place|place|restaurant|hairshop|hospital|accommodation)\/(\d+)/,
+    );
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function pickMetaContent(html: string, keys: string[]) {
+  const metaRegex = /<meta\s+([^>]*?)>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = metaRegex.exec(html)) !== null) {
+    const attrs = parseHtmlAttributes(match[1]);
+    const key = (attrs.property ?? attrs.name ?? '').toLowerCase();
+
+    if (keys.includes(key) && attrs.content) {
+      return cleanHtmlText(attrs.content);
+    }
+  }
+
+  return null;
+}
+
+function pickTitle(html: string) {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return match ? cleanHtmlText(match[1]) : null;
+}
+
+function pickJsonString(html: string, key: string) {
+  const regex = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`);
+  const match = html.match(regex);
+
+  if (!match) {
+    return null;
+  }
+
+  try {
+    return cleanHtmlText(JSON.parse(`"${match[1]}"`) as string);
+  } catch {
+    return cleanHtmlText(match[1]);
+  }
+}
+
+function pickNaverRoadAddress(html: string) {
+  const match = html.match(
+    /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^<"]{4,90}(대로|로|길)\s*\d+(?:-\d+)?/,
+  );
+  return match ? cleanHtmlText(match[0]) : null;
+}
+
+function normalizeNaverPlaceTitle(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = cleanHtmlText(value)
+    .replace(/\u001c/g, '')
+    .replace(/\s*:\s*네이버\s*$/, '')
+    .trim();
+
+  if (!normalized || normalized === '네이버지도' || normalized === '네이버 플레이스') {
+    return null;
+  }
+
+  return normalized;
+}
+
+function parseHtmlAttributes(source: string) {
+  const attrs: Record<string, string> = {};
+  const attrRegex = /([a-zA-Z_:.-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = attrRegex.exec(source)) !== null) {
+    attrs[match[1].toLowerCase()] = match[3] ?? match[4] ?? match[5] ?? '';
+  }
+
+  return attrs;
+}
+
+function cleanHtmlText(value: string) {
+  return decodeHtmlEntities(value.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function decodeHtmlEntities(value: string) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
+      String.fromCharCode(Number.parseInt(code, 16)),
+    );
+}
+
+function absoluteUrl(value: string | null, baseUrl: string) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value, baseUrl).toString();
+  } catch {
+    return null;
+  }
+}
+
+function hostFromUrl(value: string) {
+  try {
+    return new URL(value).hostname.replace(/^www\./, '');
+  } catch {
+    return value;
+  }
+}
+
+function truncateText(value: string | null, maxLength: number) {
+  if (!value) {
+    return null;
+  }
+
+  return value.length > maxLength ? value.slice(0, maxLength) : value;
+}
