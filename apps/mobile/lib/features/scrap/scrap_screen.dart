@@ -121,6 +121,8 @@ class _ScrapScreenState extends State<ScrapScreen> {
       placeholder: '예: 주말 맛집, 가고 싶은 곳',
       actionLabel: '만들기',
       maxLines: 1,
+      heightFactor: 0.46,
+      minHeightFactor: 0.34,
     );
 
     if (name == null) {
@@ -370,10 +372,12 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
   Future<void> _createComment(ScrapPost post) async {
     final content = await _showTextSheet(
       context,
-      title: '댓글 달기',
+      title: '댓글',
       placeholder: '댓글을 입력해 주세요',
       actionLabel: '등록',
       maxLines: 4,
+      heightFactor: 0.5,
+      minHeightFactor: 0.38,
     );
 
     if (content == null) {
@@ -401,6 +405,8 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
       actionLabel: '저장',
       maxLines: 1,
       initialValue: channel.name,
+      heightFactor: 0.46,
+      minHeightFactor: 0.34,
     );
 
     if (name == null) {
@@ -558,6 +564,143 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
     });
   }
 
+  Future<void> _togglePostLike(ScrapPost post) async {
+    final previousDetail = _detail;
+    final optimisticLikeState = !post.isLikedByMe;
+    final optimisticLikeCount = post.likeCount + (optimisticLikeState ? 1 : -1);
+
+    _updatePostLike(
+      post.id,
+      likeCount: optimisticLikeCount < 0 ? 0 : optimisticLikeCount,
+      isLikedByMe: optimisticLikeState,
+    );
+
+    try {
+      final result = await _apiClient.toggleScrapPostLike(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        postId: post.id,
+      );
+      _updatePostLike(
+        post.id,
+        likeCount: result.likeCount,
+        isLikedByMe: result.isLikedByMe,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _detail = previousDetail;
+          _message = error.toString();
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleCommentLike(ScrapPost post, ScrapComment comment) async {
+    final previousDetail = _detail;
+    final optimisticLikeState = !comment.isLikedByMe;
+    final optimisticLikeCount =
+        comment.likeCount + (optimisticLikeState ? 1 : -1);
+
+    _updateCommentLike(
+      post.id,
+      comment.id,
+      likeCount: optimisticLikeCount < 0 ? 0 : optimisticLikeCount,
+      isLikedByMe: optimisticLikeState,
+    );
+
+    try {
+      final result = await _apiClient.toggleScrapCommentLike(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        channelId: widget.channel.id,
+        postId: post.id,
+        commentId: comment.id,
+      );
+      _updateCommentLike(
+        post.id,
+        comment.id,
+        likeCount: result.likeCount,
+        isLikedByMe: result.isLikedByMe,
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _detail = previousDetail;
+          _message = error.toString();
+        });
+      }
+    }
+  }
+
+  void _updatePostLike(
+    String postId, {
+    required int likeCount,
+    required bool isLikedByMe,
+  }) {
+    final detail = _detail;
+
+    if (detail == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _message = null;
+      _detail = ScrapChannelDetail(
+        channel: detail.channel,
+        posts: detail.posts
+            .map(
+              (post) => post.id == postId
+                  ? post.copyWith(
+                      likeCount: likeCount,
+                      isLikedByMe: isLikedByMe,
+                    )
+                  : post,
+            )
+            .toList(),
+      );
+    });
+  }
+
+  void _updateCommentLike(
+    String postId,
+    String commentId, {
+    required int likeCount,
+    required bool isLikedByMe,
+  }) {
+    final detail = _detail;
+
+    if (detail == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _message = null;
+      _detail = ScrapChannelDetail(
+        channel: detail.channel,
+        posts: detail.posts
+            .map(
+              (post) => post.id == postId
+                  ? post.copyWith(
+                      comments: post.comments
+                          .map(
+                            (comment) => comment.id == commentId
+                                ? comment.copyWith(
+                                    likeCount: likeCount,
+                                    isLikedByMe: isLikedByMe,
+                                  )
+                                : comment,
+                          )
+                          .toList(),
+                    )
+                  : post,
+            )
+            .toList(),
+      );
+    });
+  }
+
   Future<void> _editComment(ScrapPost post, ScrapComment comment) async {
     final content = await _showTextSheet(
       context,
@@ -566,6 +709,8 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
       actionLabel: '저장',
       maxLines: 4,
       initialValue: comment.content,
+      heightFactor: 0.5,
+      minHeightFactor: 0.38,
     );
 
     if (content == null) {
@@ -711,7 +856,9 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
                   onComment: () => _createComment(post),
                   onEditPost: post.canEdit ? () => _editPost(post) : null,
                   onDeletePost: post.canDelete ? () => _deletePost(post) : null,
+                  onLikePost: () => _togglePostLike(post),
                   onEditComment: (comment) => _editComment(post, comment),
+                  onLikeComment: (comment) => _toggleCommentLike(post, comment),
                   onDeleteComment: (comment) => _deleteComment(post, comment),
                 ),
           ],
@@ -918,7 +1065,9 @@ class _PostThread extends StatelessWidget {
     required this.onComment,
     required this.onEditPost,
     required this.onDeletePost,
+    required this.onLikePost,
     required this.onEditComment,
+    required this.onLikeComment,
     required this.onDeleteComment,
   });
 
@@ -926,7 +1075,9 @@ class _PostThread extends StatelessWidget {
   final VoidCallback onComment;
   final VoidCallback? onEditPost;
   final VoidCallback? onDeletePost;
+  final VoidCallback onLikePost;
   final void Function(ScrapComment comment) onEditComment;
+  final void Function(ScrapComment comment) onLikeComment;
   final void Function(ScrapComment comment) onDeleteComment;
 
   @override
@@ -960,19 +1111,11 @@ class _PostThread extends StatelessWidget {
             _LinkPreviewCard(preview: post.linkPreview!),
           ],
           const SizedBox(height: 10),
-          CupertinoButton(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size(36, 28),
-            onPressed: onComment,
-            child: Text(
-              '댓글 달기',
-              style: TextStyle(
-                color: AppColors.darkPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0,
-              ),
-            ),
+          _PostActionsRow(
+            likeCount: post.likeCount,
+            isLikedByMe: post.isLikedByMe,
+            onLike: onLikePost,
+            onComment: onComment,
           ),
           if (post.comments.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -987,6 +1130,14 @@ class _PostThread extends StatelessWidget {
                   onDelete: comment.canDelete
                       ? () => onDeleteComment(comment)
                       : null,
+                  bottom: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: _LikeButton(
+                      likeCount: comment.likeCount,
+                      isLikedByMe: comment.isLikedByMe,
+                      onPressed: () => onLikeComment(comment),
+                    ),
+                  ),
                 ),
               ),
           ],
@@ -1001,6 +1152,7 @@ class _MessageBlock extends StatelessWidget {
     required this.authorNickname,
     required this.createdAt,
     required this.content,
+    this.bottom,
     this.onEdit,
     this.onDelete,
   });
@@ -1008,6 +1160,7 @@ class _MessageBlock extends StatelessWidget {
   final String authorNickname;
   final DateTime createdAt;
   final String content;
+  final Widget? bottom;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -1094,7 +1247,110 @@ class _MessageBlock extends StatelessWidget {
             ),
           ),
         ],
+        ?bottom,
       ],
+    );
+  }
+}
+
+class _PostActionsRow extends StatelessWidget {
+  const _PostActionsRow({
+    required this.likeCount,
+    required this.isLikedByMe,
+    required this.onLike,
+    required this.onComment,
+  });
+
+  final int likeCount;
+  final bool isLikedByMe;
+  final VoidCallback onLike;
+  final VoidCallback onComment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _LikeButton(
+          likeCount: likeCount,
+          isLikedByMe: isLikedByMe,
+          onPressed: onLike,
+        ),
+        const SizedBox(width: 14),
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(38, 26),
+          onPressed: onComment,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                CupertinoIcons.chat_bubble,
+                color: AppColors.darkTextMuted,
+                size: 15,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '댓글',
+                style: TextStyle(
+                  color: AppColors.darkTextMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LikeButton extends StatelessWidget {
+  const _LikeButton({
+    required this.likeCount,
+    required this.isLikedByMe,
+    required this.onPressed,
+  });
+
+  final int likeCount;
+  final bool isLikedByMe;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isLikedByMe ? AppColors.darkDanger : AppColors.darkTextMuted;
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(38, 26),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            transitionBuilder: (child, animation) =>
+                ScaleTransition(scale: animation, child: child),
+            child: Icon(
+              isLikedByMe ? CupertinoIcons.heart_fill : CupertinoIcons.heart,
+              key: ValueKey(isLikedByMe),
+              size: 15,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            likeCount > 0 ? '$likeCount' : '좋아요',
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1415,10 +1671,14 @@ Future<String?> _showTextSheet(
   required String actionLabel,
   required int maxLines,
   String? initialValue,
+  double heightFactor = 0.88,
+  double minHeightFactor = 0.52,
 }) {
   return showCupertinoModalPopup<String>(
     context: context,
     builder: (_) => _BottomSheetFrame(
+      heightFactor: heightFactor,
+      minHeightFactor: minHeightFactor,
       child: _TextInputSheet(
         title: title,
         placeholder: placeholder,
@@ -1457,17 +1717,23 @@ Future<String?> _showPostComposerSheet(
 }
 
 class _BottomSheetFrame extends StatelessWidget {
-  const _BottomSheetFrame({required this.child});
+  const _BottomSheetFrame({
+    required this.child,
+    this.heightFactor = 0.88,
+    this.minHeightFactor = 0.52,
+  });
 
   final Widget child;
+  final double heightFactor;
+  final double minHeightFactor;
 
   @override
   Widget build(BuildContext context) {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final keyboardHeight = MediaQuery.viewInsetsOf(context).bottom;
-    final sheetHeight = (screenHeight * 0.88 - keyboardHeight).clamp(
-      screenHeight * 0.52,
-      screenHeight * 0.88,
+    final sheetHeight = (screenHeight * heightFactor - keyboardHeight).clamp(
+      screenHeight * minHeightFactor,
+      screenHeight * heightFactor,
     );
 
     return AnimatedPadding(

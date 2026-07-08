@@ -789,6 +789,21 @@ class ApiClient {
     return ScrapPost.fromJson(json);
   }
 
+  Future<ScrapLikeResult> toggleScrapPostLike(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String postId,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps/$channelId/posts/$postId/like',
+      bearerToken: sessionToken,
+    );
+
+    return ScrapLikeResult.fromJson(json);
+  }
+
   Future<ScrapComment> createScrapComment(
     String sessionToken, {
     required String familyId,
@@ -822,6 +837,22 @@ class ApiClient {
     );
 
     return ScrapComment.fromJson(json);
+  }
+
+  Future<ScrapLikeResult> toggleScrapCommentLike(
+    String sessionToken, {
+    required String familyId,
+    required String channelId,
+    required String postId,
+    required String commentId,
+  }) async {
+    final json = await _requestJson(
+      'POST',
+      '/api/mobile/families/$familyId/scraps/$channelId/posts/$postId/comments/$commentId/like',
+      bearerToken: sessionToken,
+    );
+
+    return ScrapLikeResult.fromJson(json);
   }
 
   Future<void> deleteScrapPost(
@@ -1592,6 +1623,8 @@ class ScrapPost {
     required this.authorNickname,
     required this.canEdit,
     required this.canDelete,
+    required this.likeCount,
+    required this.isLikedByMe,
     required this.createdAt,
     required this.updatedAt,
     required this.comments,
@@ -1605,6 +1638,8 @@ class ScrapPost {
   final String authorNickname;
   final bool canEdit;
   final bool canDelete;
+  final int likeCount;
+  final bool isLikedByMe;
   final DateTime createdAt;
   final DateTime updatedAt;
   final List<ScrapComment> comments;
@@ -1624,11 +1659,35 @@ class ScrapPost {
       authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
       canEdit: json['canEdit'] as bool? ?? false,
       canDelete: json['canDelete'] as bool? ?? false,
+      likeCount: json['likeCount'] as int? ?? 0,
+      isLikedByMe: json['isLikedByMe'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
       comments: comments
           .map((item) => ScrapComment.fromJson(item as Map<String, Object?>))
           .toList(),
+    );
+  }
+
+  ScrapPost copyWith({
+    int? likeCount,
+    bool? isLikedByMe,
+    List<ScrapComment>? comments,
+  }) {
+    return ScrapPost(
+      id: id,
+      familyId: familyId,
+      channelId: channelId,
+      content: content,
+      linkPreview: linkPreview,
+      authorNickname: authorNickname,
+      canEdit: canEdit,
+      canDelete: canDelete,
+      likeCount: likeCount ?? this.likeCount,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      comments: comments ?? this.comments,
     );
   }
 }
@@ -1642,6 +1701,8 @@ class ScrapComment {
     required this.authorNickname,
     required this.canEdit,
     required this.canDelete,
+    required this.likeCount,
+    required this.isLikedByMe,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -1653,6 +1714,8 @@ class ScrapComment {
   final String authorNickname;
   final bool canEdit;
   final bool canDelete;
+  final int likeCount;
+  final bool isLikedByMe;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -1665,8 +1728,40 @@ class ScrapComment {
       authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
       canEdit: json['canEdit'] as bool? ?? false,
       canDelete: json['canDelete'] as bool? ?? false,
+      likeCount: json['likeCount'] as int? ?? 0,
+      isLikedByMe: json['isLikedByMe'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+    );
+  }
+
+  ScrapComment copyWith({int? likeCount, bool? isLikedByMe}) {
+    return ScrapComment(
+      id: id,
+      familyId: familyId,
+      postId: postId,
+      content: content,
+      authorNickname: authorNickname,
+      canEdit: canEdit,
+      canDelete: canDelete,
+      likeCount: likeCount ?? this.likeCount,
+      isLikedByMe: isLikedByMe ?? this.isLikedByMe,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+    );
+  }
+}
+
+class ScrapLikeResult {
+  const ScrapLikeResult({required this.likeCount, required this.isLikedByMe});
+
+  final int likeCount;
+  final bool isLikedByMe;
+
+  factory ScrapLikeResult.fromJson(Map<String, Object?> json) {
+    return ScrapLikeResult(
+      likeCount: json['likeCount'] as int? ?? 0,
+      isLikedByMe: json['isLikedByMe'] as bool? ?? false,
     );
   }
 }

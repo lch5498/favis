@@ -33,6 +33,8 @@ export type ScrapPost = {
   authorNickname?: string;
   canEdit?: boolean;
   canDelete?: boolean;
+  likeCount?: number;
+  isLikedByMe?: boolean;
   comments?: ScrapComment[];
 };
 
@@ -47,11 +49,22 @@ export type ScrapComment = {
   authorNickname?: string;
   canEdit?: boolean;
   canDelete?: boolean;
+  likeCount?: number;
+  isLikedByMe?: boolean;
 };
 
 type FamilyMemberAuthor = {
   user_id: string | null;
   nickname: string;
+};
+
+type ScrapLike = {
+  id: string;
+  family_id: string;
+  post_id: string | null;
+  comment_id: string | null;
+  user_id: string;
+  created_at: string;
 };
 
 export async function getScrapDashboard(userId: string, familyId: string) {
@@ -240,6 +253,7 @@ export async function getScrapChannel(
   const postRows = (posts ?? []) as ScrapPost[];
   const postIds = postRows.map((post) => post.id);
   const commentsByPostId = new Map<string, ScrapComment[]>();
+  const commentRows: ScrapComment[] = [];
 
   if (postIds.length > 0) {
     const { data: comments, error: commentsError } = await supabase
@@ -257,28 +271,40 @@ export async function getScrapChannel(
       familyId,
       (comments ?? []) as ScrapComment[],
     );
+    commentRows.push(...commentsWithAuthors);
+  }
 
-    for (const comment of commentsWithAuthors) {
-      const commentWithPermissions = withDeletePermission(
-        comment,
-        userId,
-        membership.role,
-      );
-      const bucket = commentsByPostId.get(comment.post_id) ?? [];
-      bucket.push(commentWithPermissions);
-      commentsByPostId.set(comment.post_id, bucket);
-    }
+  const likeSummary = await getScrapLikeSummary(
+    familyId,
+    userId,
+    postIds,
+    commentRows.map((comment) => comment.id),
+  );
+
+  for (const comment of commentRows) {
+    const commentWithPermissions = withLikeSummary(
+      withDeletePermission(comment, userId, membership.role),
+      likeSummary.comments,
+    );
+    const bucket = commentsByPostId.get(comment.post_id) ?? [];
+    bucket.push(commentWithPermissions);
+    commentsByPostId.set(comment.post_id, bucket);
   }
 
   const postsWithAuthors = await attachAuthorNicknames(familyId, postRows);
 
   return {
     channel: withChannelManagePermissions(channel, userId, membership.role),
-    posts: postsWithAuthors.map((post) => ({
-      ...post,
-      ...manageFlags(post.created_by_user_id, userId, membership.role),
-      comments: commentsByPostId.get(post.id) ?? [],
-    })),
+    posts: postsWithAuthors.map((post) =>
+      withLikeSummary(
+        {
+          ...post,
+          ...manageFlags(post.created_by_user_id, userId, membership.role),
+          comments: commentsByPostId.get(post.id) ?? [],
+        },
+        likeSummary.posts,
+      ),
+    ),
   };
 }
 
@@ -318,6 +344,8 @@ export async function createScrapPost(
   return {
     ...post,
     ...manageFlags(post.created_by_user_id, userId, membership.role),
+    likeCount: 0,
+    isLikedByMe: false,
     comments: [],
   };
 }
@@ -361,6 +389,8 @@ export async function updateScrapPost(
   return {
     ...updatedPost,
     ...manageFlags(updatedPost.created_by_user_id, userId, membership.role),
+    likeCount: 0,
+    isLikedByMe: false,
     comments: [],
   };
 }
@@ -392,7 +422,11 @@ export async function createScrapComment(
   }
 
   const [comment] = await attachAuthorNicknames(familyId, [data as ScrapComment]);
-  return withDeletePermission(comment, userId, membership.role);
+  return {
+    ...withDeletePermission(comment, userId, membership.role),
+    likeCount: 0,
+    isLikedByMe: false,
+  };
 }
 
 export async function updateScrapComment(
@@ -445,7 +479,53 @@ export async function updateScrapComment(
   const [updatedComment] = await attachAuthorNicknames(familyId, [
     data as ScrapComment,
   ]);
-  return withDeletePermission(updatedComment, userId, membership.role);
+  return {
+    ...withDeletePermission(updatedComment, userId, membership.role),
+    likeCount: 0,
+    isLikedByMe: false,
+  };
+}
+
+export async function toggleScrapPostLike(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  postId: string,
+) {
+  await requireMembership(userId, familyId);
+  await getPostOrThrow(familyId, channelId, postId);
+
+  return toggleScrapLike(userId, familyId, { postId });
+}
+
+export async function toggleScrapCommentLike(
+  userId: string,
+  familyId: string,
+  channelId: string,
+  postId: string,
+  commentId: string,
+) {
+  await requireMembership(userId, familyId);
+  await getPostOrThrow(familyId, channelId, postId);
+
+  const supabase = getSupabaseAdmin();
+  const { data: comment, error } = await supabase
+    .from('scrap_comments')
+    .select('id')
+    .eq('family_id', familyId)
+    .eq('post_id', postId)
+    .eq('id', commentId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!comment) {
+    throw new HttpError(404, { error: 'scrap_comment_not_found' });
+  }
+
+  return toggleScrapLike(userId, familyId, { commentId });
 }
 
 export async function deleteScrapPost(
@@ -625,6 +705,19 @@ function withDeletePermission<T extends { created_by_user_id: string | null }>(
   };
 }
 
+function withLikeSummary<T extends { id: string }>(
+  row: T,
+  summaries: Map<string, { count: number; likedByMe: boolean }>,
+) {
+  const summary = summaries.get(row.id);
+
+  return {
+    ...row,
+    likeCount: summary?.count ?? 0,
+    isLikedByMe: summary?.likedByMe ?? false,
+  };
+}
+
 function withManagePermissions<T extends { created_by_user_id: string | null }>(
   row: T,
   userId: string,
@@ -712,6 +805,151 @@ async function nextChannelSortOrder(familyId: string) {
   }
 
   return ((data?.sort_order as number | null) ?? 0) + 1;
+}
+
+async function getScrapLikeSummary(
+  familyId: string,
+  userId: string,
+  postIds: string[],
+  commentIds: string[],
+) {
+  const [postLikes, commentLikes] = await Promise.all([
+    getLikesForTargets(familyId, 'post_id', postIds),
+    getLikesForTargets(familyId, 'comment_id', commentIds),
+  ]);
+
+  return {
+    posts: summarizeLikes(postLikes, 'post_id', userId),
+    comments: summarizeLikes(commentLikes, 'comment_id', userId),
+  };
+}
+
+async function getLikesForTargets(
+  familyId: string,
+  targetColumn: 'post_id' | 'comment_id',
+  targetIds: string[],
+) {
+  if (targetIds.length === 0) {
+    return [] as ScrapLike[];
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('scrap_likes')
+    .select('*')
+    .eq('family_id', familyId)
+    .in(targetColumn, targetIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as ScrapLike[];
+}
+
+function summarizeLikes(
+  likes: ScrapLike[],
+  targetColumn: 'post_id' | 'comment_id',
+  userId: string,
+) {
+  const summaries = new Map<string, { count: number; likedByMe: boolean }>();
+
+  for (const like of likes) {
+    const targetId = like[targetColumn];
+
+    if (!targetId) {
+      continue;
+    }
+
+    const summary = summaries.get(targetId) ?? { count: 0, likedByMe: false };
+    summary.count += 1;
+    summary.likedByMe ||= like.user_id === userId;
+    summaries.set(targetId, summary);
+  }
+
+  return summaries;
+}
+
+async function toggleScrapLike(
+  userId: string,
+  familyId: string,
+  target:
+    | {
+        postId: string;
+        commentId?: never;
+      }
+    | {
+        postId?: never;
+        commentId: string;
+      },
+) {
+  const supabase = getSupabaseAdmin();
+  const targetColumn = target.postId ? 'post_id' : 'comment_id';
+  const targetId = target.postId ?? target.commentId;
+  const targetFilter =
+    targetColumn === 'post_id' ? { post_id: targetId } : { comment_id: targetId };
+
+  const { data: existing, error: existingError } = await supabase
+    .from('scrap_likes')
+    .select('id')
+    .eq('family_id', familyId)
+    .eq('user_id', userId)
+    .eq(targetColumn, targetId)
+    .maybeSingle();
+
+  if (existingError) {
+    throw existingError;
+  }
+
+  if (existing) {
+    const { error } = await supabase
+      .from('scrap_likes')
+      .delete()
+      .eq('id', existing.id);
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      isLikedByMe: false,
+      likeCount: await countScrapLikes(familyId, targetColumn, targetId),
+    };
+  }
+
+  const { error } = await supabase.from('scrap_likes').insert({
+    family_id: familyId,
+    user_id: userId,
+    ...targetFilter,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    isLikedByMe: true,
+    likeCount: await countScrapLikes(familyId, targetColumn, targetId),
+  };
+}
+
+async function countScrapLikes(
+  familyId: string,
+  targetColumn: 'post_id' | 'comment_id',
+  targetId: string,
+) {
+  const supabase = getSupabaseAdmin();
+  const { count, error } = await supabase
+    .from('scrap_likes')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_id', familyId)
+    .eq(targetColumn, targetId);
+
+  if (error) {
+    throw error;
+  }
+
+  return count ?? 0;
 }
 
 type LinkPreview = {
