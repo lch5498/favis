@@ -3,6 +3,7 @@ import 'package:flutter/cupertino.dart';
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
 import '../../shared/refreshable_scroll_view.dart';
+import '../../shared/schedule_section_switcher.dart';
 
 class AnniversaryScreen extends StatefulWidget {
   const AnniversaryScreen({
@@ -11,12 +12,16 @@ class AnniversaryScreen extends StatefulWidget {
     required this.families,
     required this.sessionToken,
     required this.onSelectFamily,
+    this.selectedScheduleSection,
+    this.onScheduleSectionChanged,
   });
 
   final AppFamily family;
   final List<AppFamily> families;
   final String sessionToken;
   final Future<void> Function(AppFamily family) onSelectFamily;
+  final ScheduleSection? selectedScheduleSection;
+  final ValueChanged<ScheduleSection>? onScheduleSectionChanged;
 
   @override
   State<AnniversaryScreen> createState() => _AnniversaryScreenState();
@@ -231,6 +236,14 @@ class _AnniversaryScreenState extends State<AnniversaryScreen> {
           onRefresh: _loadAnniversaries,
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
           children: [
+            if (widget.selectedScheduleSection != null &&
+                widget.onScheduleSectionChanged != null) ...[
+              ScheduleSectionSwitcher(
+                selectedSection: widget.selectedScheduleSection!,
+                onSectionChanged: widget.onScheduleSectionChanged!,
+              ),
+              const SizedBox(height: 14),
+            ],
             if (_message != null) ...[
               _InlineMessage(message: _message!),
               const SizedBox(height: 14),

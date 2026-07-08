@@ -5,6 +5,7 @@ import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
 import '../../shared/alert_offset_picker.dart';
 import '../../shared/member_filter.dart';
+import '../../shared/schedule_section_switcher.dart';
 
 enum _CalendarMode { day, week, month }
 
@@ -19,6 +20,8 @@ class ScheduleScreen extends StatefulWidget {
     required this.refreshToken,
     required this.todayRequestToken,
     required this.onSelectFamily,
+    this.selectedScheduleSection,
+    this.onScheduleSectionChanged,
   });
 
   final AppFamily family;
@@ -27,6 +30,8 @@ class ScheduleScreen extends StatefulWidget {
   final int refreshToken;
   final int todayRequestToken;
   final Future<void> Function(AppFamily family) onSelectFamily;
+  final ScheduleSection? selectedScheduleSection;
+  final ValueChanged<ScheduleSection>? onScheduleSectionChanged;
 
   @override
   State<ScheduleScreen> createState() => _ScheduleScreenState();
@@ -425,6 +430,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (widget.selectedScheduleSection != null &&
+                        widget.onScheduleSectionChanged != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: ScheduleSectionSwitcher(
+                          selectedSection: widget.selectedScheduleSection!,
+                          onSectionChanged: widget.onScheduleSectionChanged!,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: _ScheduleHeader(
@@ -613,42 +629,20 @@ class _ScheduleHeader extends StatelessWidget {
               hiddenMemberIds: hiddenMemberIds,
               memberColors: memberColors,
               onToggleMember: onToggleMemberFilter,
+              trailingChildren: [
+                _AnniversaryFilterButton(
+                  isActive: !isAnniversaryHidden,
+                  onPressed: onToggleAnniversaryFilter,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
           ],
-          _AnniversaryFilterButton(
-            isActive: !isAnniversaryHidden,
-            onPressed: onToggleAnniversaryFilter,
-          ),
-          const SizedBox(height: 16),
-          CupertinoSlidingSegmentedControl<_CalendarMode>(
-            groupValue: mode,
-            children: const {
-              _CalendarMode.day: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text('일'),
-              ),
-              _CalendarMode.week: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text('주'),
-              ),
-              _CalendarMode.month: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text('월'),
-              ),
-            },
-            onValueChanged: (value) {
-              if (value != null) {
-                onModeChanged(value);
-              }
-            },
-          ),
           const SizedBox(height: 12),
           Row(
             children: [
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                minimumSize: const Size(36, 36),
+                minimumSize: const Size(30, 32),
                 onPressed: onPrevious,
                 child: const Icon(CupertinoIcons.chevron_left, size: 20),
               ),
@@ -664,9 +658,12 @@ class _ScheduleHeader extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              _CalendarModeSegment(mode: mode, onModeChanged: onModeChanged),
+              const SizedBox(width: 2),
               CupertinoButton(
                 padding: EdgeInsets.zero,
-                minimumSize: const Size(36, 36),
+                minimumSize: const Size(30, 32),
                 onPressed: onNext,
                 child: const Icon(CupertinoIcons.chevron_right, size: 20),
               ),
@@ -702,13 +699,13 @@ class _AnniversaryFilterButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 30,
+      height: 28,
       child: CupertinoButton(
-        padding: const EdgeInsets.symmetric(horizontal: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
         color: isActive
             ? CupertinoColors.systemPurple
             : AppColors.darkBackground,
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(8),
         onPressed: onPressed,
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -718,16 +715,16 @@ class _AnniversaryFilterButton extends StatelessWidget {
                   ? CupertinoIcons.check_mark_circled_solid
                   : CupertinoIcons.circle,
               color: isActive ? CupertinoColors.white : AppColors.darkTextMuted,
-              size: 15,
+              size: 13,
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
             Text(
               '기념일',
               style: TextStyle(
                 color: isActive
                     ? CupertinoColors.white
                     : AppColors.darkTextSecondary,
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0,
               ),
@@ -735,6 +732,40 @@ class _AnniversaryFilterButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CalendarModeSegment extends StatelessWidget {
+  const _CalendarModeSegment({required this.mode, required this.onModeChanged});
+
+  final _CalendarMode mode;
+  final ValueChanged<_CalendarMode> onModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoSlidingSegmentedControl<_CalendarMode>(
+      groupValue: mode,
+      padding: const EdgeInsets.all(2),
+      children: const {
+        _CalendarMode.day: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text('일'),
+        ),
+        _CalendarMode.week: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text('주'),
+        ),
+        _CalendarMode.month: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text('월'),
+        ),
+      },
+      onValueChanged: (value) {
+        if (value != null) {
+          onModeChanged(value);
+        }
+      },
     );
   }
 }

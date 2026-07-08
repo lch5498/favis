@@ -5,12 +5,10 @@ import 'package:flutter/services.dart';
 import '../../core/api_client.dart';
 import '../../core/theme_preference.dart';
 import '../../design_system/app_colors.dart';
-import '../anniversary/anniversary_screen.dart';
-import '../education/education_screen.dart';
 import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
 import '../profile/profile_screen.dart';
-import '../schedule/schedule_screen.dart';
+import '../schedule/schedule_hub_screen.dart';
 import '../scrap/scrap_screen.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
@@ -144,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _openParkingTab() {
-    _tabController.index = 5;
+    _tabController.index = 2;
   }
 
   Future<void> _handleDeepLinkMethodCall(MethodCall call) async {
@@ -444,24 +442,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               label: '일정',
             ),
             BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.book),
-              activeIcon: Icon(CupertinoIcons.book_fill),
-              label: '학교/학원',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.gift),
-              activeIcon: Icon(CupertinoIcons.gift_fill),
-              label: '기념일',
+              icon: Icon(CupertinoIcons.car_detailed),
+              activeIcon: Icon(CupertinoIcons.car_detailed),
+              label: '주차',
             ),
             BottomNavigationBarItem(
               icon: Icon(CupertinoIcons.bookmark),
               activeIcon: Icon(CupertinoIcons.bookmark_fill),
               label: '스크랩',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(CupertinoIcons.car_detailed),
-              activeIcon: Icon(CupertinoIcons.car_detailed),
-              label: '주차',
             ),
           ],
         ),
@@ -471,7 +459,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             builder: (context) {
               switch (index) {
                 case 1:
-                  return ScheduleScreen(
+                  return ScheduleHubScreen(
                     family: selectedFamily,
                     families: families,
                     sessionToken: widget.sessionToken,
@@ -480,28 +468,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     onSelectFamily: _selectFamily,
                   );
                 case 2:
-                  return EducationScreen(
+                  return ParkingScreen(
                     family: selectedFamily,
                     families: families,
                     sessionToken: widget.sessionToken,
                     onSelectFamily: _selectFamily,
                   );
                 case 3:
-                  return AnniversaryScreen(
-                    family: selectedFamily,
-                    families: families,
-                    sessionToken: widget.sessionToken,
-                    onSelectFamily: _selectFamily,
-                  );
-                case 4:
                   return ScrapScreen(
-                    family: selectedFamily,
-                    families: families,
-                    sessionToken: widget.sessionToken,
-                    onSelectFamily: _selectFamily,
-                  );
-                case 5:
-                  return ParkingScreen(
                     family: selectedFamily,
                     families: families,
                     sessionToken: widget.sessionToken,
@@ -1226,7 +1200,7 @@ class _ScheduleBriefingTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             constraints: const BoxConstraints(minWidth: 74, maxWidth: 96),

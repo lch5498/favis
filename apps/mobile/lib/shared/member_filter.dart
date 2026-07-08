@@ -52,12 +52,14 @@ class MemberFilterBar extends StatelessWidget {
     required this.hiddenMemberIds,
     required this.onToggleMember,
     this.memberColors = const {},
+    this.trailingChildren = const [],
   });
 
   final List<FamilyMember> members;
   final Set<String> hiddenMemberIds;
   final ValueChanged<String> onToggleMember;
   final Map<String, MemberFilterColor> memberColors;
+  final List<Widget> trailingChildren;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +78,7 @@ class MemberFilterBar extends StatelessWidget {
             color: _colorForMember(members[index], index),
             onPressed: () => onToggleMember(members[index].id),
           ),
+        ...trailingChildren,
       ],
     );
   }
@@ -105,13 +108,13 @@ class _MemberFilterButton extends StatelessWidget {
     final style = MemberFilterColorStyle.from(color);
 
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 118),
+      constraints: const BoxConstraints(maxWidth: 92),
       child: SizedBox(
-        height: 30,
+        height: 28,
         child: CupertinoButton(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
           color: isActive ? style.background : AppColors.darkBackground,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(8),
           onPressed: onPressed,
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -121,9 +124,9 @@ class _MemberFilterButton extends StatelessWidget {
                     ? CupertinoIcons.check_mark_circled_solid
                     : CupertinoIcons.circle,
                 color: isActive ? style.foreground : CupertinoColors.systemGrey,
-                size: 15,
+                size: 13,
               ),
-              const SizedBox(width: 5),
+              const SizedBox(width: 4),
               Flexible(
                 child: Text(
                   label,
@@ -133,7 +136,7 @@ class _MemberFilterButton extends StatelessWidget {
                     color: isActive
                         ? style.foreground
                         : AppColors.darkTextSecondary,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0,
                   ),

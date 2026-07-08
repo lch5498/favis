@@ -6,6 +6,7 @@ import '../../design_system/app_colors.dart';
 import '../../shared/alert_offset_picker.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
+import '../../shared/schedule_section_switcher.dart';
 
 const _weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 const _weekdayPickerOrder = [1, 2, 3, 4, 5, 6, 0];
@@ -21,12 +22,16 @@ class EducationScreen extends StatefulWidget {
     required this.families,
     required this.sessionToken,
     required this.onSelectFamily,
+    this.selectedScheduleSection,
+    this.onScheduleSectionChanged,
   });
 
   final AppFamily family;
   final List<AppFamily> families;
   final String sessionToken;
   final Future<void> Function(AppFamily family) onSelectFamily;
+  final ScheduleSection? selectedScheduleSection;
+  final ValueChanged<ScheduleSection>? onScheduleSectionChanged;
 
   @override
   State<EducationScreen> createState() => _EducationScreenState();
@@ -380,6 +385,17 @@ class _EducationScreenState extends State<EducationScreen> {
               onRefresh: _loadPrograms,
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
               children: [
+                if (widget.selectedScheduleSection != null &&
+                    widget.onScheduleSectionChanged != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: ScheduleSectionSwitcher(
+                      selectedSection: widget.selectedScheduleSection!,
+                      onSectionChanged: widget.onScheduleSectionChanged!,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 if (_message != null) ...[
                   _InlineMessage(message: _message!),
                   const SizedBox(height: 12),
