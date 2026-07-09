@@ -1207,6 +1207,50 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     }
 
     if (beforeItineraryId == dragged.id) {
+      final hasPreviewChange =
+          _dragSnapshot != null &&
+          !_hasSameItineraryArrangement(_dragSnapshot!, detail.itineraries);
+
+      if (hasPreviewChange) {
+        _dropAccepted = true;
+        setState(() {
+          _draggingItineraryId = null;
+          _dragSnapshot = null;
+          _message = null;
+        });
+
+        try {
+          final updated = await _apiClient.reorderTravelItineraries(
+            widget.sessionToken,
+            familyId: widget.family.id,
+            tripId: detail.trip.id,
+            items: detail.itineraries
+                .map(
+                  (itinerary) => TravelItineraryOrderInput(
+                    id: itinerary.id,
+                    itineraryDate: itinerary.itineraryDate,
+                  ),
+                )
+                .toList(),
+          );
+
+          if (mounted) {
+            setState(() {
+              _detail = updated;
+            });
+          }
+        } catch (error) {
+          if (mounted) {
+            setState(() {
+              _message = error.toString();
+            });
+            await _loadTrip();
+          }
+        }
+
+        return;
+      }
+
       setState(() {
         _draggingItineraryId = null;
         _dragSnapshot = null;
@@ -2685,34 +2729,103 @@ class _TravelDaySection extends StatelessWidget {
               ),
             )
           else ...[
-            for (final itinerary in itineraries) ...[
-              _ItineraryDropZone(
-                date: date,
-                beforeItineraryId: itinerary.id,
-                onMove: onMove,
-                onPreviewMove: onPreviewMove,
-                child: const _ItineraryInsertionGap(),
-              ),
+            for (var index = 0; index < itineraries.length; index++)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: _DraggableItineraryRow(
-                  itinerary: itinerary,
-                  isDragging: draggingItineraryId == itinerary.id,
-                  onTap: () => onOpen(itinerary),
-                  onDragStarted: () => onDragStarted(itinerary),
-                  onDragEnded: onDragEnded,
+                child: _ItineraryReorderTarget(
+                  date: date,
+                  itinerary: itineraries[index],
+                  nextItineraryId: index == itineraries.length - 1
+                      ? null
+                      : itineraries[index + 1].id,
+                  onMove: onMove,
+                  onPreviewMove: onPreviewMove,
+                  child: _DraggableItineraryRow(
+                    itinerary: itineraries[index],
+                    isDragging: draggingItineraryId == itineraries[index].id,
+                    onTap: () => onOpen(itineraries[index]),
+                    onDragStarted: () => onDragStarted(itineraries[index]),
+                    onDragEnded: onDragEnded,
+                  ),
                 ),
               ),
-            ],
             _ItineraryDropZone(
               date: date,
               onMove: onMove,
               onPreviewMove: onPreviewMove,
-              child: const _ItineraryInsertionGap(),
+              child: SizedBox(
+                width: double.infinity,
+                height: isDragging ? 18 : 2,
+              ),
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _ItineraryReorderTarget extends StatelessWidget {
+  const _ItineraryReorderTarget({
+    required this.date,
+    required this.itinerary,
+    required this.onMove,
+    required this.onPreviewMove,
+    required this.child,
+    this.nextItineraryId,
+  });
+
+  final DateTime date;
+  final TravelItinerary itinerary;
+  final String? nextItineraryId;
+  final void Function(
+    TravelItinerary itinerary,
+    DateTime targetDate, {
+    String? beforeItineraryId,
+  })
+  onMove;
+  final void Function(
+    TravelItinerary itinerary,
+    DateTime targetDate, {
+    String? beforeItineraryId,
+  })
+  onPreviewMove;
+  final Widget child;
+
+  String? _resolveBeforeItineraryId(
+    BuildContext context,
+    DragTargetDetails<TravelItinerary> details,
+  ) {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return itinerary.id;
+    }
+
+    final localOffset = box.globalToLocal(details.offset);
+    return localOffset.dy < box.size.height / 2
+        ? itinerary.id
+        : nextItineraryId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<TravelItinerary>(
+      onWillAcceptWithDetails: (_) => true,
+      onMove: (details) {
+        onPreviewMove(
+          details.data,
+          date,
+          beforeItineraryId: _resolveBeforeItineraryId(context, details),
+        );
+      },
+      onAcceptWithDetails: (details) {
+        onMove(
+          details.data,
+          date,
+          beforeItineraryId: _resolveBeforeItineraryId(context, details),
+        );
+      },
+      builder: (context, candidates, rejected) => child,
     );
   }
 }
@@ -2744,8 +2857,7 @@ class _DraggableItineraryRow extends StatelessWidget {
         width: 280,
         child: _ItineraryCard(itinerary: itinerary, elevated: true),
       ),
-      childWhenDragging: Opacity(
-        opacity: 0.34,
+      childWhenDragging: IgnorePointer(
         child: _ItineraryCard(itinerary: itinerary),
       ),
       child: CupertinoButton(
@@ -2754,15 +2866,6 @@ class _DraggableItineraryRow extends StatelessWidget {
         child: _ItineraryCard(itinerary: itinerary),
       ),
     );
-  }
-}
-
-class _ItineraryInsertionGap extends StatelessWidget {
-  const _ItineraryInsertionGap();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox(width: double.infinity, height: 8);
   }
 }
 
@@ -2848,11 +2951,9 @@ class _ItineraryDropZone extends StatelessWidget {
     required this.onMove,
     required this.onPreviewMove,
     required this.child,
-    this.beforeItineraryId,
   });
 
   final DateTime date;
-  final String? beforeItineraryId;
   final void Function(
     TravelItinerary itinerary,
     DateTime targetDate, {
@@ -2870,13 +2971,12 @@ class _ItineraryDropZone extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DragTarget<TravelItinerary>(
-      onWillAcceptWithDetails: (details) =>
-          details.data.id != beforeItineraryId,
+      onWillAcceptWithDetails: (_) => true,
       onMove: (details) {
-        onPreviewMove(details.data, date, beforeItineraryId: beforeItineraryId);
+        onPreviewMove(details.data, date);
       },
       onAcceptWithDetails: (details) {
-        onMove(details.data, date, beforeItineraryId: beforeItineraryId);
+        onMove(details.data, date);
       },
       builder: (context, candidates, rejected) {
         return child;
