@@ -26,7 +26,19 @@ export type TravelItinerary = {
   created_by_user_id: string | null;
   created_at: string;
   updated_at: string;
+  tags?: TravelTag[];
 };
+
+export type TravelTag = {
+  id: string;
+  family_id: string;
+  name: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const DEFAULT_TRAVEL_TAGS = ['식당', '카페', '교통', '호텔', '관광', '쇼핑'];
 
 export async function getTravelDashboard(userId: string, familyId: string) {
   await requireMembership(userId, familyId);
@@ -80,18 +92,88 @@ export async function createTravelTrip(
   return data as TravelTrip;
 }
 
+export async function updateTravelTrip(
+  userId: string,
+  familyId: string,
+  tripId: string,
+  input: { title: string; startsOn: string; endsOn: string },
+) {
+  await requireMembership(userId, familyId);
+  await getTripOrThrow(familyId, tripId);
+
+  const startsOn = normalizeDate(input.startsOn, 'startsOn');
+  const endsOn = normalizeDate(input.endsOn, 'endsOn');
+
+  if (endsOn < startsOn) {
+    throw new HttpError(400, { error: 'invalid_payload', field: 'endsOn' });
+  }
+
+  const itineraries = await listItineraries(familyId, tripId);
+  const outOfRangeItinerary = itineraries.find(
+    (itinerary) =>
+      itinerary.itinerary_date < startsOn || itinerary.itinerary_date > endsOn,
+  );
+
+  if (outOfRangeItinerary) {
+    throw new HttpError(400, {
+      error: 'travel_trip_date_range_has_itineraries',
+      field: 'startsOn',
+    });
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('travel_trips')
+    .update({
+      title: normalizeText(input.title, 80, 'title'),
+      starts_on: startsOn,
+      ends_on: endsOn,
+    })
+    .eq('family_id', familyId)
+    .eq('id', tripId)
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as TravelTrip;
+}
+
+export async function deleteTravelTrip(
+  userId: string,
+  familyId: string,
+  tripId: string,
+) {
+  await requireMembership(userId, familyId);
+  await getTripOrThrow(familyId, tripId);
+
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase
+    .from('travel_trips')
+    .delete()
+    .eq('family_id', familyId)
+    .eq('id', tripId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function getTravelTripDetail(
   userId: string,
   familyId: string,
   tripId: string,
 ) {
   await requireMembership(userId, familyId);
-  const [trip, itineraries] = await Promise.all([
+  const [trip, itineraries, tags] = await Promise.all([
     getTripOrThrow(familyId, tripId),
     listItineraries(familyId, tripId),
+    listTravelTags(userId, familyId),
   ]);
 
-  return { trip, itineraries };
+  return { trip, itineraries, tags };
 }
 
 export async function createTravelItinerary(
@@ -104,6 +186,7 @@ export async function createTravelItinerary(
     content?: string;
     mapUrl?: string;
     startsAt?: string;
+    tagNames?: string[];
   },
 ) {
   await requireMembership(userId, familyId);
@@ -139,7 +222,18 @@ export async function createTravelItinerary(
     throw error;
   }
 
-  return data as TravelItinerary;
+  await setItineraryTags(
+    userId,
+    familyId,
+    (data as TravelItinerary).id,
+    input.tagNames ?? [],
+  );
+
+  const [itinerary] = await attachItineraryTags(familyId, [
+    data as TravelItinerary,
+  ]);
+
+  return itinerary;
 }
 
 export async function updateTravelItinerary(
@@ -153,6 +247,7 @@ export async function updateTravelItinerary(
     content?: string;
     mapUrl?: string;
     startsAt?: string;
+    tagNames?: string[];
   },
 ) {
   await requireMembership(userId, familyId);
@@ -187,9 +282,14 @@ export async function updateTravelItinerary(
     throw error;
   }
 
+  await setItineraryTags(userId, familyId, itineraryId, input.tagNames ?? []);
   await compactItinerarySortOrders(familyId, tripId);
 
-  return data as TravelItinerary;
+  const [itinerary] = await attachItineraryTags(familyId, [
+    data as TravelItinerary,
+  ]);
+
+  return itinerary;
 }
 
 export async function deleteTravelItinerary(
@@ -345,7 +445,140 @@ async function listItineraries(familyId: string, tripId: string) {
     throw error;
   }
 
-  return (data ?? []) as TravelItinerary[];
+  return attachItineraryTags(familyId, (data ?? []) as TravelItinerary[]);
+}
+
+async function listTravelTags(userId: string, familyId: string) {
+  await ensureTravelTags(userId, familyId, DEFAULT_TRAVEL_TAGS);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('travel_tags')
+    .select('*')
+    .eq('family_id', familyId)
+    .order('name', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as TravelTag[];
+}
+
+async function attachItineraryTags(
+  familyId: string,
+  itineraries: TravelItinerary[],
+) {
+  if (itineraries.length === 0) {
+    return itineraries;
+  }
+
+  const itineraryIds = itineraries.map((itinerary) => itinerary.id);
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('travel_itinerary_tags')
+    .select('itinerary_id, tag:travel_tags (*)')
+    .eq('family_id', familyId)
+    .in('itinerary_id', itineraryIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const tagsByItineraryId = new Map<string, TravelTag[]>();
+
+  for (const row of data ?? []) {
+    const itineraryId = row.itinerary_id as string;
+    const tag = row.tag as unknown as TravelTag | null;
+
+    if (!tag) {
+      continue;
+    }
+
+    const tags = tagsByItineraryId.get(itineraryId) ?? [];
+    tags.push(tag);
+    tagsByItineraryId.set(itineraryId, tags);
+  }
+
+  return itineraries.map((itinerary) => ({
+    ...itinerary,
+    tags: (tagsByItineraryId.get(itinerary.id) ?? []).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    ),
+  }));
+}
+
+async function setItineraryTags(
+  userId: string,
+  familyId: string,
+  itineraryId: string,
+  tagNames: string[],
+) {
+  const supabase = getSupabaseAdmin();
+  const tags = await ensureTravelTags(userId, familyId, tagNames);
+
+  const { error: deleteError } = await supabase
+    .from('travel_itinerary_tags')
+    .delete()
+    .eq('family_id', familyId)
+    .eq('itinerary_id', itineraryId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (tags.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase.from('travel_itinerary_tags').insert(
+    tags.map((tag) => ({
+      family_id: familyId,
+      itinerary_id: itineraryId,
+      tag_id: tag.id,
+    })),
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function ensureTravelTags(
+  userId: string,
+  familyId: string,
+  tagNames: string[],
+) {
+  const names = normalizeTagNames(tagNames);
+  if (names.length === 0) {
+    return [] as TravelTag[];
+  }
+
+  const supabase = getSupabaseAdmin();
+  const { error: upsertError } = await supabase.from('travel_tags').upsert(
+    names.map((name) => ({
+      family_id: familyId,
+      name,
+      created_by_user_id: userId,
+    })),
+    { onConflict: 'family_id,name', ignoreDuplicates: true },
+  );
+
+  if (upsertError) {
+    throw upsertError;
+  }
+
+  const { data, error } = await supabase
+    .from('travel_tags')
+    .select('*')
+    .eq('family_id', familyId)
+    .in('name', names);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as TravelTag[];
 }
 
 async function nextItinerarySortOrder(
@@ -457,4 +690,12 @@ function normalizeOptionalTime(value: string | undefined, field: string) {
   }
 
   return `${match[1]}:${match[2]}:${match[3] ?? '00'}`;
+}
+
+function normalizeTagNames(values: string[]) {
+  const names = values
+    .map((value) => normalizeOptionalText(value, 24, 'tagNames'))
+    .filter((value): value is string => Boolean(value));
+
+  return [...new Set(names)];
 }

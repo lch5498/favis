@@ -81,7 +81,7 @@ class _TravelScreenState extends State<TravelScreen> {
   }
 
   Future<void> _createTrip() async {
-    final created = await Navigator.of(context).push<TravelTrip>(
+    final result = await Navigator.of(context).push<_TravelTripFormResult>(
       CupertinoPageRoute(
         fullscreenDialog: true,
         builder: (context) => _TravelTripFormScreen(
@@ -90,6 +90,7 @@ class _TravelScreenState extends State<TravelScreen> {
         ),
       ),
     );
+    final created = result?.trip;
 
     if (created == null || !mounted) {
       return;
@@ -142,8 +143,8 @@ class _TravelScreenState extends State<TravelScreen> {
     }
   }
 
-  void _openTrip(TravelTrip trip) {
-    Navigator.of(context).push(
+  Future<void> _openTrip(TravelTrip trip) async {
+    await Navigator.of(context).push(
       CupertinoPageRoute(
         builder: (context) => TravelDetailScreen(
           family: _family,
@@ -152,6 +153,10 @@ class _TravelScreenState extends State<TravelScreen> {
         ),
       ),
     );
+
+    if (mounted) {
+      await _loadTravels();
+    }
   }
 
   @override
@@ -243,6 +248,8 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   TravelTripDetail? _detail;
   String? _message;
   String? _draggingItineraryId;
+  List<TravelItinerary>? _dragSnapshot;
+  bool _dropAccepted = false;
   bool _isLoading = true;
 
   @override
@@ -292,12 +299,45 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
           familyId: widget.family.id,
           sessionToken: widget.sessionToken,
           trip: _detail?.trip ?? widget.trip,
+          favoriteTags: _detail?.tags ?? const [],
           initialDate: initialDate,
         ),
       ),
     );
 
     if (created != null && mounted) {
+      await _loadTrip();
+    }
+  }
+
+  Future<void> _editTrip() async {
+    final detail = _detail;
+    final trip = detail?.trip ?? widget.trip;
+    final result = await Navigator.of(context).push<_TravelTripFormResult>(
+      CupertinoPageRoute(
+        fullscreenDialog: true,
+        builder: (context) => _TravelTripFormScreen(
+          familyId: widget.family.id,
+          sessionToken: widget.sessionToken,
+          trip: trip,
+        ),
+      ),
+    );
+
+    if (result?.isDeleted == true && mounted) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    final updated = result?.trip;
+    if (updated != null && mounted) {
+      setState(() {
+        _detail = TravelTripDetail(
+          trip: updated,
+          itineraries: detail?.itineraries ?? const [],
+          tags: detail?.tags ?? const [],
+        );
+      });
       await _loadTrip();
     }
   }
@@ -310,6 +350,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
           sessionToken: widget.sessionToken,
           trip: _detail?.trip ?? widget.trip,
           itinerary: itinerary,
+          favoriteTags: _detail?.tags ?? const [],
         ),
       ),
     );
@@ -332,34 +373,31 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     if (beforeItineraryId == dragged.id) {
       setState(() {
         _draggingItineraryId = null;
+        _dragSnapshot = null;
       });
       return;
     }
 
-    final nextItineraries = [...detail.itineraries];
-    final sourceIndex = nextItineraries.indexWhere(
-      (itinerary) => itinerary.id == dragged.id,
-    );
-
-    if (sourceIndex < 0) {
-      return;
-    }
-
-    final moving = nextItineraries
-        .removeAt(sourceIndex)
-        .copyWith(itineraryDate: _dateOnly(targetDate));
-    final insertIndex = _resolveDropIndex(
-      nextItineraries,
+    _dropAccepted = true;
+    final normalized = _repositionItinerary(
+      detail.itineraries,
+      dragged,
       targetDate,
       beforeItineraryId: beforeItineraryId,
     );
-    nextItineraries.insert(insertIndex, moving);
 
-    final normalized = _normalizeItinerarySortOrders(nextItineraries);
+    if (normalized == null) {
+      return;
+    }
 
     setState(() {
       _draggingItineraryId = null;
-      _detail = TravelTripDetail(trip: detail.trip, itineraries: normalized);
+      _dragSnapshot = null;
+      _detail = TravelTripDetail(
+        trip: detail.trip,
+        itineraries: normalized,
+        tags: detail.tags,
+      );
       _message = null;
     });
 
@@ -393,6 +431,37 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     }
   }
 
+  void _previewMoveItinerary(
+    TravelItinerary dragged,
+    DateTime targetDate, {
+    String? beforeItineraryId,
+  }) {
+    final detail = _detail;
+    if (detail == null || _dropAccepted || beforeItineraryId == dragged.id) {
+      return;
+    }
+
+    final normalized = _repositionItinerary(
+      detail.itineraries,
+      dragged,
+      targetDate,
+      beforeItineraryId: beforeItineraryId,
+    );
+
+    if (normalized == null ||
+        _hasSameItineraryArrangement(detail.itineraries, normalized)) {
+      return;
+    }
+
+    setState(() {
+      _detail = TravelTripDetail(
+        trip: detail.trip,
+        itineraries: normalized,
+        tags: detail.tags,
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
@@ -412,11 +481,22 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
             fontWeight: FontWeight.w700,
           ),
         ),
-        trailing: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(32, 32),
-          onPressed: _isLoading ? null : () => _createItinerary(),
-          child: const Icon(CupertinoIcons.plus),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(34, 32),
+              onPressed: _isLoading ? null : _editTrip,
+              child: const Text('수정'),
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(32, 32),
+              onPressed: _isLoading ? null : () => _createItinerary(),
+              child: const Icon(CupertinoIcons.plus),
+            ),
+          ],
         ),
       ),
       child: SafeArea(
@@ -465,15 +545,29 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
           onAdd: () => _createItinerary(initialDate: days[index]),
           onOpen: _openItinerary,
           onMove: _moveItinerary,
+          onPreviewMove: _previewMoveItinerary,
           onDragStarted: (itinerary) {
             setState(() {
               _draggingItineraryId = itinerary.id;
+              _dragSnapshot = itineraries;
+              _dropAccepted = false;
             });
           },
           onDragEnded: () {
             if (mounted) {
               setState(() {
+                if (!_dropAccepted &&
+                    _dragSnapshot != null &&
+                    _detail != null) {
+                  _detail = TravelTripDetail(
+                    trip: _detail!.trip,
+                    itineraries: _dragSnapshot!,
+                    tags: _detail!.tags,
+                  );
+                }
                 _draggingItineraryId = null;
+                _dragSnapshot = null;
+                _dropAccepted = false;
               });
             }
           },
@@ -485,14 +579,28 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   }
 }
 
+class _TravelTripFormResult {
+  const _TravelTripFormResult._({this.trip, required this.isDeleted});
+
+  const _TravelTripFormResult.saved(TravelTrip trip)
+    : this._(trip: trip, isDeleted: false);
+
+  const _TravelTripFormResult.deleted() : this._(isDeleted: true);
+
+  final TravelTrip? trip;
+  final bool isDeleted;
+}
+
 class _TravelTripFormScreen extends StatefulWidget {
   const _TravelTripFormScreen({
     required this.familyId,
     required this.sessionToken,
+    this.trip,
   });
 
   final String familyId;
   final String sessionToken;
+  final TravelTrip? trip;
 
   @override
   State<_TravelTripFormScreen> createState() => _TravelTripFormScreenState();
@@ -506,6 +614,17 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
   DateTime _endsOn = _dateOnly(DateTime.now().add(const Duration(days: 2)));
   bool _isSaving = false;
   String? _message;
+
+  @override
+  void initState() {
+    super.initState();
+    final trip = widget.trip;
+    if (trip != null) {
+      _titleController.text = trip.title;
+      _startsOn = trip.startsOn;
+      _endsOn = trip.endsOn;
+    }
+  }
 
   @override
   void dispose() {
@@ -554,16 +673,80 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
     });
 
     try {
-      final trip = await _apiClient.createTravelTrip(
+      final existing = widget.trip;
+      final trip = existing == null
+          ? await _apiClient.createTravelTrip(
+              widget.sessionToken,
+              familyId: widget.familyId,
+              title: title,
+              startsOn: _startsOn,
+              endsOn: _endsOn,
+            )
+          : await _apiClient.updateTravelTrip(
+              widget.sessionToken,
+              familyId: widget.familyId,
+              tripId: existing.id,
+              title: title,
+              startsOn: _startsOn,
+              endsOn: _endsOn,
+            );
+
+      if (mounted) {
+        Navigator.of(context).pop(_TravelTripFormResult.saved(trip));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _delete() async {
+    final trip = widget.trip;
+    if (trip == null) {
+      return;
+    }
+
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (context) => CupertinoAlertDialog(
+        title: const Text('여행을 삭제할까요?'),
+        content: const Text('여행과 여행 안의 모든 일정이 삭제되며 복구할 수 없습니다.'),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _message = null;
+    });
+
+    try {
+      await _apiClient.deleteTravelTrip(
         widget.sessionToken,
         familyId: widget.familyId,
-        title: title,
-        startsOn: _startsOn,
-        endsOn: _endsOn,
+        tripId: trip.id,
       );
 
       if (mounted) {
-        Navigator.of(context).pop(trip);
+        Navigator.of(context).pop(const _TravelTripFormResult.deleted());
       }
     } catch (error) {
       if (mounted) {
@@ -585,7 +768,7 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
           onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
           child: const Text('취소'),
         ),
-        middle: const Text('새 여행 만들기'),
+        middle: Text(widget.trip == null ? '새 여행 만들기' : '여행 수정'),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           onPressed: _isSaving ? null : _save,
@@ -631,6 +814,21 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
                 ),
               ],
             ),
+            if (widget.trip != null) ...[
+              const SizedBox(height: 26),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                onPressed: _isSaving ? null : _delete,
+                child: Text(
+                  '여행 삭제',
+                  style: TextStyle(
+                    color: AppColors.darkDanger.withValues(alpha: 0.82),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -643,6 +841,7 @@ class _TravelItineraryFormScreen extends StatefulWidget {
     required this.familyId,
     required this.sessionToken,
     required this.trip,
+    required this.favoriteTags,
     this.initialDate,
     this.itinerary,
   });
@@ -650,6 +849,7 @@ class _TravelItineraryFormScreen extends StatefulWidget {
   final String familyId;
   final String sessionToken;
   final TravelTrip trip;
+  final List<TravelTag> favoriteTags;
   final DateTime? initialDate;
   final TravelItinerary? itinerary;
 
@@ -664,8 +864,11 @@ class _TravelItineraryFormScreenState
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _mapUrlController = TextEditingController();
+  final _tagController = TextEditingController();
 
   late DateTime _itineraryDate;
+  late final Set<String> _selectedTagNames;
+  final List<String> _customTagNames = [];
   TimeOfDayValue? _startsAt;
   bool _isSaving = false;
   String? _message;
@@ -677,6 +880,7 @@ class _TravelItineraryFormScreenState
     _itineraryDate = _dateOnly(
       widget.initialDate ?? itinerary?.itineraryDate ?? widget.trip.startsOn,
     );
+    _selectedTagNames = {...?itinerary?.tags.map((tag) => tag.name)};
 
     if (itinerary != null) {
       _titleController.text = itinerary.title;
@@ -691,6 +895,7 @@ class _TravelItineraryFormScreenState
     _titleController.dispose();
     _contentController.dispose();
     _mapUrlController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -746,6 +951,7 @@ class _TravelItineraryFormScreenState
               content: _contentController.text.trim(),
               mapUrl: _mapUrlController.text.trim(),
               startsAt: _startsAt,
+              tagNames: _selectedTagNames.toList(),
             )
           : await _apiClient.updateTravelItinerary(
               widget.sessionToken,
@@ -757,6 +963,7 @@ class _TravelItineraryFormScreenState
               content: _contentController.text.trim(),
               mapUrl: _mapUrlController.text.trim(),
               startsAt: _startsAt,
+              tagNames: _selectedTagNames.toList(),
             );
 
       if (mounted) {
@@ -770,6 +977,50 @@ class _TravelItineraryFormScreenState
         });
       }
     }
+  }
+
+  void _toggleTag(String tagName) {
+    setState(() {
+      if (_selectedTagNames.contains(tagName)) {
+        _selectedTagNames.remove(tagName);
+      } else {
+        _selectedTagNames.add(tagName);
+      }
+    });
+  }
+
+  void _addCustomTag() {
+    final tagName = _tagController.text.trim();
+
+    if (tagName.isEmpty) {
+      return;
+    }
+
+    if (tagName.length > 24) {
+      setState(() {
+        _message = '태그는 24자 이하로 입력해 주세요.';
+      });
+      return;
+    }
+
+    setState(() {
+      if (!_allTagNames.contains(tagName)) {
+        _customTagNames.add(tagName);
+      }
+      _selectedTagNames.add(tagName);
+      _tagController.clear();
+      _message = null;
+    });
+  }
+
+  List<String> get _allTagNames {
+    return [
+      ...{
+        ...widget.favoriteTags.map((tag) => tag.name),
+        ..._customTagNames,
+        ..._selectedTagNames,
+      },
+    ];
   }
 
   @override
@@ -828,6 +1079,14 @@ class _TravelItineraryFormScreenState
                   keyboardType: TextInputType.url,
                 ),
                 const SizedBox(height: 14),
+                _TravelTagPicker(
+                  tagNames: _allTagNames,
+                  selectedTagNames: _selectedTagNames,
+                  controller: _tagController,
+                  onToggle: _toggleTag,
+                  onAdd: _addCustomTag,
+                ),
+                const SizedBox(height: 14),
                 _TimeButton(
                   value: _startsAt == null ? '선택 안 함' : _formatTime(_startsAt!),
                   onPressed: _pickTime,
@@ -852,12 +1111,14 @@ class _TravelItineraryDetailScreen extends StatefulWidget {
     required this.sessionToken,
     required this.trip,
     required this.itinerary,
+    required this.favoriteTags,
   });
 
   final String familyId;
   final String sessionToken;
   final TravelTrip trip;
   final TravelItinerary itinerary;
+  final List<TravelTag> favoriteTags;
 
   @override
   State<_TravelItineraryDetailScreen> createState() =>
@@ -901,6 +1162,7 @@ class _TravelItineraryDetailScreenState
           trip: widget.trip,
           initialDate: _itinerary.itineraryDate,
           itinerary: _itinerary,
+          favoriteTags: widget.favoriteTags,
         ),
       ),
     );
@@ -1030,6 +1292,15 @@ class _TravelItineraryDetailScreenState
                     fontSize: 16,
                     height: 1.45,
                   ),
+                ),
+              ),
+            ],
+            if (_itinerary.tags.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              _DetailBlock(
+                title: '태그',
+                child: _TravelTagWrap(
+                  tagNames: _itinerary.tags.map((tag) => tag.name).toList(),
                 ),
               ),
             ],
@@ -1222,6 +1493,7 @@ class _TravelDaySection extends StatelessWidget {
     required this.onAdd,
     required this.onOpen,
     required this.onMove,
+    required this.onPreviewMove,
     required this.onDragStarted,
     required this.onDragEnded,
     required this.draggingItineraryId,
@@ -1238,6 +1510,12 @@ class _TravelDaySection extends StatelessWidget {
     String? beforeItineraryId,
   })
   onMove;
+  final void Function(
+    TravelItinerary itinerary,
+    DateTime targetDate, {
+    String? beforeItineraryId,
+  })
+  onPreviewMove;
   final ValueChanged<TravelItinerary> onDragStarted;
   final VoidCallback onDragEnded;
   final String? draggingItineraryId;
@@ -1304,6 +1582,7 @@ class _TravelDaySection extends StatelessWidget {
             _ItineraryDropZone(
               date: date,
               onMove: onMove,
+              onPreviewMove: onPreviewMove,
               child: CupertinoButton(
                 padding: EdgeInsets.zero,
                 onPressed: onAdd,
@@ -1339,6 +1618,7 @@ class _TravelDaySection extends StatelessWidget {
                 date: date,
                 beforeItineraryId: itinerary.id,
                 onMove: onMove,
+                onPreviewMove: onPreviewMove,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _DraggableItineraryRow(
@@ -1354,6 +1634,7 @@ class _TravelDaySection extends StatelessWidget {
             _ItineraryDropZone(
               date: date,
               onMove: onMove,
+              onPreviewMove: onPreviewMove,
               compact: true,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 160),
@@ -1466,15 +1747,30 @@ class _ItineraryCard extends StatelessWidget {
               const SizedBox(width: 10),
             ],
             Expanded(
-              child: Text(
-                itinerary.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.darkTextPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    itinerary.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (itinerary.tags.isNotEmpty) ...[
+                    const SizedBox(height: 7),
+                    _TravelTagWrap(
+                      tagNames: itinerary.tags
+                          .map((tag) => tag.name)
+                          .take(3)
+                          .toList(),
+                      compact: true,
+                    ),
+                  ],
+                ],
               ),
             ),
             Icon(
@@ -1493,6 +1789,7 @@ class _ItineraryDropZone extends StatelessWidget {
   const _ItineraryDropZone({
     required this.date,
     required this.onMove,
+    required this.onPreviewMove,
     required this.child,
     this.beforeItineraryId,
     this.compact = false,
@@ -1506,6 +1803,12 @@ class _ItineraryDropZone extends StatelessWidget {
     String? beforeItineraryId,
   })
   onMove;
+  final void Function(
+    TravelItinerary itinerary,
+    DateTime targetDate, {
+    String? beforeItineraryId,
+  })
+  onPreviewMove;
   final Widget child;
   final bool compact;
 
@@ -1514,6 +1817,9 @@ class _ItineraryDropZone extends StatelessWidget {
     return DragTarget<TravelItinerary>(
       onWillAcceptWithDetails: (details) =>
           details.data.id != beforeItineraryId,
+      onMove: (details) {
+        onPreviewMove(details.data, date, beforeItineraryId: beforeItineraryId);
+      },
       onAcceptWithDetails: (details) {
         onMove(details.data, date, beforeItineraryId: beforeItineraryId);
       },
@@ -1611,6 +1917,169 @@ class _LabeledTextField extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TravelTagPicker extends StatelessWidget {
+  const _TravelTagPicker({
+    required this.tagNames,
+    required this.selectedTagNames,
+    required this.controller,
+    required this.onToggle,
+    required this.onAdd,
+  });
+
+  final List<String> tagNames;
+  final Set<String> selectedTagNames;
+  final TextEditingController controller;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '태그',
+          style: TextStyle(
+            color: AppColors.darkTextSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (tagNames.isNotEmpty)
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final tagName in tagNames)
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  onPressed: () => onToggle(tagName),
+                  child: _TravelTagChip(
+                    label: tagName,
+                    selected: selectedTagNames.contains(tagName),
+                  ),
+                ),
+            ],
+          ),
+        if (tagNames.isNotEmpty) const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: CupertinoTextField(
+                controller: controller,
+                placeholder: '직접입력',
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => onAdd(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.darkSurfaceElevated,
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: AppColors.darkBorder),
+                ),
+                style: TextStyle(
+                  color: AppColors.darkTextPrimary,
+                  fontSize: 15,
+                ),
+                placeholderStyle: TextStyle(
+                  color: AppColors.darkTextMuted,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(42, 42),
+              onPressed: onAdd,
+              child: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.darkPrimary,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  CupertinoIcons.plus,
+                  color: AppColors.darkBackground,
+                  size: 19,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TravelTagWrap extends StatelessWidget {
+  const _TravelTagWrap({required this.tagNames, this.compact = false});
+
+  final List<String> tagNames;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: compact ? 5 : 7,
+      runSpacing: compact ? 5 : 7,
+      children: [
+        for (final tagName in tagNames)
+          _TravelTagChip(label: tagName, compact: compact),
+      ],
+    );
+  }
+}
+
+class _TravelTagChip extends StatelessWidget {
+  const _TravelTagChip({
+    required this.label,
+    this.selected = false,
+    this.compact = false,
+  });
+
+  final String label;
+  final bool selected;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 7 : 10,
+        vertical: compact ? 4 : 6,
+      ),
+      decoration: BoxDecoration(
+        color: selected
+            ? AppColors.darkPrimary
+            : AppColors.darkPrimarySoft.withValues(alpha: compact ? 0.45 : 0.7),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: selected ? AppColors.darkPrimary : AppColors.darkBorder,
+        ),
+      ),
+      child: Text(
+        '#$label',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: selected
+              ? AppColors.darkBackground
+              : AppColors.darkTextPrimary,
+          fontSize: compact ? 11 : 13,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
     );
   }
 }
@@ -2046,6 +2515,34 @@ Future<TimeOfDayValue?> _showTimePicker(
   );
 }
 
+List<TravelItinerary>? _repositionItinerary(
+  List<TravelItinerary> itineraries,
+  TravelItinerary dragged,
+  DateTime targetDate, {
+  String? beforeItineraryId,
+}) {
+  final nextItineraries = [...itineraries];
+  final sourceIndex = nextItineraries.indexWhere(
+    (itinerary) => itinerary.id == dragged.id,
+  );
+
+  if (sourceIndex < 0) {
+    return null;
+  }
+
+  final moving = nextItineraries
+      .removeAt(sourceIndex)
+      .copyWith(itineraryDate: _dateOnly(targetDate));
+  final insertIndex = _resolveDropIndex(
+    nextItineraries,
+    targetDate,
+    beforeItineraryId: beforeItineraryId,
+  );
+  nextItineraries.insert(insertIndex, moving);
+
+  return _normalizeItinerarySortOrders(nextItineraries);
+}
+
 int _resolveDropIndex(
   List<TravelItinerary> itineraries,
   DateTime targetDate, {
@@ -2085,6 +2582,24 @@ int _resolveDropIndex(
   return itineraries.length;
 }
 
+bool _hasSameItineraryArrangement(
+  List<TravelItinerary> a,
+  List<TravelItinerary> b,
+) {
+  if (a.length != b.length) {
+    return false;
+  }
+
+  for (var index = 0; index < a.length; index++) {
+    if (a[index].id != b[index].id ||
+        !_isSameDate(a[index].itineraryDate, b[index].itineraryDate)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 List<TravelItinerary> _normalizeItinerarySortOrders(
   List<TravelItinerary> itineraries,
 ) {
@@ -2109,6 +2624,10 @@ List<DateTime> _daysBetween(DateTime startsOn, DateTime endsOn) {
 
 DateTime _dateOnly(DateTime value) =>
     DateTime(value.year, value.month, value.day);
+
+bool _isSameDate(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
 
 String _dateKey(DateTime value) {
   final date = _dateOnly(value);

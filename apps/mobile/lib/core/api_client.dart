@@ -916,6 +916,40 @@ class ApiClient {
     return TravelTrip.fromJson(json);
   }
 
+  Future<TravelTrip> updateTravelTrip(
+    String sessionToken, {
+    required String familyId,
+    required String tripId,
+    required String title,
+    required DateTime startsOn,
+    required DateTime endsOn,
+  }) async {
+    final json = await _requestJson(
+      'PATCH',
+      '/api/mobile/families/$familyId/travels/$tripId',
+      bearerToken: sessionToken,
+      body: {
+        'title': title,
+        'startsOn': _dateOnlyString(startsOn),
+        'endsOn': _dateOnlyString(endsOn),
+      },
+    );
+
+    return TravelTrip.fromJson(json);
+  }
+
+  Future<void> deleteTravelTrip(
+    String sessionToken, {
+    required String familyId,
+    required String tripId,
+  }) async {
+    await _requestJson(
+      'DELETE',
+      '/api/mobile/families/$familyId/travels/$tripId',
+      bearerToken: sessionToken,
+    );
+  }
+
   Future<TravelTripDetail> getTravelTripDetail(
     String sessionToken, {
     required String familyId,
@@ -939,6 +973,7 @@ class ApiClient {
     String? content,
     String? mapUrl,
     TimeOfDayValue? startsAt,
+    List<String> tagNames = const [],
   }) async {
     final json = await _requestJson(
       'POST',
@@ -950,6 +985,7 @@ class ApiClient {
         content: content,
         mapUrl: mapUrl,
         startsAt: startsAt,
+        tagNames: tagNames,
       ),
     );
 
@@ -966,6 +1002,7 @@ class ApiClient {
     String? content,
     String? mapUrl,
     TimeOfDayValue? startsAt,
+    List<String> tagNames = const [],
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -977,6 +1014,7 @@ class ApiClient {
         content: content,
         mapUrl: mapUrl,
         startsAt: startsAt,
+        tagNames: tagNames,
       ),
     );
 
@@ -1018,12 +1056,14 @@ class ApiClient {
     String? content,
     String? mapUrl,
     TimeOfDayValue? startsAt,
+    List<String> tagNames = const [],
   }) {
     final body = <String, Object?>{
       'itineraryDate': _dateOnlyString(itineraryDate),
       'title': title,
       'content': content,
       'mapUrl': mapUrl,
+      'tagNames': tagNames,
     };
 
     if (startsAt != null) {
@@ -1963,18 +2003,27 @@ class TravelDashboard {
 }
 
 class TravelTripDetail {
-  const TravelTripDetail({required this.trip, required this.itineraries});
+  const TravelTripDetail({
+    required this.trip,
+    required this.itineraries,
+    required this.tags,
+  });
 
   final TravelTrip trip;
   final List<TravelItinerary> itineraries;
+  final List<TravelTag> tags;
 
   factory TravelTripDetail.fromJson(Map<String, Object?> json) {
     final itineraries = json['itineraries'] as List<Object?>? ?? [];
+    final tags = json['tags'] as List<Object?>? ?? [];
 
     return TravelTripDetail(
       trip: TravelTrip.fromJson(json['trip'] as Map<String, Object?>),
       itineraries: itineraries
           .map((item) => TravelItinerary.fromJson(item as Map<String, Object?>))
+          .toList(),
+      tags: tags
+          .map((item) => TravelTag.fromJson(item as Map<String, Object?>))
           .toList(),
     );
   }
@@ -2025,6 +2074,7 @@ class TravelItinerary {
     required this.sortOrder,
     required this.createdAt,
     required this.updatedAt,
+    required this.tags,
   });
 
   final String id;
@@ -2038,8 +2088,11 @@ class TravelItinerary {
   final int sortOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<TravelTag> tags;
 
   factory TravelItinerary.fromJson(Map<String, Object?> json) {
+    final tags = json['tags'] as List<Object?>? ?? [];
+
     return TravelItinerary(
       id: json['id'] as String,
       familyId: json['family_id'] as String,
@@ -2052,6 +2105,9 @@ class TravelItinerary {
       sortOrder: json['sort_order'] as int? ?? 1,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
+      tags: tags
+          .map((item) => TravelTag.fromJson(item as Map<String, Object?>))
+          .toList(),
     );
   }
 
@@ -2068,6 +2124,33 @@ class TravelItinerary {
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      tags: tags,
+    );
+  }
+}
+
+class TravelTag {
+  const TravelTag({
+    required this.id,
+    required this.familyId,
+    required this.name,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String familyId;
+  final String name;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  factory TravelTag.fromJson(Map<String, Object?> json) {
+    return TravelTag(
+      id: json['id'] as String,
+      familyId: json['family_id'] as String,
+      name: json['name'] as String,
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+      updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 }

@@ -26,6 +26,7 @@ export async function POST(request: Request, context: RouteContext) {
       content: optionalBlankString(payload, 'content'),
       mapUrl: optionalBlankString(payload, 'mapUrl'),
       startsAt: optionalBlankString(payload, 'startsAt'),
+      tagNames: optionalStringArray(payload, 'tagNames'),
     });
 
     return Response.json(itinerary, { status: 201 });
@@ -61,6 +62,20 @@ function optionalBlankString(payload: Record<string, unknown>, key: string) {
   }
 
   return value;
+}
+
+function optionalStringArray(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new HttpError(400, { error: 'invalid_payload', field: key });
+  }
+
+  return value as string[];
 }
 
 function requiredReorderItems(payload: Record<string, unknown>, key: string) {

@@ -1216,7 +1216,7 @@ class _ScheduleBriefingTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
-            constraints: const BoxConstraints(minWidth: 74, maxWidth: 96),
+            constraints: const BoxConstraints(minWidth: 90, maxWidth: 106),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: AppColors.darkPrimarySoft,
@@ -1242,45 +1242,44 @@ class _ScheduleBriefingTile extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  schedule.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.darkTextPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
+                Expanded(
+                  child: Text(
+                    schedule.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 3),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 118),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: memberColorStyle.background,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: memberColorStyle.border),
-                    ),
-                    child: Text(
-                      schedule.memberNickname,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: memberColorStyle.foreground,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        height: 1.15,
-                        letterSpacing: 0,
-                      ),
+                const SizedBox(width: 8),
+                Container(
+                  constraints: const BoxConstraints(maxWidth: 96),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: memberColorStyle.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: memberColorStyle.border),
+                  ),
+                  child: Text(
+                    schedule.memberNickname,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: memberColorStyle.foreground,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
+                      letterSpacing: 0,
                     ),
                   ),
                 ),
