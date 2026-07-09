@@ -2685,54 +2685,30 @@ class _TravelDaySection extends StatelessWidget {
               ),
             )
           else ...[
-            ...itineraries.map(
-              (itinerary) => _ItineraryDropZone(
+            for (final itinerary in itineraries) ...[
+              _ItineraryDropZone(
                 date: date,
                 beforeItineraryId: itinerary.id,
                 onMove: onMove,
                 onPreviewMove: onPreviewMove,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _DraggableItineraryRow(
-                    itinerary: itinerary,
-                    isDragging: draggingItineraryId == itinerary.id,
-                    onTap: () => onOpen(itinerary),
-                    onDragStarted: () => onDragStarted(itinerary),
-                    onDragEnded: onDragEnded,
-                  ),
+                child: const _ItineraryInsertionGap(),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _DraggableItineraryRow(
+                  itinerary: itinerary,
+                  isDragging: draggingItineraryId == itinerary.id,
+                  onTap: () => onOpen(itinerary),
+                  onDragStarted: () => onDragStarted(itinerary),
+                  onDragEnded: onDragEnded,
                 ),
               ),
-            ),
+            ],
             _ItineraryDropZone(
               date: date,
               onMove: onMove,
               onPreviewMove: onPreviewMove,
-              compact: true,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                width: double.infinity,
-                height: isDragging ? 34 : 4,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isDragging
-                      ? AppColors.darkPrimarySoft
-                      : CupertinoColors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  border: isDragging
-                      ? Border.all(color: AppColors.darkBorder)
-                      : null,
-                ),
-                child: isDragging
-                    ? Text(
-                        '이 DAY 마지막으로 이동',
-                        style: TextStyle(
-                          color: AppColors.darkPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      )
-                    : null,
-              ),
+              child: const _ItineraryInsertionGap(),
             ),
           ],
         ],
@@ -2778,6 +2754,15 @@ class _DraggableItineraryRow extends StatelessWidget {
         child: _ItineraryCard(itinerary: itinerary),
       ),
     );
+  }
+}
+
+class _ItineraryInsertionGap extends StatelessWidget {
+  const _ItineraryInsertionGap();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(width: double.infinity, height: 8);
   }
 }
 
@@ -2864,7 +2849,6 @@ class _ItineraryDropZone extends StatelessWidget {
     required this.onPreviewMove,
     required this.child,
     this.beforeItineraryId,
-    this.compact = false,
   });
 
   final DateTime date;
@@ -2882,7 +2866,6 @@ class _ItineraryDropZone extends StatelessWidget {
   })
   onPreviewMove;
   final Widget child;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -2896,22 +2879,7 @@ class _ItineraryDropZone extends StatelessWidget {
         onMove(details.data, date, beforeItineraryId: beforeItineraryId);
       },
       builder: (context, candidates, rejected) {
-        final isActive = candidates.isNotEmpty;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          padding: EdgeInsets.only(
-            top: isActive ? 6 : 0,
-            bottom: isActive ? 6 : 0,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: isActive
-                ? Border.all(color: AppColors.darkPrimary, width: 1.4)
-                : null,
-          ),
-          child: compact && !isActive ? child : child,
-        );
+        return child;
       },
     );
   }
