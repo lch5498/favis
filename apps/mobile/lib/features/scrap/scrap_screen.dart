@@ -287,11 +287,13 @@ class ScrapChannelScreen extends StatefulWidget {
     required this.family,
     required this.sessionToken,
     required this.channel,
+    this.initialPostId,
   });
 
   final AppFamily family;
   final String sessionToken;
   final ScrapChannel channel;
+  final String? initialPostId;
 
   @override
   State<ScrapChannelScreen> createState() => _ScrapChannelScreenState();
@@ -849,8 +851,15 @@ class _ScrapChannelScreenState extends State<ScrapChannelScreen> {
                 actionLabel: '글 등록',
                 onPressed: _createPost,
               )
+            else if (widget.initialPostId != null &&
+                !detail.posts.any((post) => post.id == widget.initialPostId))
+              const _InlineMessage(message: '요청한 글을 찾을 수 없습니다.')
             else
-              for (final post in detail.posts)
+              for (final post in detail.posts.where(
+                (post) =>
+                    widget.initialPostId == null ||
+                    post.id == widget.initialPostId,
+              ))
                 _PostThread(
                   post: post,
                   onComment: () => _createComment(post),
@@ -1010,16 +1019,43 @@ class _ChannelRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    channel.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: AppColors.darkTextPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          channel.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.darkTextPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                      if (channel.hasRecentPosts) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 18,
+                          height: 18,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.darkDanger,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Text(
+                            'N',
+                            style: TextStyle(
+                              color: CupertinoColors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

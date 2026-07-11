@@ -663,6 +663,24 @@ class ApiClient {
     return ScrapDashboard.fromJson(json);
   }
 
+  Future<List<ScrapRecentActivity>> getRecentScrapActivities(
+    String sessionToken, {
+    required String familyId,
+  }) async {
+    final json = await _requestJson(
+      'GET',
+      '/api/mobile/families/$familyId/scraps/recent',
+      bearerToken: sessionToken,
+    );
+    final activities = json['activities'] as List<Object?>? ?? [];
+
+    return activities
+        .map(
+          (item) => ScrapRecentActivity.fromJson(item as Map<String, Object?>),
+        )
+        .toList();
+  }
+
   Future<ScrapChannel> createScrapChannel(
     String sessionToken, {
     required String familyId,
@@ -1974,6 +1992,54 @@ class ScrapDashboard {
   }
 }
 
+class ScrapRecentActivity {
+  const ScrapRecentActivity({
+    required this.id,
+    required this.type,
+    required this.postId,
+    required this.channelId,
+    required this.channelName,
+    required this.content,
+    required this.authorNickname,
+    required this.createdAt,
+  });
+
+  final String id;
+  final ScrapRecentActivityType type;
+  final String postId;
+  final String channelId;
+  final String channelName;
+  final String content;
+  final String authorNickname;
+  final DateTime createdAt;
+
+  factory ScrapRecentActivity.fromJson(Map<String, Object?> json) {
+    return ScrapRecentActivity(
+      id: json['id'] as String,
+      type: ScrapRecentActivityType.fromApiValue(json['type'] as String),
+      postId: json['post_id'] as String,
+      channelId: json['channel_id'] as String,
+      channelName: json['channel_name'] as String,
+      content: json['content'] as String,
+      authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
+      createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
+    );
+  }
+}
+
+enum ScrapRecentActivityType {
+  post,
+  comment;
+
+  factory ScrapRecentActivityType.fromApiValue(String value) {
+    return switch (value) {
+      'post' => ScrapRecentActivityType.post,
+      'comment' => ScrapRecentActivityType.comment,
+      _ => throw FormatException('Unknown scrap activity type: $value'),
+    };
+  }
+}
+
 class ScrapChannelDetail {
   const ScrapChannelDetail({required this.channel, required this.posts});
 
@@ -2001,6 +2067,7 @@ class ScrapChannel {
     required this.authorNickname,
     required this.canEdit,
     required this.canDelete,
+    required this.hasRecentPosts,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -2012,6 +2079,7 @@ class ScrapChannel {
   final String authorNickname;
   final bool canEdit;
   final bool canDelete;
+  final bool hasRecentPosts;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -2024,6 +2092,7 @@ class ScrapChannel {
       authorNickname: json['authorNickname'] as String? ?? '알 수 없음',
       canEdit: json['canEdit'] as bool? ?? false,
       canDelete: json['canDelete'] as bool? ?? false,
+      hasRecentPosts: json['hasRecentPosts'] as bool? ?? false,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );

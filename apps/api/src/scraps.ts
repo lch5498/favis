@@ -15,6 +15,7 @@ export type ScrapChannel = {
   authorNickname?: string;
   canEdit?: boolean;
   canDelete?: boolean;
+  hasRecentPosts?: boolean;
 };
 
 export type ScrapPost = {
@@ -53,6 +54,17 @@ export type ScrapComment = {
   isLikedByMe?: boolean;
 };
 
+export type ScrapRecentActivity = {
+  id: string;
+  type: 'post' | 'comment';
+  post_id: string;
+  channel_id: string;
+  channel_name: string;
+  content: string;
+  created_at: string;
+  authorNickname: string;
+};
+
 type FamilyMemberAuthor = {
   user_id: string | null;
   nickname: string;
@@ -82,13 +94,148 @@ export async function getScrapDashboard(userId: string, familyId: string) {
     throw error;
   }
 
+  const recentSince = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: recentPosts, error: recentPostsError } = await supabase
+    .from('scrap_posts')
+    .select('channel_id')
+    .eq('family_id', familyId)
+    .gte('created_at', recentSince);
+
+  if (recentPostsError) {
+    throw recentPostsError;
+  }
+
+  const recentChannelIds = new Set(
+    ((recentPosts ?? []) as Array<{ channel_id: string }>).map(
+      (post) => post.channel_id,
+    ),
+  );
+
   return {
     channels: (await attachAuthorNicknames(
       familyId,
       (data ?? []) as ScrapChannel[],
     )).map((channel) =>
-      withChannelManagePermissions(channel, userId, membership.role),
+      withChannelManagePermissions(
+        { ...channel, hasRecentPosts: recentChannelIds.has(channel.id) },
+        userId,
+        membership.role,
+      ),
     ),
+  };
+}
+
+export async function getRecentScrapActivities(
+  userId: string,
+  familyId: string,
+) {
+  await requireMembership(userId, familyId);
+
+  const supabase = getSupabaseAdmin();
+  const [{ data: posts, error: postsError }, { data: comments, error: commentsError }] =
+    await Promise.all([
+      supabase
+        .from('scrap_posts')
+        .select('*')
+        .eq('family_id', familyId)
+        .order('created_at', { ascending: false })
+        .limit(3),
+      supabase
+        .from('scrap_comments')
+        .select('*')
+        .eq('family_id', familyId)
+        .order('created_at', { ascending: false })
+        .limit(3),
+    ]);
+
+  if (postsError) {
+    throw postsError;
+  }
+  if (commentsError) {
+    throw commentsError;
+  }
+
+  const postRows = (posts ?? []) as ScrapPost[];
+  const commentRows = (comments ?? []) as ScrapComment[];
+  const commentPostIds = commentRows.map((comment) => comment.post_id);
+  const knownPosts = new Map(postRows.map((post) => [post.id, post]));
+  const missingPostIds = commentPostIds.filter((id) => !knownPosts.has(id));
+
+  if (missingPostIds.length > 0) {
+    const { data: parentPosts, error: parentPostsError } = await supabase
+      .from('scrap_posts')
+      .select('*')
+      .eq('family_id', familyId)
+      .in('id', missingPostIds);
+
+    if (parentPostsError) {
+      throw parentPostsError;
+    }
+
+    for (const finalPost of (parentPosts ?? []) as ScrapPost[]) {
+      knownPosts.set(finalPost.id, finalPost);
+    }
+  }
+
+  const channelIds = [
+    ...new Set([
+      ...postRows.map((post) => post.channel_id),
+      ...commentRows
+        .map((comment) => knownPosts.get(comment.post_id)?.channel_id)
+        .filter((channelId): channelId is string => Boolean(channelId)),
+    ]),
+  ];
+  const channelNameById = new Map<string, string>();
+
+  if (channelIds.length > 0) {
+    const { data: channels, error: channelsError } = await supabase
+      .from('scrap_channels')
+      .select('id, name')
+      .eq('family_id', familyId)
+      .in('id', channelIds);
+
+    if (channelsError) {
+      throw channelsError;
+    }
+
+    for (const channel of (channels ?? []) as Array<{ id: string; name: string }>) {
+      channelNameById.set(channel.id, channel.name);
+    }
+  }
+
+  const activitiesWithAuthors = await attachAuthorNicknames(familyId, [
+    ...postRows.map((post) => ({ ...post, type: 'post' as const })),
+    ...commentRows.map((comment) => ({ ...comment, type: 'comment' as const })),
+  ]);
+
+  return {
+    activities: activitiesWithAuthors
+      .map((activity): ScrapRecentActivity | null => {
+        const channelId =
+          activity.type === 'post'
+            ? activity.channel_id
+            : knownPosts.get(activity.post_id)?.channel_id;
+        const channelName = channelId ? channelNameById.get(channelId) : null;
+
+        if (!channelId || !channelName) {
+          return null;
+        }
+
+        return {
+          id: activity.id,
+          type: activity.type,
+          post_id:
+            activity.type === 'post' ? activity.id : activity.post_id,
+          channel_id: channelId,
+          channel_name: channelName,
+          content: activity.content,
+          created_at: activity.created_at,
+          authorNickname: activity.authorNickname,
+        };
+      })
+      .filter((activity): activity is ScrapRecentActivity => activity !== null)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 3),
   };
 }
 

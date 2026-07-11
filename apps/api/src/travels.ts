@@ -62,7 +62,6 @@ export type TravelTripChecklistItem = {
   updated_at: string;
 };
 
-const DEFAULT_TRAVEL_TAGS = ['식당', '카페', '교통', '호텔', '관광', '숙소'];
 const DEFAULT_TRAVEL_CHECKLIST_ITEMS = [
   '여권',
   '충전기',
@@ -92,7 +91,7 @@ export async function getTravelDashboard(userId: string, familyId: string) {
 export async function getTravelTags(userId: string, familyId: string) {
   await requireMembership(userId, familyId);
 
-  return listTravelTags(userId, familyId);
+  return listTravelTags(familyId);
 }
 
 export async function createTravelTag(
@@ -379,7 +378,7 @@ export async function getTravelTripDetail(
   const trip = await getTripOrThrow(familyId, tripId);
   const [itineraries, tags, checklistItems] = await Promise.all([
     listItineraries(familyId, tripId),
-    listTravelTags(userId, familyId),
+    listTravelTags(familyId),
     listTravelTripChecklistItems(userId, familyId, trip),
   ]);
 
@@ -775,9 +774,7 @@ async function listItineraries(familyId: string, tripId: string) {
   return attachItineraryTags(familyId, (data ?? []) as TravelItinerary[]);
 }
 
-async function listTravelTags(userId: string, familyId: string) {
-  await ensureTravelTags(userId, familyId, DEFAULT_TRAVEL_TAGS);
-
+async function listTravelTags(familyId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('travel_tags')

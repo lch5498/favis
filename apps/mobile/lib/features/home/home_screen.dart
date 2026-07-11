@@ -7,9 +7,9 @@ import '../../core/theme_preference.dart';
 import '../../design_system/app_colors.dart';
 import '../family/family_screen.dart';
 import '../parking/parking_screen.dart';
-import '../profile/profile_screen.dart';
 import '../schedule/schedule_hub_screen.dart';
 import '../scrap/scrap_screen.dart';
+import '../settings/settings_screen.dart';
 import '../travel/travel_screen.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
@@ -144,6 +144,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _openParkingTab() {
     _tabController.index = 2;
+  }
+
+  void _openScrapTab() {
+    _tabController.index = 3;
+  }
+
+  void _openScrapActivity(ScrapRecentActivity activity) {
+    final family = _selectedFamily;
+
+    if (family == null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => ScrapChannelScreen(
+          family: family,
+          sessionToken: widget.sessionToken,
+          channel: ScrapChannel(
+            id: activity.channelId,
+            familyId: family.id,
+            name: activity.channelName,
+            sortOrder: null,
+            authorNickname: '알 수 없음',
+            canEdit: false,
+            canDelete: false,
+            hasRecentPosts: false,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          initialPostId: activity.postId,
+        ),
+      ),
+    );
   }
 
   Future<void> _handleDeepLinkMethodCall(MethodCall call) async {
@@ -509,10 +544,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     initialScheduleDashboard: widget.initialScheduleDashboard,
                     initialParkingDashboard: widget.initialParkingDashboard,
                     message: _message,
-                    onOpenFamilyManagement: _openFamilyManagement,
                     onSwitchFamily: _switchFamily,
                     onOpenSchedule: _openScheduleTab,
                     onOpenParking: _openParkingTab,
+                    onOpenScraps: _openScrapTab,
+                    onOpenScrapActivity: _openScrapActivity,
+                    onGroupsChanged: _loadFamilies,
                     onUpdateProfile: widget.onUpdateProfile,
                     onDeleteAccount: widget.onDeleteAccount,
                     onLogout: widget.onLogout,
@@ -531,15 +568,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           canSwitch: _families.length > 1,
           onPressed: _switchFamily,
         ),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(32, 32),
-          onPressed: _openFamilyManagement,
-          child: const Icon(CupertinoIcons.person_2),
-        ),
         trailing: _HomeNavigationTrailing(
           user: widget.user,
+          sessionToken: widget.sessionToken,
           familyCount: _families.length,
+          currentUserId: widget.user.id,
+          onGroupsChanged: _loadFamilies,
           onUpdateProfile: widget.onUpdateProfile,
           onDeleteAccount: widget.onDeleteAccount,
           onLogout: widget.onLogout,
@@ -630,14 +664,20 @@ class _HomeTitle extends StatelessWidget {
 class _HomeNavigationTrailing extends StatelessWidget {
   const _HomeNavigationTrailing({
     required this.user,
+    required this.sessionToken,
     required this.familyCount,
+    required this.currentUserId,
+    required this.onGroupsChanged,
     required this.onUpdateProfile,
     required this.onDeleteAccount,
     required this.onLogout,
   });
 
   final AppUser user;
+  final String sessionToken;
   final int familyCount;
+  final String currentUserId;
+  final Future<void> Function() onGroupsChanged;
   final ProfileUpdateCallback onUpdateProfile;
   final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
@@ -648,19 +688,22 @@ class _HomeNavigationTrailing extends StatelessWidget {
       padding: EdgeInsets.zero,
       minimumSize: const Size(32, 32),
       onPressed: () {
-        Navigator.of(context).push(
+        Navigator.of(context, rootNavigator: true).push(
           CupertinoPageRoute<void>(
-            builder: (_) => ProfileScreen(
+            builder: (_) => SettingsScreen(
               user: user,
+              sessionToken: sessionToken,
               familyCount: familyCount,
-              onSave: onUpdateProfile,
+              onSaveProfile: onUpdateProfile,
               onDeleteAccount: onDeleteAccount,
+              currentUserId: currentUserId,
+              onGroupsChanged: onGroupsChanged,
               onLogout: onLogout,
             ),
           ),
         );
       },
-      child: const Icon(CupertinoIcons.person_crop_circle),
+      child: const Icon(CupertinoIcons.gear),
     );
   }
 }
@@ -676,10 +719,12 @@ class _HomeDashboardTab extends StatefulWidget {
     required this.initialScheduleDashboard,
     required this.initialParkingDashboard,
     required this.message,
-    required this.onOpenFamilyManagement,
     required this.onSwitchFamily,
     required this.onOpenSchedule,
     required this.onOpenParking,
+    required this.onOpenScraps,
+    required this.onOpenScrapActivity,
+    required this.onGroupsChanged,
     required this.onUpdateProfile,
     required this.onDeleteAccount,
     required this.onLogout,
@@ -694,10 +739,12 @@ class _HomeDashboardTab extends StatefulWidget {
   final ScheduleDashboard? initialScheduleDashboard;
   final ParkingDashboard? initialParkingDashboard;
   final String? message;
-  final VoidCallback onOpenFamilyManagement;
   final VoidCallback onSwitchFamily;
   final VoidCallback onOpenSchedule;
   final VoidCallback onOpenParking;
+  final VoidCallback onOpenScraps;
+  final void Function(ScrapRecentActivity activity) onOpenScrapActivity;
+  final Future<void> Function() onGroupsChanged;
   final ProfileUpdateCallback onUpdateProfile;
   final Future<void> Function() onDeleteAccount;
   final Future<void> Function()? onLogout;
@@ -711,6 +758,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
   ScheduleDashboard? _scheduleDashboard;
   ParkingDashboard? _parkingDashboard;
+  List<ScrapRecentActivity> _recentScrapActivities = const [];
   String? _message;
   bool _isLoading = true;
   bool _isScheduleLoading = false;
@@ -733,6 +781,8 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
     if (_isLoading) {
       _loadBriefing();
+    } else {
+      _loadRecentScrapActivities();
     }
   }
 
@@ -746,6 +796,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
       setState(() {
         _scheduleDashboard = null;
         _parkingDashboard = null;
+        _recentScrapActivities = const [];
         _scheduleDate = _dateOnly(DateTime.now());
         _isLoading = true;
         _isScheduleLoading = false;
@@ -769,16 +820,22 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     final dayEnd = dayStart.add(const Duration(days: 1));
 
     try {
-      final schedules = await _apiClient.getScheduleDashboard(
-        widget.sessionToken,
-        familyId: familyId,
-        rangeStart: dayStart,
-        rangeEnd: dayEnd,
-      );
-      final parking = await _apiClient.getParkingDashboard(
-        widget.sessionToken,
-        familyId: familyId,
-      );
+      final results = await Future.wait([
+        _apiClient.getScheduleDashboard(
+          widget.sessionToken,
+          familyId: familyId,
+          rangeStart: dayStart,
+          rangeEnd: dayEnd,
+        ),
+        _apiClient.getParkingDashboard(widget.sessionToken, familyId: familyId),
+        _apiClient.getRecentScrapActivities(
+          widget.sessionToken,
+          familyId: familyId,
+        ),
+      ]);
+      final schedules = results[0] as ScheduleDashboard;
+      final parking = results[1] as ParkingDashboard;
+      final recentScrapActivities = results[2] as List<ScrapRecentActivity>;
 
       if (!mounted || loadToken != _briefingLoadToken) {
         return;
@@ -787,6 +844,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
       setState(() {
         _scheduleDashboard = schedules;
         _parkingDashboard = parking;
+        _recentScrapActivities = recentScrapActivities;
       });
     } catch (error) {
       if (mounted && loadToken == _briefingLoadToken) {
@@ -800,6 +858,28 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadRecentScrapActivities() async {
+    final loadToken = ++_briefingLoadToken;
+    final familyId = widget.family.id;
+
+    try {
+      final activities = await _apiClient.getRecentScrapActivities(
+        widget.sessionToken,
+        familyId: familyId,
+      );
+
+      if (!mounted || loadToken != _briefingLoadToken) {
+        return;
+      }
+
+      setState(() {
+        _recentScrapActivities = activities;
+      });
+    } catch (_) {
+      // The main home briefing remains usable if only recent scraps fail.
     }
   }
 
@@ -874,15 +954,12 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
           canSwitch: widget.families.length > 1,
           onPressed: widget.onSwitchFamily,
         ),
-        leading: CupertinoButton(
-          padding: EdgeInsets.zero,
-          minimumSize: const Size(32, 32),
-          onPressed: widget.onOpenFamilyManagement,
-          child: const Icon(CupertinoIcons.person_2),
-        ),
         trailing: _HomeNavigationTrailing(
           user: widget.user,
+          sessionToken: widget.sessionToken,
           familyCount: widget.families.length,
+          currentUserId: widget.user.id,
+          onGroupsChanged: widget.onGroupsChanged,
           onUpdateProfile: _updateProfile,
           onDeleteAccount: widget.onDeleteAccount,
           onLogout: widget.onLogout,
@@ -940,6 +1017,12 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                 dashboard: _parkingDashboard,
                 onPressed: widget.onOpenParking,
               ),
+              if (_recentScrapActivities.isNotEmpty)
+                _ScrapBriefingSection(
+                  activities: _recentScrapActivities,
+                  onPressed: widget.onOpenScraps,
+                  onActivityPressed: widget.onOpenScrapActivity,
+                ),
             ],
           ],
         ),
@@ -1107,6 +1190,113 @@ class _ParkingBriefingSection extends StatelessWidget {
   }
 }
 
+class _ScrapBriefingSection extends StatelessWidget {
+  const _ScrapBriefingSection({
+    required this.activities,
+    required this.onPressed,
+    required this.onActivityPressed,
+  });
+
+  final List<ScrapRecentActivity> activities;
+  final VoidCallback onPressed;
+  final void Function(ScrapRecentActivity activity) onActivityPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BriefingSection(
+      icon: CupertinoIcons.bookmark,
+      title: '최근 스크랩',
+      emptyText: '',
+      isEmpty: false,
+      onPressed: onPressed,
+      trailingActionLabel: '더 보기',
+      children: activities
+          .map(
+            (activity) => _ScrapBriefingTile(
+              activity: activity,
+              onPressed: () => onActivityPressed(activity),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _ScrapBriefingTile extends StatelessWidget {
+  const _ScrapBriefingTile({required this.activity, required this.onPressed});
+
+  final ScrapRecentActivity activity;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final activityLabel = activity.type == ScrapRecentActivityType.post
+        ? '글'
+        : '댓글';
+
+    return CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.zero,
+      onPressed: onPressed,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 11),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.darkPrimarySoft,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(
+                activity.type == ScrapRecentActivityType.post
+                    ? CupertinoIcons.doc_text
+                    : CupertinoIcons.chat_bubble,
+                color: AppColors.darkPrimary,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    activity.content,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$activityLabel · ${activity.channelName} · '
+                    '${activity.authorNickname} · ${_scrapActivityTimeText(activity.createdAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.darkTextSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BriefingSection extends StatelessWidget {
   const _BriefingSection({
     required this.icon,
@@ -1115,6 +1305,7 @@ class _BriefingSection extends StatelessWidget {
     required this.isEmpty,
     required this.onPressed,
     required this.children,
+    this.trailingActionLabel,
   });
 
   final IconData icon;
@@ -1123,6 +1314,7 @@ class _BriefingSection extends StatelessWidget {
   final bool isEmpty;
   final VoidCallback onPressed;
   final List<Widget> children;
+  final String? trailingActionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1155,11 +1347,22 @@ class _BriefingSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                const Icon(
-                  CupertinoIcons.chevron_forward,
-                  color: CupertinoColors.systemGrey3,
-                  size: 17,
-                ),
+                if (trailingActionLabel != null)
+                  Text(
+                    trailingActionLabel!,
+                    style: TextStyle(
+                      color: AppColors.darkPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                  )
+                else
+                  const Icon(
+                    CupertinoIcons.chevron_forward,
+                    color: CupertinoColors.systemGrey3,
+                    size: 17,
+                  ),
               ],
             ),
           ),
@@ -1405,6 +1608,22 @@ String _briefTimeText(DateTime value) {
   final minute = value.minute.toString().padLeft(2, '0');
 
   return '$hour:$minute';
+}
+
+String _scrapActivityTimeText(DateTime value) {
+  final now = DateTime.now();
+  final today = _dateOnly(now);
+  final target = _dateOnly(value);
+
+  if (_isSameDate(today, target)) {
+    return '${_twoDigits(value.hour)}:${_twoDigits(value.minute)}';
+  }
+
+  if (value.year == now.year) {
+    return '${value.month}.${value.day}';
+  }
+
+  return '${value.year}.${value.month}.${value.day}';
 }
 
 class _FamilyRequiredIntro extends StatelessWidget {
