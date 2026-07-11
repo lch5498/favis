@@ -221,7 +221,7 @@ class _EducationScreenState extends State<EducationScreen> {
 
     if (dashboard == null || dashboard.members.isEmpty) {
       setState(() {
-        _message = '학교/학원 일정을 등록할 가족 구성원이 필요합니다.';
+        _message = '반복 일정을 등록할 가족 구성원이 필요합니다.';
       });
       return;
     }
@@ -301,7 +301,7 @@ class _EducationScreenState extends State<EducationScreen> {
         if (mounted) {
           setState(() {
             _message = generatedScheduleCount == 0
-                ? '학교/학원 정보가 저장되었습니다.'
+                ? '반복 일정 정보가 저장되었습니다.'
                 : '$generatedScheduleCount개 일정이 캘린더에 반영되었습니다.';
           });
         }
@@ -324,7 +324,7 @@ class _EducationScreenState extends State<EducationScreen> {
       final confirmed = await showCupertinoDialog<bool>(
         context: context,
         builder: (dialogContext) => CupertinoAlertDialog(
-          title: Text('학교/학원 삭제'),
+          title: Text('반복 일정 삭제'),
           content: Text('${program.name}와 연결된 캘린더 일정을 삭제할까요?'),
           actions: [
             CupertinoDialogAction(
@@ -918,6 +918,7 @@ class _EducationProgramFormScreenState
       for (var weekOfMonth = 1; weekOfMonth <= 4; weekOfMonth++)
         weekOfMonth: _MonthlyRule(
           enabled: false,
+          dayOfMonth: 1,
           weekday: 1,
           startsAt: const TimeOfDayValue(hour: 15, minute: 0),
           endsAt: const TimeOfDayValue(hour: 16, minute: 0),
@@ -943,6 +944,7 @@ class _EducationProgramFormScreenState
     for (final schedule in program?.monthlySchedules ?? const []) {
       _monthlyRules[schedule.weekOfMonth] = _MonthlyRule(
         enabled: true,
+        dayOfMonth: schedule.dayOfMonth,
         weekday: schedule.weekday,
         startsAt: schedule.startsAt,
         endsAt: schedule.endsAt,
@@ -1240,6 +1242,36 @@ class _EducationProgramFormScreenState
     });
   }
 
+  Future<void> _pickMonthlyDay(int weekOfMonth) async {
+    final rule = _monthlyRules[weekOfMonth]!;
+    final selectedDay = await showCupertinoModalPopup<int>(
+      context: context,
+      builder: (popupContext) => CupertinoActionSheet(
+        title: const Text('매월 날짜'),
+        actions: [
+          for (var day = 1; day <= 31; day++)
+            CupertinoActionSheetAction(
+              isDefaultAction: day == rule.dayOfMonth,
+              onPressed: () => Navigator.of(popupContext).pop(day),
+              child: Text('매월 $day일'),
+            ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.of(popupContext).pop(),
+          child: const Text('취소'),
+        ),
+      ),
+    );
+
+    if (selectedDay == null) {
+      return;
+    }
+
+    setState(() {
+      _monthlyRules[weekOfMonth] = rule.copyWith(dayOfMonth: selectedDay);
+    });
+  }
+
   Future<void> _pickDate({required bool isStart}) async {
     final picked = await _showDatePicker(isStart ? _startsOn : _endsOn);
 
@@ -1471,6 +1503,7 @@ class _EducationProgramFormScreenState
           (entry) => EducationMonthlySchedule(
             weekOfMonth: entry.key,
             weekday: entry.value.weekday,
+            dayOfMonth: entry.value.dayOfMonth,
             startsAt: entry.value.startsAt,
             endsAt: entry.value.endsAt,
             vehicleBoardingTime: entry.value.vehicleBoardingTime,
@@ -1534,8 +1567,9 @@ class _EducationProgramFormScreenState
       if (_recurrenceType == EducationRecurrenceType.monthly)
         ...monthlySchedules.map(
           (schedule) => _RuleTimeCheck(
-            label:
-                '${_weekOfMonthLabels[schedule.weekOfMonth]} ${_weekdayLabels[schedule.weekday]}요일',
+            label: schedule.dayOfMonth == null
+                ? '${_weekOfMonthLabels[schedule.weekOfMonth]} ${_weekdayLabels[schedule.weekday]}요일'
+                : '매월 ${schedule.dayOfMonth}일',
             startsAt: schedule.startsAt,
             endsAt: schedule.endsAt,
           ),
@@ -1583,7 +1617,7 @@ class _EducationProgramFormScreenState
     final calendarApplyScope = needsCalendarApplyScope
         ? await _pickCalendarApplyScope(
             title: '캘린더 반영 범위',
-            message: '학교/학원 일정을 캘린더에 어느 범위로 반영할까요?',
+            message: '반복 일정을 캘린더에 어느 범위로 반영할까요?',
             allLabel: '전체 기간에 반영',
             futureLabel: '오늘 이후 일정에 반영',
           )
@@ -1610,7 +1644,7 @@ class _EducationProgramFormScreenState
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
         title: Text('구성원 선택'),
-        content: Text('학교/학원을 등록할 구성원을 선택해 주세요.'),
+        content: Text('반복 일정을 등록할 구성원을 선택해 주세요.'),
         actions: [
           CupertinoDialogAction(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -1728,7 +1762,7 @@ class _EducationProgramFormScreenState
     final confirmed = await showCupertinoDialog<bool>(
       context: context,
       builder: (dialogContext) => CupertinoAlertDialog(
-        title: Text('학교/학원 삭제'),
+        title: Text('반복 일정 삭제'),
         content: Text('${program.name}와 연결된 캘린더 일정을 삭제할까요?'),
         actions: [
           CupertinoDialogAction(
@@ -1776,7 +1810,7 @@ class _EducationProgramFormScreenState
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        middle: Text(widget.program == null ? '학교/학원 등록' : '학교/학원 수정'),
+        middle: Text(widget.program == null ? '반복 일정 등록' : '반복 일정 수정'),
         leading: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
@@ -1895,6 +1929,7 @@ class _EducationProgramFormScreenState
                         });
                       },
                       onPickWeekday: () => _pickMonthlyWeekday(weekOfMonth),
+                      onPickDay: () => _pickMonthlyDay(weekOfMonth),
                       onPickStart: () =>
                           _pickMonthlyRuleTime(weekOfMonth, isStart: true),
                       onPickEnd: () =>
@@ -1944,7 +1979,7 @@ class _DeleteProgramButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onPressed: onPressed,
         child: Text(
-          '학교/학원 삭제',
+          '반복 일정 삭제',
           style: TextStyle(
             color: CupertinoColors.destructiveRed,
             fontSize: 15,
@@ -2881,6 +2916,7 @@ class _MonthlyRuleRow extends StatelessWidget {
     required this.rule,
     required this.onToggle,
     required this.onPickWeekday,
+    required this.onPickDay,
     required this.onPickStart,
     required this.onPickEnd,
     required this.onPickBoarding,
@@ -2893,6 +2929,7 @@ class _MonthlyRuleRow extends StatelessWidget {
   final _MonthlyRule rule;
   final ValueChanged<bool> onToggle;
   final VoidCallback onPickWeekday;
+  final VoidCallback onPickDay;
   final VoidCallback onPickStart;
   final VoidCallback onPickEnd;
   final VoidCallback onPickBoarding;
@@ -2929,9 +2966,13 @@ class _MonthlyRuleRow extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     _SmallWeekdayButton(
-                      value: '${_weekdayLabels[rule.weekday]}요일',
+                      value: rule.dayOfMonth == null
+                          ? '${_weekdayLabels[rule.weekday]}요일'
+                          : '매월 ${rule.dayOfMonth}일',
                       enabled: rule.enabled,
-                      onPressed: onPickWeekday,
+                      onPressed: rule.dayOfMonth == null
+                          ? onPickWeekday
+                          : onPickDay,
                     ),
                   ],
                 ),
@@ -3257,6 +3298,7 @@ class _DayRule {
 class _MonthlyRule {
   const _MonthlyRule({
     required this.enabled,
+    required this.dayOfMonth,
     required this.weekday,
     required this.startsAt,
     required this.endsAt,
@@ -3265,6 +3307,7 @@ class _MonthlyRule {
   });
 
   final bool enabled;
+  final int? dayOfMonth;
   final int weekday;
   final TimeOfDayValue startsAt;
   final TimeOfDayValue endsAt;
@@ -3273,6 +3316,7 @@ class _MonthlyRule {
 
   _MonthlyRule copyWith({
     bool? enabled,
+    int? dayOfMonth,
     int? weekday,
     TimeOfDayValue? startsAt,
     TimeOfDayValue? endsAt,
@@ -3281,6 +3325,7 @@ class _MonthlyRule {
   }) {
     return _MonthlyRule(
       enabled: enabled ?? this.enabled,
+      dayOfMonth: dayOfMonth ?? this.dayOfMonth,
       weekday: weekday ?? this.weekday,
       startsAt: startsAt ?? this.startsAt,
       endsAt: endsAt ?? this.endsAt,
@@ -3384,7 +3429,7 @@ class _EmptyPrograms extends StatelessWidget {
         border: Border.all(color: AppColors.darkBorder),
       ),
       child: Text(
-        canManage ? '등록된 학교/학원이 없습니다. + 버튼으로 추가해 주세요.' : '등록된 학교/학원이 없습니다.',
+        canManage ? '등록된 반복 일정이 없습니다. + 버튼으로 추가해 주세요.' : '등록된 반복 일정이 없습니다.',
         style: TextStyle(
           color: AppColors.darkTextSecondary,
           fontSize: 15,
@@ -3410,7 +3455,7 @@ class _EmptyFilteredPrograms extends StatelessWidget {
         border: Border.all(color: AppColors.darkBorder),
       ),
       child: Text(
-        '선택한 구성원의 학교/학원이 없습니다.',
+        '선택한 구성원의 반복 일정이 없습니다.',
         style: TextStyle(
           color: AppColors.darkTextSecondary,
           fontSize: 15,
@@ -3533,6 +3578,7 @@ bool _sameMonthlySchedules(
 
     if (leftSchedule.weekOfMonth != rightSchedule.weekOfMonth ||
         leftSchedule.weekday != rightSchedule.weekday ||
+        leftSchedule.dayOfMonth != rightSchedule.dayOfMonth ||
         !_sameTimeOfDay(leftSchedule.startsAt, rightSchedule.startsAt) ||
         !_sameTimeOfDay(leftSchedule.endsAt, rightSchedule.endsAt) ||
         !_sameOptionalTimeOfDay(
@@ -3782,8 +3828,9 @@ class _EducationScheduleSummary {
     ];
     final scheduleText = schedules
         .map(
-          (entry) =>
-              '${_weekOfMonthLabels[entry.weekOfMonth]} ${_weekdayLabels[entry.weekday]}',
+          (entry) => entry.dayOfMonth == null
+              ? '${_weekOfMonthLabels[entry.weekOfMonth]} ${_weekdayLabels[entry.weekday]}요일'
+              : '${entry.dayOfMonth}일',
         )
         .join(',');
 

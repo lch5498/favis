@@ -24,6 +24,7 @@ export type EducationRecurrenceType = 'weekly' | 'monthly';
 export type EducationMonthlySchedule = {
   weekOfMonth: number;
   weekday: number;
+  dayOfMonth?: number | null;
   startsAt: string;
   endsAt: string;
   vehicleBoardingTime: string | null;
@@ -363,18 +364,14 @@ function generateSchedules(
   const weeklySchedulesByWeekday = new Map(
     input.weeklySchedules.map((schedule) => [schedule.weekday, schedule]),
   );
-  const monthlySchedulesByDateKey = new Map(
-    input.monthlySchedules.map((schedule) => [
-      monthlyScheduleDateKey(schedule.weekOfMonth, schedule.weekday),
-      schedule,
-    ]),
-  );
-
   for (let cursor = new Date(start); cursor.getTime() <= end.getTime(); cursor = addDays(cursor, 1)) {
     const rule =
       input.recurrenceType === 'monthly'
-        ? monthlySchedulesByDateKey.get(
-            monthlyScheduleDateKey(weekOfMonth(cursor), cursor.getUTCDay()),
+        ? input.monthlySchedules.find((schedule) =>
+            schedule.dayOfMonth != null
+              ? cursor.getUTCDate() === schedule.dayOfMonth
+              : monthlyScheduleDateKey(weekOfMonth(cursor), cursor.getUTCDay()) ===
+                  monthlyScheduleDateKey(schedule.weekOfMonth, schedule.weekday),
           )
         : weeklySchedulesByWeekday.get(cursor.getUTCDay());
 
@@ -515,10 +512,14 @@ function normalizeMonthlySchedules(value: EducationMonthlySchedule[] | undefined
     throw new HttpError(400, { error: 'invalid_payload', field: 'monthlySchedules' });
   }
 
-  const seen = new Set<number>();
+  const seen = new Set<string>();
 
   return value
     .map((schedule) => {
+      const dayOfMonth =
+        schedule.dayOfMonth === undefined || schedule.dayOfMonth === null
+          ? null
+          : Number(schedule.dayOfMonth);
       const weekOfMonth = Number(schedule.weekOfMonth);
       const weekday = Number(schedule.weekday);
       const startsAt = normalizeTime(schedule.startsAt, 'startsAt');
@@ -532,28 +533,42 @@ function normalizeMonthlySchedules(value: EducationMonthlySchedule[] | undefined
         'vehicleDropoffTime',
       );
 
-      if (
-        !Number.isInteger(weekOfMonth) ||
-        weekOfMonth < 1 ||
-        weekOfMonth > 4 ||
-        seen.has(weekOfMonth)
-      ) {
-        throw new HttpError(400, { error: 'invalid_payload', field: 'weekOfMonth' });
-      }
+      if (dayOfMonth !== null) {
+        if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) {
+          throw new HttpError(400, { error: 'invalid_payload', field: 'dayOfMonth' });
+        }
+      } else {
+        if (
+          !Number.isInteger(weekOfMonth) ||
+          weekOfMonth < 1 ||
+          weekOfMonth > 4
+        ) {
+          throw new HttpError(400, { error: 'invalid_payload', field: 'weekOfMonth' });
+        }
 
-      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
-        throw new HttpError(400, { error: 'invalid_payload', field: 'weekday' });
+        if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+          throw new HttpError(400, { error: 'invalid_payload', field: 'weekday' });
+        }
       }
 
       if (timeToMinutes(endsAt) < timeToMinutes(startsAt)) {
         throw new HttpError(400, { error: 'invalid_payload', field: 'endsAt' });
       }
 
-      seen.add(weekOfMonth);
+      const duplicateKey = dayOfMonth === null
+        ? monthlyScheduleDateKey(weekOfMonth, weekday)
+        : `day:${dayOfMonth}`;
+
+      if (seen.has(duplicateKey)) {
+        throw new HttpError(400, { error: 'invalid_payload', field: 'monthlySchedules' });
+      }
+
+      seen.add(duplicateKey);
 
       return {
         weekOfMonth,
         weekday,
+        dayOfMonth,
         startsAt,
         endsAt,
         vehicleBoardingTime,

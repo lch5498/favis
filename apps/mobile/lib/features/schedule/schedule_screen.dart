@@ -2027,7 +2027,7 @@ class _ScheduleDetailScreen extends StatelessWidget {
                   _DetailDivider(),
                   _DetailRow(
                     icon: CupertinoIcons.building_2_fill,
-                    label: '학교/학원',
+                    label: '반복 일정',
                     value: schedule.educationProgramName ?? '선택 안 함',
                   ),
                   if (schedule.educationProgramPhoneContacts.isNotEmpty) ...[
@@ -2344,7 +2344,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
     final selectedId = await showCupertinoModalPopup<String>(
       context: context,
       builder: (popupContext) => CupertinoActionSheet(
-        title: Text('학교/학원 템플릿'),
+        title: Text('반복 일정 템플릿'),
         actions: [
           CupertinoActionSheetAction(
             isDefaultAction: _educationProgramId == null,
@@ -2542,7 +2542,7 @@ class _ScheduleFormScreenState extends State<_ScheduleFormScreen> {
                 if (selectedMemberEducationPrograms.isNotEmpty) ...[
                   _FormDivider(),
                   _PickerRow(
-                    label: '학교/학원',
+                    label: '반복 일정',
                     value: selectedEducationProgram?.name ?? '선택 안 함',
                     onPressed: _pickEducationProgram,
                   ),

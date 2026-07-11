@@ -2914,6 +2914,7 @@ class EducationMonthlySchedule {
   const EducationMonthlySchedule({
     required this.weekOfMonth,
     required this.weekday,
+    required this.dayOfMonth,
     required this.startsAt,
     required this.endsAt,
     required this.vehicleBoardingTime,
@@ -2922,6 +2923,7 @@ class EducationMonthlySchedule {
 
   final int weekOfMonth;
   final int weekday;
+  final int? dayOfMonth;
   final TimeOfDayValue startsAt;
   final TimeOfDayValue endsAt;
   final TimeOfDayValue? vehicleBoardingTime;
@@ -2931,6 +2933,7 @@ class EducationMonthlySchedule {
     return EducationMonthlySchedule(
       weekOfMonth: json['weekOfMonth'] as int,
       weekday: json['weekday'] as int,
+      dayOfMonth: json['dayOfMonth'] as int?,
       startsAt: TimeOfDayValue.parse(json['startsAt'] as String),
       endsAt: TimeOfDayValue.parse(json['endsAt'] as String),
       vehicleBoardingTime: _parseOptionalTimeOfDayValue(
@@ -2946,6 +2949,7 @@ class EducationMonthlySchedule {
     return {
       'weekOfMonth': weekOfMonth,
       'weekday': weekday,
+      'dayOfMonth': dayOfMonth,
       'startsAt': startsAt.toApiString(),
       'endsAt': endsAt.toApiString(),
       'vehicleBoardingTime': vehicleBoardingTime?.toApiString(),

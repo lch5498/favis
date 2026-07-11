@@ -140,7 +140,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
     return CupertinoPageScaffold(
       backgroundColor: AppColors.darkBackground,
       navigationBar: CupertinoNavigationBar(
-        middle: Text('가족 관리'),
+        middle: Text('그룹 관리'),
         trailing: CupertinoButton(
           padding: EdgeInsets.zero,
           minimumSize: const Size(32, 32),
@@ -154,7 +154,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
           children: [
             Text(
-              '가족을 만들고 구성원을 초대하세요.',
+              '그룹을 만들고 구성원을 초대하세요.',
               style: TextStyle(
                 color: AppColors.darkTextPrimary,
                 fontSize: 24,
@@ -165,7 +165,7 @@ class _FamilyScreenState extends State<FamilyScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              '대표는 가족 안의 추가, 수정, 삭제를 할 수 있고 구성원은 조회만 할 수 있습니다.',
+              '대표는 그룹 내 추가, 수정, 삭제를 할 수 있고 구성원은 조회만 할 수 있습니다.',
               style: TextStyle(
                 color: AppColors.darkTextSecondary,
                 fontSize: 16,
