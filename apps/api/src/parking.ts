@@ -45,6 +45,8 @@ export type ParkingRecord = {
   } | null;
 };
 
+const maxParkingHistoryPerVehicle = 10;
+
 type MembershipCheckOptions = {
   skipMembershipCheck?: boolean;
 };
@@ -337,6 +339,31 @@ export async function createParkingRecord(
   }
 
   return data as ParkingRecord;
+}
+
+export async function listParkingHistory(
+  userId: string,
+  familyId: string,
+  vehicleId: string,
+) {
+  await requireMembership(userId, familyId);
+  await getVehicleOrThrow(familyId, vehicleId);
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('parking_records')
+    .select(parkingRecordSelect)
+    .eq('family_id', familyId)
+    .eq('vehicle_id', vehicleId)
+    .order('parked_at', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(maxParkingHistoryPerVehicle);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []) as ParkingRecord[];
 }
 
 async function listCurrentParkingRecords(familyId: string) {

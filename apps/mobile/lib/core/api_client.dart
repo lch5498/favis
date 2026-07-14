@@ -449,6 +449,23 @@ class ApiClient {
     return ParkingRecord.fromJson(json['record'] as Map<String, Object?>);
   }
 
+  Future<List<ParkingRecord>> getParkingHistory(
+    String sessionToken, {
+    required String familyId,
+    required String vehicleId,
+  }) async {
+    final path = Uri(
+      path: '/api/mobile/families/$familyId/parking/records',
+      queryParameters: {'vehicleId': vehicleId},
+    ).toString();
+    final json = await _requestJson('GET', path, bearerToken: sessionToken);
+    final records = json['records'] as List<Object?>? ?? const [];
+
+    return records
+        .map((record) => ParkingRecord.fromJson(record as Map<String, Object?>))
+        .toList();
+  }
+
   Future<ScheduleDashboard> getScheduleDashboard(
     String sessionToken, {
     required String familyId,

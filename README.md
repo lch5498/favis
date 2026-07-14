@@ -740,6 +740,14 @@ GET /api/mobile/families/<familyId>/parking
 
 응답에는 차량 목록, 주차 위치 즐겨찾기, 차량별 최신 주차 위치, 쓰기 가능 여부가 포함됩니다.
 
+차량별 주차 기록 조회:
+
+```http
+GET /api/mobile/families/<familyId>/parking/records?vehicleId=<vehicleId>
+```
+
+차량마다 최근 주차 기록 10개를 최신순으로 반환합니다. 새 기록이 추가되면 가장 오래된 기록은 자동으로 정리됩니다.
+
 차량 등록:
 
 ```http

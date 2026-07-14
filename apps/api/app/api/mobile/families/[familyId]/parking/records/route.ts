@@ -1,4 +1,7 @@
-import { createParkingRecord } from '../../../../../../../src/parking';
+import {
+  createParkingRecord,
+  listParkingHistory,
+} from '../../../../../../../src/parking';
 import { HttpError, jsonFromError } from '../../../../../../../src/http';
 import { authenticateMobileRequest } from '../../../../../../../src/mobile-auth';
 import {
@@ -14,6 +17,24 @@ type RouteContext = {
     familyId: string;
   }>;
 };
+
+export async function GET(request: Request, context: RouteContext) {
+  try {
+    const userId = authenticateMobileRequest(request);
+    const { familyId } = await context.params;
+    const vehicleId = new URL(request.url).searchParams.get('vehicleId')?.trim();
+
+    if (!vehicleId) {
+      throw new HttpError(400, { error: 'invalid_payload', field: 'vehicleId' });
+    }
+
+    const records = await listParkingHistory(userId, familyId, vehicleId);
+
+    return Response.json({ records });
+  } catch (error) {
+    return jsonFromError(error, 'parking_history_fetch_failed');
+  }
+}
 
 export async function POST(request: Request, context: RouteContext) {
   try {

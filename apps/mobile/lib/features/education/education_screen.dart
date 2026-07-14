@@ -3167,54 +3167,44 @@ class _MonthlyRuleRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _AlignedRuleTimeLine(
-                        label: '일정',
-                        startValue: _timeOfDayLabel(rule.startsAt),
-                        endValue: _timeOfDayLabel(rule.endsAt),
-                        onPickStart: rule.enabled ? onPickStart : null,
-                        onPickEnd: rule.enabled ? onPickEnd : null,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    _SmallWeekdayButton(
-                      width: selectorWidth,
-                      value: isDayOfMonth
-                          ? '매월 ${rule.dayOfMonth}일'
-                          : '${_weekdayLabels[rule.weekday]}요일',
-                      enabled: rule.enabled,
-                      onPressed: isDayOfMonth ? onPickDay : onPickWeekday,
-                    ),
-                  ],
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _SmallWeekdayButton(
+                    width: selectorWidth,
+                    value: isDayOfMonth
+                        ? '매월 ${rule.dayOfMonth}일'
+                        : '${_weekdayLabels[rule.weekday]}요일',
+                    enabled: rule.enabled,
+                    onPressed: isDayOfMonth ? onPickDay : onPickWeekday,
+                  ),
                 ),
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _AlignedRuleTimeLine(
-                        label: '차량',
-                        startValue: rule.vehicleBoardingTime == null
-                            ? '탑승'
-                            : _timeOfDayLabel(rule.vehicleBoardingTime!),
-                        endValue: rule.vehicleDropoffTime == null
-                            ? '하차'
-                            : _timeOfDayLabel(rule.vehicleDropoffTime!),
-                        onPickStart: rule.enabled ? onPickBoarding : null,
-                        onPickEnd: rule.enabled ? onPickDropoff : null,
-                        onClearStart: rule.vehicleBoardingTime != null
-                            ? onClearBoarding
-                            : null,
-                        onClearEnd: rule.vehicleDropoffTime != null
-                            ? onClearDropoff
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    SizedBox(width: selectorWidth, height: 32),
-                  ],
+                _AlignedRuleTimeLine(
+                  label: '시간',
+                  startValue: _timeOfDayLabel(rule.startsAt),
+                  endValue: _timeOfDayLabel(rule.endsAt),
+                  onPickStart: rule.enabled ? onPickStart : null,
+                  onPickEnd: rule.enabled ? onPickEnd : null,
+                ),
+                const SizedBox(height: 6),
+                _AlignedRuleTimeLine(
+                  label: '차량',
+                  startValue: rule.vehicleBoardingTime == null
+                      ? '탑승'
+                      : _timeOfDayLabel(rule.vehicleBoardingTime!),
+                  endValue: rule.vehicleDropoffTime == null
+                      ? '하차'
+                      : _timeOfDayLabel(rule.vehicleDropoffTime!),
+                  onPickStart: rule.enabled ? onPickBoarding : null,
+                  onPickEnd: rule.enabled ? onPickDropoff : null,
+                  onClearStart: rule.vehicleBoardingTime != null
+                      ? onClearBoarding
+                      : null,
+                  onClearEnd: rule.vehicleDropoffTime != null
+                      ? onClearDropoff
+                      : null,
                 ),
               ],
             ),

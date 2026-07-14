@@ -250,6 +250,18 @@ class _ParkingScreenState extends State<ParkingScreen> {
     }
   }
 
+  Future<void> _openParkingHistory(Vehicle vehicle) async {
+    await Navigator.of(context).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => ParkingHistoryScreen(
+          family: _family,
+          vehicle: vehicle,
+          sessionToken: widget.sessionToken,
+        ),
+      ),
+    );
+  }
+
   Future<bool> _confirm({
     required String title,
     required String message,
@@ -393,6 +405,7 @@ class _ParkingScreenState extends State<ParkingScreen> {
                       .contains(vehicle.id),
                   canManage: dashboard.canManage,
                   onRegisterLocation: () => _registerParkingLocation(vehicle),
+                  onOpenHistory: () => _openParkingHistory(vehicle),
                   onEdit: () => _openVehicleForm(vehicle: vehicle),
                   onDelete: () => _deleteVehicle(vehicle),
                 ),
@@ -1139,6 +1152,7 @@ class _VehicleCard extends StatelessWidget {
     required this.isRegisteringLocation,
     required this.canManage,
     required this.onRegisterLocation,
+    required this.onOpenHistory,
     required this.onEdit,
     required this.onDelete,
   });
@@ -1148,6 +1162,7 @@ class _VehicleCard extends StatelessWidget {
   final bool isRegisteringLocation;
   final bool canManage;
   final VoidCallback onRegisterLocation;
+  final VoidCallback onOpenHistory;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -1274,6 +1289,32 @@ class _VehicleCard extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 8),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+            minimumSize: const Size(44, 34),
+            onPressed: onOpenHistory,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  CupertinoIcons.clock,
+                  size: 16,
+                  color: AppColors.darkPrimary,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '이전 주차 이력 보기',
+                  style: TextStyle(
+                    color: AppColors.darkPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
           if (canManage) ...[
             const SizedBox(height: 12),
             Row(
@@ -1315,6 +1356,190 @@ class _VehicleCard extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class ParkingHistoryScreen extends StatefulWidget {
+  const ParkingHistoryScreen({
+    super.key,
+    required this.family,
+    required this.vehicle,
+    required this.sessionToken,
+  });
+
+  final AppFamily family;
+  final Vehicle vehicle;
+  final String sessionToken;
+
+  @override
+  State<ParkingHistoryScreen> createState() => _ParkingHistoryScreenState();
+}
+
+class _ParkingHistoryScreenState extends State<ParkingHistoryScreen> {
+  final _apiClient = ApiClient();
+
+  List<ParkingRecord> _records = const [];
+  String? _message;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() {
+      _isLoading = true;
+      _message = null;
+    });
+
+    try {
+      final records = await _apiClient.getParkingHistory(
+        widget.sessionToken,
+        familyId: widget.family.id,
+        vehicleId: widget.vehicle.id,
+      );
+
+      if (mounted) {
+        setState(() {
+          _records = records;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _message = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CupertinoPageScaffold(
+      backgroundColor: AppColors.darkBackground,
+      navigationBar: CupertinoNavigationBar(
+        middle: Text('${widget.vehicle.nickname} 주차 기록'),
+      ),
+      child: SafeArea(
+        child: _isLoading
+            ? const Center(child: CupertinoActivityIndicator())
+            : RefreshableScrollView(
+                onRefresh: _loadHistory,
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                children: [
+                  Text(
+                    '최근 10개 기록을 보여줍니다.',
+                    style: TextStyle(
+                      color: AppColors.darkTextMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_message != null)
+                    _InlineMessage(message: _message!)
+                  else if (_records.isEmpty)
+                    const _ParkingHistoryEmptyState()
+                  else
+                    ..._records.map(
+                      (record) => _ParkingHistoryTile(record: record),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _ParkingHistoryTile extends StatelessWidget {
+  const _ParkingHistoryTile({required this.record});
+
+  final ParkingRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.darkBorder)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.darkPrimarySoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              CupertinoIcons.location_solid,
+              color: AppColors.darkPrimary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record.locationText,
+                  style: TextStyle(
+                    color: AppColors.darkTextPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${record.createdByNickname} · ${_parkingUpdatedAtLabel(record.parkedAt)}',
+                  style: TextStyle(
+                    color: AppColors.darkTextSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ParkingHistoryEmptyState extends StatelessWidget {
+  const _ParkingHistoryEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 96),
+      child: Center(
+        child: Text(
+          '아직 주차 기록이 없습니다.',
+          style: TextStyle(
+            color: AppColors.darkTextSecondary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
       ),
     );
   }
