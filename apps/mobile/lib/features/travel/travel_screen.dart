@@ -3209,28 +3209,13 @@ class _ItineraryCard extends StatelessWidget {
               ),
               if (hasMapLink)
                 CupertinoButton(
-                  padding: const EdgeInsets.only(left: 8),
-                  minimumSize: const Size(40, 32),
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(32, 32),
                   onPressed: _openMap,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        CupertinoIcons.location_solid,
-                        color: AppColors.darkPrimary,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '지도',
-                        style: TextStyle(
-                          color: AppColors.darkPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0,
-                        ),
-                      ),
-                    ],
+                  child: Icon(
+                    CupertinoIcons.location_solid,
+                    color: AppColors.darkPrimary,
+                    size: 17,
                   ),
                 ),
               if (onPressed != null)
@@ -4150,7 +4135,7 @@ Future<TimeOfDayValue?> _showTimePicker(
                 child: CupertinoDatePicker(
                   mode: CupertinoDatePickerMode.time,
                   initialDateTime: selected,
-                  use24hFormat: false,
+                  use24hFormat: true,
                   minuteInterval: 1,
                   onDateTimeChanged: (value) {
                     selected = value;
@@ -4299,9 +4284,7 @@ String _weekdayLabel(DateTime value) {
 }
 
 String _formatTime(TimeOfDayValue value) {
-  final isAm = value.hour < 12;
-  final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
-  return '${isAm ? '오전' : '오후'} $hour:${_twoDigits(value.minute)}';
+  return '${_twoDigits(value.hour)}:${_twoDigits(value.minute)}';
 }
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
