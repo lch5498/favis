@@ -54,6 +54,20 @@ export function optionalString(
   return requiredString(payload, key, options);
 }
 
+export function optionalBoolean(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (typeof value !== 'boolean') {
+    throw new HttpError(400, { error: 'invalid_payload', field: key });
+  }
+
+  return value;
+}
+
 export function requiredFamilyRole(payload: Record<string, unknown>, key: string) {
   const role = requiredString(payload, key);
 

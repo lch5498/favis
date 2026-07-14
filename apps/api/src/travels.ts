@@ -304,7 +304,12 @@ export async function updateTravelTrip(
   userId: string,
   familyId: string,
   tripId: string,
-  input: { title: string; startsOn: string; endsOn: string },
+  input: {
+    title: string;
+    startsOn: string;
+    endsOn: string;
+    deleteOutOfRangeItineraries?: boolean;
+  },
 ) {
   await requireMembership(userId, familyId);
   await getTripOrThrow(familyId, tripId);
@@ -322,7 +327,7 @@ export async function updateTravelTrip(
       itinerary.itinerary_date < startsOn || itinerary.itinerary_date > endsOn,
   );
 
-  if (outOfRangeItinerary) {
+  if (outOfRangeItinerary && !input.deleteOutOfRangeItineraries) {
     throw new HttpError(400, {
       error: 'travel_trip_date_range_has_itineraries',
       field: 'startsOn',
@@ -344,6 +349,25 @@ export async function updateTravelTrip(
 
   if (error) {
     throw error;
+  }
+
+  if (outOfRangeItinerary) {
+    const outOfRangeItineraryIds = itineraries
+      .filter(
+        (itinerary) =>
+          itinerary.itinerary_date < startsOn ||
+          itinerary.itinerary_date > endsOn,
+      )
+      .map((itinerary) => itinerary.id);
+    const { error: deleteError } = await supabase
+      .from('travel_itineraries')
+      .delete()
+      .eq('family_id', familyId)
+      .in('id', outOfRangeItineraryIds);
+
+    if (deleteError) {
+      throw deleteError;
+    }
   }
 
   return data as TravelTrip;

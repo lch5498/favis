@@ -5,7 +5,11 @@ import {
 } from '../../../../../../../src/travels';
 import { jsonFromError } from '../../../../../../../src/http';
 import { authenticateMobileRequest } from '../../../../../../../src/mobile-auth';
-import { readJsonObject, requiredString } from '../../../../../../../src/validation';
+import {
+  optionalBoolean,
+  readJsonObject,
+  requiredString,
+} from '../../../../../../../src/validation';
 
 export const runtime = 'nodejs';
 
@@ -37,6 +41,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       title: requiredString(payload, 'title', { maxLength: 80 }),
       startsOn: requiredString(payload, 'startsOn'),
       endsOn: requiredString(payload, 'endsOn'),
+      deleteOutOfRangeItineraries:
+        optionalBoolean(payload, 'deleteOutOfRangeItineraries') ?? false,
     });
 
     return Response.json(trip);

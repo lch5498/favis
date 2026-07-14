@@ -1122,6 +1122,7 @@ class ApiClient {
     required String title,
     required DateTime startsOn,
     required DateTime endsOn,
+    bool deleteOutOfRangeItineraries = false,
   }) async {
     final json = await _requestJson(
       'PATCH',
@@ -1131,6 +1132,7 @@ class ApiClient {
         'title': title,
         'startsOn': _dateOnlyString(startsOn),
         'endsOn': _dateOnlyString(endsOn),
+        'deleteOutOfRangeItineraries': deleteOutOfRangeItineraries,
       },
     );
 

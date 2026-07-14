@@ -974,11 +974,13 @@ class TravelDetailScreen extends StatefulWidget {
     required this.family,
     required this.sessionToken,
     required this.trip,
+    this.initialChecklist = false,
   });
 
   final AppFamily family;
   final String sessionToken;
   final TravelTrip trip;
+  final bool initialChecklist;
 
   @override
   State<TravelDetailScreen> createState() => _TravelDetailScreenState();
@@ -993,11 +995,14 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   List<TravelItinerary>? _dragSnapshot;
   bool _dropAccepted = false;
   bool _isLoading = true;
-  _TravelDetailTab _selectedTab = _TravelDetailTab.schedule;
+  late _TravelDetailTab _selectedTab;
 
   @override
   void initState() {
     super.initState();
+    _selectedTab = widget.initialChecklist
+        ? _TravelDetailTab.checklist
+        : _TravelDetailTab.schedule;
     _loadTrip();
   }
 
@@ -1063,6 +1068,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
           familyId: widget.family.id,
           sessionToken: widget.sessionToken,
           trip: trip,
+          itineraries: detail?.itineraries ?? const [],
         ),
       ),
     );
@@ -1842,11 +1848,13 @@ class _TravelTripFormScreen extends StatefulWidget {
     required this.familyId,
     required this.sessionToken,
     this.trip,
+    this.itineraries = const [],
   });
 
   final String familyId;
   final String sessionToken;
   final TravelTrip? trip;
+  final List<TravelItinerary> itineraries;
 
   @override
   State<_TravelTripFormScreen> createState() => _TravelTripFormScreenState();
@@ -1913,13 +1921,55 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
       return;
     }
 
+    final existing = widget.trip;
+    final isDateRangeChanged =
+        existing != null &&
+        (!_isSameDate(existing.startsOn, _startsOn) ||
+            !_isSameDate(existing.endsOn, _endsOn));
+    final outOfRangeItineraries = !isDateRangeChanged
+        ? const <TravelItinerary>[]
+        : widget.itineraries
+              .where(
+                (itinerary) =>
+                    itinerary.itineraryDate.isBefore(_startsOn) ||
+                    itinerary.itineraryDate.isAfter(_endsOn),
+              )
+              .toList();
+
+    if (outOfRangeItineraries.isNotEmpty) {
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (context) => CupertinoAlertDialog(
+          title: const Text('여행 일정을 확인해 주세요'),
+          content: Text(
+            '변경한 여행 기간 밖에 일정이 ${outOfRangeItineraries.length}개 있습니다. '
+            '기간을 수정하면 해당 일정이 삭제됩니다.',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('취소'),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('기간 수정'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true || !mounted) {
+        return;
+      }
+    }
+
     setState(() {
       _isSaving = true;
       _message = null;
     });
 
     try {
-      final existing = widget.trip;
       final trip = existing == null
           ? await _apiClient.createTravelTrip(
               widget.sessionToken,
@@ -1935,6 +1985,7 @@ class _TravelTripFormScreenState extends State<_TravelTripFormScreen> {
               title: title,
               startsOn: _startsOn,
               endsOn: _endsOn,
+              deleteOutOfRangeItineraries: outOfRangeItineraries.isNotEmpty,
             );
 
       if (mounted) {

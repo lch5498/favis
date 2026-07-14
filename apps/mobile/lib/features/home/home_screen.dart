@@ -783,6 +783,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
   ScheduleDashboard? _scheduleDashboard;
   ParkingDashboard? _parkingDashboard;
+  TravelDashboard? _travelDashboard;
   List<ScrapRecentActivity> _recentScrapActivities = const [];
   String? _message;
   bool _isLoading = true;
@@ -807,7 +808,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     if (_isLoading) {
       _loadBriefing();
     } else {
-      _loadRecentScrapActivities();
+      _loadHomeSecondaryBriefing();
     }
   }
 
@@ -821,6 +822,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
       setState(() {
         _scheduleDashboard = null;
         _parkingDashboard = null;
+        _travelDashboard = null;
         _recentScrapActivities = const [];
         _scheduleDate = _dateOnly(DateTime.now());
         _isLoading = true;
@@ -857,10 +859,12 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
           widget.sessionToken,
           familyId: familyId,
         ),
+        _apiClient.getTravelDashboard(widget.sessionToken, familyId: familyId),
       ]);
       final schedules = results[0] as ScheduleDashboard;
       final parking = results[1] as ParkingDashboard;
       final recentScrapActivities = results[2] as List<ScrapRecentActivity>;
+      final travel = results[3] as TravelDashboard;
 
       if (!mounted || loadToken != _briefingLoadToken) {
         return;
@@ -870,6 +874,7 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
         _scheduleDashboard = schedules;
         _parkingDashboard = parking;
         _recentScrapActivities = recentScrapActivities;
+        _travelDashboard = travel;
       });
     } catch (error) {
       if (mounted && loadToken == _briefingLoadToken) {
@@ -886,15 +891,20 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
     }
   }
 
-  Future<void> _loadRecentScrapActivities() async {
+  Future<void> _loadHomeSecondaryBriefing() async {
     final loadToken = ++_briefingLoadToken;
     final familyId = widget.family.id;
 
     try {
-      final activities = await _apiClient.getRecentScrapActivities(
-        widget.sessionToken,
-        familyId: familyId,
-      );
+      final results = await Future.wait([
+        _apiClient.getRecentScrapActivities(
+          widget.sessionToken,
+          familyId: familyId,
+        ),
+        _apiClient.getTravelDashboard(widget.sessionToken, familyId: familyId),
+      ]);
+      final activities = results[0] as List<ScrapRecentActivity>;
+      final travel = results[1] as TravelDashboard;
 
       if (!mounted || loadToken != _briefingLoadToken) {
         return;
@@ -902,10 +912,24 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
       setState(() {
         _recentScrapActivities = activities;
+        _travelDashboard = travel;
       });
     } catch (_) {
-      // The main home briefing remains usable if only recent scraps fail.
+      // The main home briefing remains usable if secondary content fails.
     }
+  }
+
+  void _openTravelDetail(TravelTrip trip, {bool initialChecklist = false}) {
+    Navigator.of(context, rootNavigator: true).push(
+      CupertinoPageRoute<void>(
+        builder: (_) => TravelDetailScreen(
+          family: widget.family,
+          sessionToken: widget.sessionToken,
+          trip: trip,
+          initialChecklist: initialChecklist,
+        ),
+      ),
+    );
   }
 
   Future<AppUser> _updateProfile(
@@ -972,6 +996,8 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
   @override
   Widget build(BuildContext context) {
+    final upcomingTrips = _upcomingTrips(_travelDashboard?.trips ?? const []);
+
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
         leading: _HomeNotificationButton(sessionToken: widget.sessionToken),
@@ -1043,6 +1069,13 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
                 dashboard: _parkingDashboard,
                 onPressed: widget.onOpenParking,
               ),
+              if (upcomingTrips.isNotEmpty)
+                _TravelBriefingSection(
+                  trips: upcomingTrips,
+                  onPressed: () => _openTravelDetail(upcomingTrips.first),
+                  onChecklistPressed: (trip) =>
+                      _openTravelDetail(trip, initialChecklist: true),
+                ),
               if (_recentScrapActivities.isNotEmpty)
                 _ScrapBriefingSection(
                   activities: _recentScrapActivities,
@@ -1212,6 +1245,144 @@ class _ParkingBriefingSection extends StatelessWidget {
             ),
           )
           .toList(),
+    );
+  }
+}
+
+class _TravelBriefingSection extends StatelessWidget {
+  const _TravelBriefingSection({
+    required this.trips,
+    required this.onPressed,
+    required this.onChecklistPressed,
+  });
+
+  final List<TravelTrip> trips;
+  final VoidCallback onPressed;
+  final void Function(TravelTrip trip) onChecklistPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return _BriefingSection(
+      icon: CupertinoIcons.airplane,
+      title: '다가오는 여행',
+      emptyText: '',
+      isEmpty: false,
+      onPressed: onPressed,
+      trailingActionLabel: '여행 보기',
+      children: trips
+          .map(
+            (trip) => _TravelBriefingTile(
+              trip: trip,
+              onChecklistPressed: () => onChecklistPressed(trip),
+            ),
+          )
+          .toList(),
+    );
+  }
+}
+
+class _TravelBriefingTile extends StatelessWidget {
+  const _TravelBriefingTile({
+    required this.trip,
+    required this.onChecklistPressed,
+  });
+
+  final TravelTrip trip;
+  final VoidCallback onChecklistPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.darkPrimarySoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              CupertinoIcons.airplane,
+              color: AppColors.darkPrimary,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        trip.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.darkTextPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _travelCountdownText(trip.startsOn),
+                      style: TextStyle(
+                        color: AppColors.darkPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _travelDateText(trip),
+                  style: TextStyle(
+                    color: AppColors.darkTextSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                CupertinoButton(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  onPressed: onChecklistPressed,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        CupertinoIcons.checkmark_alt_circle,
+                        color: AppColors.darkPrimary,
+                        size: 15,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '체크리스트로 가기',
+                        style: TextStyle(
+                          color: AppColors.darkPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1594,6 +1765,39 @@ Map<String, MemberFilterColor> _homeMemberColors(List<FamilyMember> members) {
           MemberFilterColor.fromValue(members[index].color) ??
           MemberFilterColor.values[index % MemberFilterColor.values.length],
   };
+}
+
+List<TravelTrip> _upcomingTrips(List<TravelTrip> trips) {
+  final today = _dateOnly(DateTime.now());
+  final upcomingTrips = trips.where((trip) {
+    final startsOn = _dateOnly(trip.startsOn);
+    final daysUntilStart = startsOn.difference(today).inDays;
+
+    return daysUntilStart >= 0 && daysUntilStart <= 7;
+  }).toList();
+
+  upcomingTrips.sort((a, b) => a.startsOn.compareTo(b.startsOn));
+  return upcomingTrips;
+}
+
+String _travelCountdownText(DateTime startsOn) {
+  final daysUntilStart = _dateOnly(
+    startsOn,
+  ).difference(_dateOnly(DateTime.now())).inDays;
+
+  return daysUntilStart == 0 ? 'D-Day' : 'D-$daysUntilStart';
+}
+
+String _travelDateText(TravelTrip trip) {
+  final startsOn = trip.startsOn;
+  final endsOn = trip.endsOn;
+  final startsOnText = '${startsOn.month}월 ${startsOn.day}일';
+
+  if (_isSameDate(startsOn, endsOn)) {
+    return startsOnText;
+  }
+
+  return '$startsOnText ~ ${endsOn.month}월 ${endsOn.day}일';
 }
 
 DateTime _dateOnly(DateTime value) {
