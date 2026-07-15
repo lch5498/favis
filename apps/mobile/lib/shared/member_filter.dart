@@ -63,7 +63,7 @@ class MemberFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (members.isEmpty) {
+    if (members.isEmpty && trailingChildren.isEmpty) {
       return const SizedBox.shrink();
     }
 

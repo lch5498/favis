@@ -975,12 +975,14 @@ class TravelDetailScreen extends StatefulWidget {
     required this.sessionToken,
     required this.trip,
     this.initialChecklist = false,
+    this.initialItineraryId,
   });
 
   final AppFamily family;
   final String sessionToken;
   final TravelTrip trip;
   final bool initialChecklist;
+  final String? initialItineraryId;
 
   @override
   State<TravelDetailScreen> createState() => _TravelDetailScreenState();
@@ -995,6 +997,8 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   List<TravelItinerary>? _dragSnapshot;
   String? _selectedItineraryTagName;
   bool _dropAccepted = false;
+  bool _didOpenInitialItinerary = false;
+  bool _isOpeningInitialItinerary = false;
   bool _isLoading = true;
   late _TravelDetailTab _selectedTab;
 
@@ -1004,6 +1008,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     _selectedTab = widget.initialChecklist
         ? _TravelDetailTab.checklist
         : _TravelDetailTab.schedule;
+    _isOpeningInitialItinerary = widget.initialItineraryId != null;
     _loadTrip();
   }
 
@@ -1019,6 +1024,17 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
         familyId: widget.family.id,
         tripId: widget.trip.id,
       );
+      TravelItinerary? initialItinerary;
+
+      if (!_didOpenInitialItinerary && widget.initialItineraryId != null) {
+        for (final itinerary in detail.itineraries) {
+          if (itinerary.id == widget.initialItineraryId) {
+            initialItinerary = itinerary;
+            _didOpenInitialItinerary = true;
+            break;
+          }
+        }
+      }
 
       if (mounted) {
         setState(() {
@@ -1029,12 +1045,25 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
               ).contains(_selectedItineraryTagName)) {
             _selectedItineraryTagName = null;
           }
+          if (initialItinerary == null) {
+            _isOpeningInitialItinerary = false;
+          }
         });
+
+        if (initialItinerary != null) {
+          await _openItinerary(initialItinerary);
+          if (mounted) {
+            setState(() {
+              _isOpeningInitialItinerary = false;
+            });
+          }
+        }
       }
     } catch (error) {
       if (mounted) {
         setState(() {
           _message = error.toString();
+          _isOpeningInitialItinerary = false;
         });
       }
     } finally {
@@ -1102,7 +1131,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   Future<void> _openItinerary(TravelItinerary itinerary) async {
     final changed = await Navigator.of(context).push<bool>(
       CupertinoPageRoute(
-        builder: (context) => _TravelItineraryDetailScreen(
+        builder: (context) => TravelItineraryDetailScreen(
           familyId: widget.family.id,
           sessionToken: widget.sessionToken,
           trip: _detail?.trip ?? widget.trip,
@@ -1494,7 +1523,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
               _InlineMessage(message: _message!),
             ],
             const SizedBox(height: 18),
-            if (_isLoading && detail == null)
+            if ((_isLoading && detail == null) || _isOpeningInitialItinerary)
               const Padding(
                 padding: EdgeInsets.only(top: 56),
                 child: Center(child: CupertinoActivityIndicator()),
@@ -2450,8 +2479,9 @@ class _TravelItineraryFormScreenState
   }
 }
 
-class _TravelItineraryDetailScreen extends StatefulWidget {
-  const _TravelItineraryDetailScreen({
+class TravelItineraryDetailScreen extends StatefulWidget {
+  const TravelItineraryDetailScreen({
+    super.key,
     required this.familyId,
     required this.sessionToken,
     required this.trip,
@@ -2466,12 +2496,12 @@ class _TravelItineraryDetailScreen extends StatefulWidget {
   final List<TravelTag> favoriteTags;
 
   @override
-  State<_TravelItineraryDetailScreen> createState() =>
+  State<TravelItineraryDetailScreen> createState() =>
       _TravelItineraryDetailScreenState();
 }
 
 class _TravelItineraryDetailScreenState
-    extends State<_TravelItineraryDetailScreen> {
+    extends State<TravelItineraryDetailScreen> {
   final _apiClient = ApiClient();
 
   late TravelItinerary _itinerary;

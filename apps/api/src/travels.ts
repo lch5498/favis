@@ -88,20 +88,38 @@ export async function getTravelDashboard(userId: string, familyId: string) {
   const trips = (data ?? []) as TravelTrip[];
 
   if (trips.length === 0) {
-    return { trips };
+    return { trips, itineraries: [] };
   }
 
-  const { data: checklistItems, error: checklistError } = await supabase
-    .from('travel_trip_checklist_items')
-    .select('trip_id, is_checked')
-    .eq('family_id', familyId)
-    .in(
-      'trip_id',
-      trips.map((trip) => trip.id),
-    );
+  const [checklistResult, itineraryResult] = await Promise.all([
+    supabase
+      .from('travel_trip_checklist_items')
+      .select('trip_id, is_checked')
+      .eq('family_id', familyId)
+      .in(
+        'trip_id',
+        trips.map((trip) => trip.id),
+      ),
+    supabase
+      .from('travel_itineraries')
+      .select('*')
+      .eq('family_id', familyId)
+      .in(
+        'trip_id',
+        trips.map((trip) => trip.id),
+      )
+      .order('itinerary_date', { ascending: true })
+      .order('sort_order', { ascending: true }),
+  ]);
+
+  const { data: checklistItems, error: checklistError } = checklistResult;
+  const { data: itineraries, error: itineraryError } = itineraryResult;
 
   if (checklistError) {
     throw checklistError;
+  }
+  if (itineraryError) {
+    throw itineraryError;
   }
 
   const checklistCountsByTripId = new Map<
@@ -129,6 +147,7 @@ export async function getTravelDashboard(userId: string, familyId: string) {
         checklist_completed_count: count?.completed ?? 0,
       };
     }),
+    itineraries: (itineraries ?? []) as TravelItinerary[],
   };
 }
 

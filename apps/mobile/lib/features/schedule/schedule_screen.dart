@@ -7,6 +7,7 @@ import '../../shared/alert_offset_picker.dart';
 import '../../shared/cupertino_picker_sheet.dart';
 import '../../shared/member_filter.dart';
 import '../../shared/schedule_section_switcher.dart';
+import '../travel/travel_screen.dart';
 
 enum _CalendarMode { day, week, month }
 
@@ -44,10 +45,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
   late AppFamily _family;
   ScheduleDashboard? _dashboard;
+  TravelDashboard? _travelDashboard;
   _CalendarMode _mode = _CalendarMode.week;
   DateTime _anchorDate = _dateOnly(DateTime.now());
   final Set<String> _hiddenMemberIds = <String>{};
   bool _isAnniversaryHidden = false;
+  bool _isTravelHidden = false;
   String? _message;
   bool _isLoading = true;
   int _scheduleLoadToken = 0;
@@ -69,7 +72,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       return const [];
     }
 
-    return dashboard.schedules
+    final schedules = dashboard.schedules
         .where(
           (schedule) =>
               schedule.startsAt.isBefore(rangeEnd) &&
@@ -79,6 +82,82 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   !_hiddenMemberIds.contains(schedule.familyMemberId)),
         )
         .toList();
+
+    if (_isTravelHidden) {
+      return schedules;
+    }
+
+    return [...schedules, ..._travelSchedulesForRange(rangeStart, rangeEnd)];
+  }
+
+  List<AppSchedule> _travelSchedulesForRange(
+    DateTime rangeStart,
+    DateTime rangeEnd,
+  ) {
+    final travelDashboard = _travelDashboard;
+
+    if (travelDashboard == null) {
+      return const [];
+    }
+
+    final tripsById = {for (final trip in travelDashboard.trips) trip.id: trip};
+
+    return travelDashboard.itineraries
+        .map((itinerary) {
+          final trip = tripsById[itinerary.tripId];
+          if (trip == null) {
+            return null;
+          }
+
+          final time = itinerary.startsAt;
+          final startsAt = DateTime(
+            itinerary.itineraryDate.year,
+            itinerary.itineraryDate.month,
+            itinerary.itineraryDate.day,
+            time?.hour ?? 9,
+            time?.minute ?? 0,
+          );
+
+          return AppSchedule(
+            id: 'travel-itinerary-${itinerary.id}',
+            familyId: _family.id,
+            familyMemberId: null,
+            title: itinerary.title,
+            content: itinerary.content,
+            startsAt: startsAt,
+            endsAt: startsAt.add(const Duration(hours: 1)),
+            vehicleBoardingAt: null,
+            vehicleDropoffAt: null,
+            educationProgramId: null,
+            educationProgramName: null,
+            educationProgramPhoneContacts: const [],
+            anniversaryId: null,
+            anniversaryCategory: null,
+            alertOffsetMinutes: null,
+            memberNickname: trip.title,
+            travelTripId: trip.id,
+            travelItineraryId: itinerary.id,
+          );
+        })
+        .whereType<AppSchedule>()
+        .where(
+          (schedule) =>
+              schedule.startsAt.isBefore(rangeEnd) &&
+              schedule.endsAt.isAfter(rangeStart),
+        )
+        .toList();
+  }
+
+  bool _hasTravelInRange(DateTime rangeStart, DateTime rangeEnd) {
+    return (_travelDashboard?.trips ?? const <TravelTrip>[]).any((trip) {
+      final tripStart = _dateOnly(trip.startsOn);
+      final tripEndExclusive = _dateOnly(
+        trip.endsOn,
+      ).add(const Duration(days: 1));
+
+      return tripStart.isBefore(rangeEnd) &&
+          tripEndExclusive.isAfter(rangeStart);
+    });
   }
 
   @override
@@ -105,6 +184,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       _family = widget.family;
       _hiddenMemberIds.clear();
       _isAnniversaryHidden = false;
+      _isTravelHidden = false;
       _resetCalendarPage();
       _loadSchedules();
     } else if (oldWidget.todayRequestToken != widget.todayRequestToken) {
@@ -132,16 +212,25 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     });
 
     try {
-      final dashboard = await _apiClient.getScheduleDashboard(
-        widget.sessionToken,
-        familyId: _family.id,
-        rangeStart: rangeStart,
-        rangeEnd: rangeEnd,
-      );
+      final results = await Future.wait([
+        _apiClient.getScheduleDashboard(
+          widget.sessionToken,
+          familyId: _family.id,
+          rangeStart: rangeStart,
+          rangeEnd: rangeEnd,
+        ),
+        _apiClient.getTravelDashboard(
+          widget.sessionToken,
+          familyId: _family.id,
+        ),
+      ]);
+      final dashboard = results[0] as ScheduleDashboard;
+      final travelDashboard = results[1] as TravelDashboard;
 
       if (mounted && loadToken == _scheduleLoadToken) {
         setState(() {
           _dashboard = dashboard;
+          _travelDashboard = travelDashboard;
           _hiddenMemberIds.removeWhere(
             (memberId) =>
                 !dashboard.members.any((member) => member.id == memberId),
@@ -254,6 +343,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     });
   }
 
+  void _toggleTravelFilter() {
+    setState(() {
+      _isTravelHidden = !_isTravelHidden;
+    });
+  }
+
   Future<void> _switchFamily() async {
     if (widget.families.length < 2) {
       return;
@@ -290,6 +385,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     setState(() {
       _family = selectedFamily;
       _dashboard = null;
+      _travelDashboard = null;
       _hiddenMemberIds.clear();
     });
     _resetCalendarPage();
@@ -374,6 +470,65 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Future<void> _openScheduleDetail(AppSchedule schedule) async {
+    final travelTripId = schedule.travelTripId;
+    if (travelTripId != null) {
+      TravelTrip? trip;
+      for (final candidate in _travelDashboard?.trips ?? const <TravelTrip>[]) {
+        if (candidate.id == travelTripId) {
+          trip = candidate;
+          break;
+        }
+      }
+
+      if (trip == null) {
+        return;
+      }
+      final travelTrip = trip;
+      final itineraryId = schedule.travelItineraryId;
+
+      if (itineraryId == null) {
+        return;
+      }
+
+      try {
+        final detail = await _apiClient.getTravelTripDetail(
+          widget.sessionToken,
+          familyId: _family.id,
+          tripId: travelTrip.id,
+        );
+        final itinerary = detail.itineraries
+            .where((item) => item.id == itineraryId)
+            .firstOrNull;
+
+        if (itinerary == null || !mounted) {
+          return;
+        }
+
+        final changed = await Navigator.of(context).push<bool>(
+          CupertinoPageRoute<bool>(
+            builder: (_) => TravelItineraryDetailScreen(
+              familyId: _family.id,
+              sessionToken: widget.sessionToken,
+              trip: detail.trip,
+              itinerary: itinerary,
+              favoriteTags: detail.tags,
+            ),
+          ),
+        );
+
+        if (changed == true && mounted) {
+          await _loadSchedules();
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _message = error.toString();
+          });
+        }
+      }
+      return;
+    }
+
     final dashboard = _dashboard;
     final action = await Navigator.of(context).push<String>(
       CupertinoPageRoute(
@@ -397,6 +552,24 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     AppColors.useBrightness(brightness);
     final dashboard = _dashboard;
     final memberColors = _memberFilterColors(dashboard?.members ?? const []);
+    final schedulesInRange = (dashboard?.schedules ?? const <AppSchedule>[])
+        .where(
+          (schedule) =>
+              schedule.startsAt.isBefore(_rangeEnd) &&
+              schedule.endsAt.isAfter(_rangeStart),
+        )
+        .toList();
+    final filterMembers = (dashboard?.members ?? const <FamilyMember>[])
+        .where(
+          (member) => schedulesInRange.any(
+            (schedule) => schedule.familyMemberId == member.id,
+          ),
+        )
+        .toList();
+    final hasAnniversarySchedules = schedulesInRange.any(
+      (schedule) => schedule.anniversaryId != null,
+    );
+    final hasTravelInRange = _hasTravelInRange(_rangeStart, _rangeEnd);
     final calendarKey = ValueKey('schedule-calendar-${brightness.name}');
 
     return CupertinoPageScaffold(
@@ -448,12 +621,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                         mode: _mode,
                         rangeLabel: _rangeLabel(_rangeStart, _rangeEnd, _mode),
                         canManage: dashboard?.canManage ?? false,
-                        members: dashboard?.members ?? const [],
+                        members: filterMembers,
                         hiddenMemberIds: _hiddenMemberIds,
                         isAnniversaryHidden: _isAnniversaryHidden,
+                        isTravelHidden: _isTravelHidden,
+                        hasAnniversarySchedules: hasAnniversarySchedules,
+                        hasTravelInRange: hasTravelInRange,
                         memberColors: memberColors,
                         onToggleMemberFilter: _toggleMemberFilter,
                         onToggleAnniversaryFilter: _toggleAnniversaryFilter,
+                        onToggleTravelFilter: _toggleTravelFilter,
                         onModeChanged: _setMode,
                         onPrevious: () => _moveRange(-1),
                         onNext: () => _moveRange(1),
@@ -593,9 +770,13 @@ class _ScheduleHeader extends StatelessWidget {
     required this.members,
     required this.hiddenMemberIds,
     required this.isAnniversaryHidden,
+    required this.isTravelHidden,
+    required this.hasAnniversarySchedules,
+    required this.hasTravelInRange,
     required this.memberColors,
     required this.onToggleMemberFilter,
     required this.onToggleAnniversaryFilter,
+    required this.onToggleTravelFilter,
     required this.onModeChanged,
     required this.onPrevious,
     required this.onNext,
@@ -607,9 +788,13 @@ class _ScheduleHeader extends StatelessWidget {
   final List<FamilyMember> members;
   final Set<String> hiddenMemberIds;
   final bool isAnniversaryHidden;
+  final bool isTravelHidden;
+  final bool hasAnniversarySchedules;
+  final bool hasTravelInRange;
   final Map<String, MemberFilterColor> memberColors;
   final ValueChanged<String> onToggleMemberFilter;
   final VoidCallback onToggleAnniversaryFilter;
+  final VoidCallback onToggleTravelFilter;
   final ValueChanged<_CalendarMode> onModeChanged;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -624,17 +809,25 @@ class _ScheduleHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (members.isNotEmpty) ...[
+          if (members.isNotEmpty ||
+              hasAnniversarySchedules ||
+              hasTravelInRange) ...[
             MemberFilterBar(
               members: members,
               hiddenMemberIds: hiddenMemberIds,
               memberColors: memberColors,
               onToggleMember: onToggleMemberFilter,
               trailingChildren: [
-                _AnniversaryFilterButton(
-                  isActive: !isAnniversaryHidden,
-                  onPressed: onToggleAnniversaryFilter,
-                ),
+                if (hasAnniversarySchedules)
+                  _AnniversaryFilterButton(
+                    isActive: !isAnniversaryHidden,
+                    onPressed: onToggleAnniversaryFilter,
+                  ),
+                if (hasTravelInRange)
+                  _TravelFilterButton(
+                    isActive: !isTravelHidden,
+                    onPressed: onToggleTravelFilter,
+                  ),
               ],
             ),
           ],
@@ -721,6 +914,50 @@ class _AnniversaryFilterButton extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '기념일',
+              style: TextStyle(
+                color: isActive
+                    ? CupertinoColors.white
+                    : AppColors.darkTextSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TravelFilterButton extends StatelessWidget {
+  const _TravelFilterButton({required this.isActive, required this.onPressed});
+
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        color: isActive ? CupertinoColors.systemTeal : AppColors.darkBackground,
+        borderRadius: BorderRadius.circular(8),
+        onPressed: onPressed,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive
+                  ? CupertinoIcons.check_mark_circled_solid
+                  : CupertinoIcons.circle,
+              color: isActive ? CupertinoColors.white : AppColors.darkTextMuted,
+              size: 13,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '여행',
               style: TextStyle(
                 color: isActive
                     ? CupertinoColors.white
@@ -1828,7 +2065,9 @@ class _MonthScheduleBar extends StatelessWidget {
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: Size.zero,
-      onPressed: canManage ? onTap : null,
+      onPressed: canManage || segment.schedule.travelTripId != null
+          ? onTap
+          : null,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
@@ -3375,6 +3614,10 @@ MemberFilterColor _scheduleMemberColor(
   AppSchedule schedule,
   Map<String, MemberFilterColor> memberColors,
 ) {
+  if (schedule.travelTripId != null) {
+    return MemberFilterColor.teal;
+  }
+
   if (schedule.anniversaryId != null) {
     return MemberFilterColor.purple;
   }

@@ -2373,16 +2373,21 @@ class ScrapLinkPreview {
 }
 
 class TravelDashboard {
-  const TravelDashboard({required this.trips});
+  const TravelDashboard({required this.trips, required this.itineraries});
 
   final List<TravelTrip> trips;
+  final List<TravelItinerary> itineraries;
 
   factory TravelDashboard.fromJson(Map<String, Object?> json) {
     final trips = json['trips'] as List<Object?>? ?? [];
+    final itineraries = json['itineraries'] as List<Object?>? ?? [];
 
     return TravelDashboard(
       trips: trips
           .map((item) => TravelTrip.fromJson(item as Map<String, Object?>))
+          .toList(),
+      itineraries: itineraries
+          .map((item) => TravelItinerary.fromJson(item as Map<String, Object?>))
           .toList(),
     );
   }
@@ -3079,6 +3084,8 @@ class AppSchedule {
     required this.anniversaryCategory,
     required this.alertOffsetMinutes,
     required this.memberNickname,
+    this.travelTripId,
+    this.travelItineraryId,
   });
 
   final String id;
@@ -3097,6 +3104,8 @@ class AppSchedule {
   final AnniversaryCategory? anniversaryCategory;
   final int? alertOffsetMinutes;
   final String memberNickname;
+  final String? travelTripId;
+  final String? travelItineraryId;
 
   factory AppSchedule.fromJson(Map<String, Object?> json) {
     final familyMember = json['family_member'] as Map<String, Object?>?;
