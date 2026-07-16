@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
 import '../../design_system/app_colors.dart';
+import '../../shared/member_filter.dart';
 import '../../shared/refreshable_scroll_view.dart';
 
 class TravelScreen extends StatefulWidget {
@@ -1000,6 +1001,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
   bool _didOpenInitialItinerary = false;
   bool _isOpeningInitialItinerary = false;
   bool _isLoading = true;
+  bool _showUncheckedChecklistItemsOnly = false;
   late _TravelDetailTab _selectedTab;
 
   @override
@@ -1190,7 +1192,10 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
       detail.checklistItems
           .map(
             (current) => current.id == item.id
-                ? current.copyWith(isChecked: nextChecked)
+                ? current.copyWith(
+                    isChecked: nextChecked,
+                    clearCompletion: !nextChecked,
+                  )
                 : current,
           )
           .toList(),
@@ -1546,8 +1551,24 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
                 hideEmptyDays: selectedTagName != null,
                 emptyTagName: selectedTagName,
               ),
-            ] else
-              ..._buildChecklistItems(detail?.checklistItems ?? const []),
+            ] else ...[
+              _ChecklistActionBar(
+                showUncheckedOnly: _showUncheckedChecklistItemsOnly,
+                onChanged: (value) {
+                  setState(() {
+                    _showUncheckedChecklistItemsOnly = value;
+                  });
+                },
+                onSaveFavorite: (detail?.checklistItems ?? const []).isEmpty
+                    ? null
+                    : _saveChecklistItemsToFavorites,
+              ),
+              const SizedBox(height: 12),
+              ..._buildChecklistItems(
+                detail?.checklistItems ?? const [],
+                showUncheckedOnly: _showUncheckedChecklistItemsOnly,
+              ),
+            ],
           ],
         ),
       ),
@@ -1624,10 +1645,20 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     ];
   }
 
-  List<Widget> _buildChecklistItems(List<TravelTripChecklistItem> items) {
-    if (items.isEmpty) {
+  List<Widget> _buildChecklistItems(
+    List<TravelTripChecklistItem> items, {
+    required bool showUncheckedOnly,
+  }) {
+    final visibleItems = showUncheckedOnly
+        ? items.where((item) => !item.isChecked).toList()
+        : items;
+
+    if (visibleItems.isEmpty) {
       return [
-        const _ChecklistEmptyState(),
+        if (items.isEmpty)
+          const _ChecklistEmptyState()
+        else
+          const _ChecklistFilterEmptyState(),
         _ChecklistAddLink(onPressed: () => _createChecklistItem()),
       ];
     }
@@ -1635,7 +1666,7 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
     final childrenByParentId = <String, List<TravelTripChecklistItem>>{};
     final parentItems = <TravelTripChecklistItem>[];
 
-    for (final item in items) {
+    for (final item in visibleItems) {
       final parentId = item.parentId;
       if (parentId == null) {
         parentItems.add(item);
@@ -1644,11 +1675,14 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
       }
     }
 
-    final visibleParents = parentItems.isEmpty ? items : parentItems;
+    final visibleParentIds = parentItems.map((item) => item.id).toSet();
+    final orphanedChildren = visibleItems.where(
+      (item) =>
+          item.parentId != null && !visibleParentIds.contains(item.parentId),
+    );
 
     return [
-      _ChecklistFavoriteSaveLink(onPressed: _saveChecklistItemsToFavorites),
-      for (final item in visibleParents) ...[
+      for (final item in parentItems) ...[
         _TravelTripChecklistRow(
           item: item,
           onToggle: () => _toggleChecklistItem(item),
@@ -1663,8 +1697,79 @@ class _TravelDetailScreenState extends State<TravelDetailScreen> {
             onDelete: () => _deleteChecklistItem(child),
           ),
       ],
+      for (final item in orphanedChildren)
+        _TravelTripChecklistRow(
+          item: item,
+          onToggle: () => _toggleChecklistItem(item),
+          onDelete: () => _deleteChecklistItem(item),
+        ),
       _ChecklistAddLink(onPressed: () => _createChecklistItem()),
     ];
+  }
+}
+
+class _ChecklistActionBar extends StatelessWidget {
+  const _ChecklistActionBar({
+    required this.showUncheckedOnly,
+    required this.onChanged,
+    this.onSaveFavorite,
+  });
+
+  final bool showUncheckedOnly;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback? onSaveFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        CupertinoButton(
+          padding: EdgeInsets.zero,
+          minimumSize: Size.zero,
+          onPressed: () => onChanged(!showUncheckedOnly),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                showUncheckedOnly
+                    ? CupertinoIcons.checkmark_circle_fill
+                    : CupertinoIcons.circle,
+                color: showUncheckedOnly
+                    ? AppColors.darkPrimary
+                    : AppColors.darkTextMuted,
+                size: 15,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                '미완료만',
+                style: TextStyle(
+                  color: showUncheckedOnly
+                      ? AppColors.darkPrimary
+                      : AppColors.darkTextSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (onSaveFavorite != null)
+          CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            onPressed: onSaveFavorite,
+            child: Text(
+              '즐겨찾기에 저장',
+              style: TextStyle(
+                color: AppColors.darkTextMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
@@ -1776,25 +1881,37 @@ class _TravelTripChecklistRow extends StatelessWidget {
           ),
           Expanded(
             child: CupertinoButton(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 11),
               alignment: Alignment.centerLeft,
               onPressed: onToggle,
-              child: Text(
-                item.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: item.isChecked
-                      ? AppColors.darkTextMuted
-                      : AppColors.darkTextPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  decoration: item.isChecked
-                      ? TextDecoration.lineThrough
-                      : null,
-                  decorationColor: AppColors.darkTextMuted,
-                  decorationThickness: 2,
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: item.isChecked
+                          ? AppColors.darkTextMuted
+                          : AppColors.darkTextPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      decoration: item.isChecked
+                          ? TextDecoration.lineThrough
+                          : null,
+                      decorationColor: AppColors.darkTextMuted,
+                      decorationThickness: 2,
+                    ),
+                  ),
+                  if (item.isChecked &&
+                      item.checkedByMember != null &&
+                      item.checkedAt != null) ...[
+                    const SizedBox(height: 4),
+                    _ChecklistCompletionMeta(item: item),
+                  ],
+                ],
               ),
             ),
           ),
@@ -1822,6 +1939,56 @@ class _TravelTripChecklistRow extends StatelessWidget {
           const SizedBox(width: 4),
         ],
       ),
+    );
+  }
+}
+
+class _ChecklistCompletionMeta extends StatelessWidget {
+  const _ChecklistCompletionMeta({required this.item});
+
+  final TravelTripChecklistItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final member = item.checkedByMember!;
+    final memberColor =
+        MemberFilterColor.fromValue(member.color) ?? MemberFilterColor.gray;
+    final style = MemberFilterColorStyle.from(memberColor);
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+          decoration: BoxDecoration(
+            color: style.background,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: style.border),
+          ),
+          child: Text(
+            member.nickname,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: style.foreground,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            _formatChecklistCheckedAt(item.checkedAt!),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: AppColors.darkTextMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1860,27 +2027,35 @@ class _ChecklistEmptyState extends StatelessWidget {
   }
 }
 
-class _ChecklistFavoriteSaveLink extends StatelessWidget {
-  const _ChecklistFavoriteSaveLink({required this.onPressed});
-
-  final VoidCallback onPressed;
+class _ChecklistFilterEmptyState extends StatelessWidget {
+  const _ChecklistFilterEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: CupertinoButton(
-        padding: const EdgeInsets.only(bottom: 10),
-        minimumSize: Size.zero,
-        onPressed: onPressed,
-        child: Text(
-          '즐겨찾기에 저장',
-          style: TextStyle(
-            color: AppColors.darkTextMuted,
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
+    return Padding(
+      padding: const EdgeInsets.only(top: 44, bottom: 6),
+      child: Column(
+        children: [
+          Icon(
+            CupertinoIcons.checkmark_alt_circle_fill,
+            color: AppColors.darkPrimary,
+            size: 34,
           ),
-        ),
+          const SizedBox(height: 12),
+          Text(
+            '미완료 항목이 없습니다.',
+            style: TextStyle(
+              color: AppColors.darkTextPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '체크리스트를 모두 완료했어요.',
+            style: TextStyle(color: AppColors.darkTextMuted, fontSize: 13),
+          ),
+        ],
       ),
     );
   }
@@ -4315,6 +4490,10 @@ String _weekdayLabel(DateTime value) {
 
 String _formatTime(TimeOfDayValue value) {
   return '${_twoDigits(value.hour)}:${_twoDigits(value.minute)}';
+}
+
+String _formatChecklistCheckedAt(DateTime value) {
+  return '${value.month}.${_twoDigits(value.day)} ${_twoDigits(value.hour)}:${_twoDigits(value.minute)}';
 }
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');

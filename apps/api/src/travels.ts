@@ -1,4 +1,4 @@
-import { requireMembership } from './families';
+import { listFamilyMembers, requireMembership } from './families';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -56,6 +56,13 @@ export type TravelTripChecklistItem = {
   parent_id: string | null;
   name: string;
   is_checked: boolean;
+  completed_by_user_id: string | null;
+  checked_at: string | null;
+  checked_by_member?: {
+    id: string;
+    nickname: string;
+    color: string | null;
+  };
   sort_order: number;
   created_by_user_id: string | null;
   created_at: string;
@@ -69,6 +76,19 @@ const DEFAULT_TRAVEL_CHECKLIST_ITEMS = [
   '상비약',
   '세면도구',
 ];
+
+const DEFAULT_MEMBER_COLORS = [
+  'red',
+  'blue',
+  'green',
+  'orange',
+  'purple',
+  'pink',
+  'teal',
+  'yellow',
+  'indigo',
+  'mint',
+] as const;
 
 export async function getTravelDashboard(userId: string, familyId: string) {
   await requireMembership(userId, familyId);
@@ -534,12 +554,19 @@ export async function updateTravelTripChecklistItem(
   await requireMembership(userId, familyId);
   await getTripOrThrow(familyId, tripId);
 
-  const update: { name?: string; is_checked?: boolean } = {};
+  const update: {
+    name?: string;
+    is_checked?: boolean;
+    completed_by_user_id?: string | null;
+    checked_at?: string | null;
+  } = {};
   if (input.name !== undefined) {
     update.name = normalizeText(input.name, 40, 'name');
   }
   if (input.isChecked !== undefined) {
     update.is_checked = input.isChecked;
+    update.completed_by_user_id = input.isChecked ? userId : null;
+    update.checked_at = input.isChecked ? new Date().toISOString() : null;
   }
 
   if (Object.keys(update).length === 0) {
@@ -564,7 +591,10 @@ export async function updateTravelTripChecklistItem(
     throw new HttpError(404, { error: 'travel_trip_checklist_item_not_found' });
   }
 
-  return data as TravelTripChecklistItem;
+  const [item] = await attachChecklistCompletionMembers(userId, familyId, [
+    data as TravelTripChecklistItem,
+  ]);
+  return item;
 }
 
 export async function deleteTravelTripChecklistItem(
@@ -920,7 +950,65 @@ async function listTravelTripChecklistItems(
     throw error;
   }
 
-  return (data ?? []) as TravelTripChecklistItem[];
+  return attachChecklistCompletionMembers(
+    userId,
+    familyId,
+    (data ?? []) as TravelTripChecklistItem[],
+  );
+}
+
+async function attachChecklistCompletionMembers(
+  userId: string,
+  familyId: string,
+  items: TravelTripChecklistItem[],
+) {
+  const completedByUserIds = new Set(
+    items
+      .map((item) => item.completed_by_user_id)
+      .filter((userId): userId is string => userId != null),
+  );
+
+  if (completedByUserIds.size === 0) {
+    return items;
+  }
+
+  const members = await listFamilyMembers(userId, familyId, {
+    skipMembershipCheck: true,
+  });
+  const membersByUserId = new Map(
+    members
+      .map((member, index) => ({
+        ...member,
+        resolvedColor:
+          member.color ??
+          DEFAULT_MEMBER_COLORS[index % DEFAULT_MEMBER_COLORS.length],
+      }))
+      .filter(
+        (
+          member,
+        ): member is typeof member & { user_id: string } =>
+          member.user_id != null,
+      )
+      .map((member) => [member.user_id, member]),
+  );
+
+  return items.map((item) => {
+    const member = item.completed_by_user_id
+      ? membersByUserId.get(item.completed_by_user_id)
+      : null;
+    if (!member) {
+      return item;
+    }
+
+    return {
+      ...item,
+      checked_by_member: {
+        id: member.id,
+        nickname: member.nickname,
+        color: member.resolvedColor,
+      },
+    };
+  });
 }
 
 async function attachItineraryTags(

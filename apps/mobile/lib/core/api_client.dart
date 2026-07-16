@@ -2607,6 +2607,9 @@ class TravelTripChecklistItem {
     required this.parentId,
     required this.name,
     required this.isChecked,
+    required this.completedByUserId,
+    required this.checkedAt,
+    required this.checkedByMember,
     required this.sortOrder,
     required this.createdAt,
     required this.updatedAt,
@@ -2618,6 +2621,9 @@ class TravelTripChecklistItem {
   final String? parentId;
   final String name;
   final bool isChecked;
+  final String? completedByUserId;
+  final DateTime? checkedAt;
+  final TravelChecklistCompletionMember? checkedByMember;
   final int sortOrder;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -2630,13 +2636,25 @@ class TravelTripChecklistItem {
       parentId: json['parent_id'] as String?,
       name: json['name'] as String,
       isChecked: json['is_checked'] as bool? ?? false,
+      completedByUserId: json['completed_by_user_id'] as String?,
+      checkedAt: json['checked_at'] == null
+          ? null
+          : DateTime.parse(json['checked_at'] as String).toLocal(),
+      checkedByMember: json['checked_by_member'] == null
+          ? null
+          : TravelChecklistCompletionMember.fromJson(
+              json['checked_by_member'] as Map<String, Object?>,
+            ),
       sortOrder: json['sort_order'] as int? ?? 1,
       createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
       updatedAt: DateTime.parse(json['updated_at'] as String).toLocal(),
     );
   }
 
-  TravelTripChecklistItem copyWith({bool? isChecked}) {
+  TravelTripChecklistItem copyWith({
+    bool? isChecked,
+    bool clearCompletion = false,
+  }) {
     return TravelTripChecklistItem(
       id: id,
       familyId: familyId,
@@ -2644,9 +2662,32 @@ class TravelTripChecklistItem {
       parentId: parentId,
       name: name,
       isChecked: isChecked ?? this.isChecked,
+      completedByUserId: clearCompletion ? null : completedByUserId,
+      checkedAt: clearCompletion ? null : checkedAt,
+      checkedByMember: clearCompletion ? null : checkedByMember,
       sortOrder: sortOrder,
       createdAt: createdAt,
       updatedAt: updatedAt,
+    );
+  }
+}
+
+class TravelChecklistCompletionMember {
+  const TravelChecklistCompletionMember({
+    required this.id,
+    required this.nickname,
+    required this.color,
+  });
+
+  final String id;
+  final String nickname;
+  final String? color;
+
+  factory TravelChecklistCompletionMember.fromJson(Map<String, Object?> json) {
+    return TravelChecklistCompletionMember(
+      id: json['id'] as String,
+      nickname: json['nickname'] as String,
+      color: json['color'] as String?,
     );
   }
 }
