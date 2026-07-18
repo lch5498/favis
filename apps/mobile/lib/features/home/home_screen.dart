@@ -1950,10 +1950,7 @@ String _twoDigits(int value) {
 }
 
 String _briefTimeText(DateTime value) {
-  final hour = value.hour % 12 == 0 ? 12 : value.hour % 12;
-  final minute = value.minute.toString().padLeft(2, '0');
-
-  return '$hour:$minute';
+  return '${_twoDigits(value.hour)}:${_twoDigits(value.minute)}';
 }
 
 String _scrapActivityTimeText(DateTime value) {
