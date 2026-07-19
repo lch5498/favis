@@ -1,4 +1,5 @@
 import { listFamilyMembers, requireMembership } from './families';
+import { recordGroupActivity } from './group-activity-logs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -380,7 +381,16 @@ export async function createTravelTrip(
     throw error;
   }
 
-  return data as TravelTrip;
+  const trip = data as TravelTrip;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: trip.title,
+    detail: '여행을 등록했어요.',
+    target: { type: 'travel_trip', id: trip.id },
+  });
+  return trip;
 }
 
 export async function updateTravelTrip(
@@ -453,7 +463,16 @@ export async function updateTravelTrip(
     }
   }
 
-  return data as TravelTrip;
+  const trip = data as TravelTrip;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: trip.title,
+    detail: '여행을 수정했어요.',
+    target: { type: 'travel_trip', id: trip.id },
+  });
+  return trip;
 }
 
 export async function deleteTravelTrip(
@@ -462,7 +481,7 @@ export async function deleteTravelTrip(
   tripId: string,
 ) {
   await requireMembership(userId, familyId);
-  await getTripOrThrow(familyId, tripId);
+  const trip = await getTripOrThrow(familyId, tripId);
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
@@ -474,6 +493,14 @@ export async function deleteTravelTrip(
   if (error) {
     throw error;
   }
+
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: trip.title,
+    detail: '여행을 삭제했어요.',
+  });
 }
 
 export async function getTravelTripDetail(
@@ -676,6 +703,18 @@ export async function createTravelItinerary(
     data as TravelItinerary,
   ]);
 
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: itinerary.title,
+    detail: '여행 일정을 등록했어요.',
+    target: {
+      type: 'travel_itinerary',
+      id: itinerary.id,
+      parentId: tripId,
+    },
+  });
   return itinerary;
 }
 
@@ -732,6 +771,18 @@ export async function updateTravelItinerary(
     data as TravelItinerary,
   ]);
 
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: itinerary.title,
+    detail: '여행 일정을 수정했어요.',
+    target: {
+      type: 'travel_itinerary',
+      id: itinerary.id,
+      parentId: tripId,
+    },
+  });
   return itinerary;
 }
 
@@ -742,7 +793,7 @@ export async function deleteTravelItinerary(
   itineraryId: string,
 ) {
   await requireMembership(userId, familyId);
-  await getItineraryOrThrow(familyId, tripId, itineraryId);
+  const itinerary = await getItineraryOrThrow(familyId, tripId, itineraryId);
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
@@ -757,6 +808,13 @@ export async function deleteTravelItinerary(
   }
 
   await compactItinerarySortOrders(familyId, tripId);
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'travel',
+    title: itinerary.title,
+    detail: '여행 일정을 삭제했어요.',
+  });
 }
 
 export async function reorderTravelItineraries(

@@ -4,6 +4,7 @@ import {
   requireMembership,
 } from './families';
 import { normalizeAlertOffsetMinutes } from './alert-offset';
+import { recordGroupActivity } from './group-activity-logs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -177,8 +178,17 @@ export async function createEducationProgram(
       { futureOnly: options.calendarApplyScope === 'future' },
     );
 
+    const program = data as unknown as EducationProgram;
+    await recordGroupActivity({
+      familyId,
+      actorUserId: userId,
+      type: 'schedule',
+      title: program.name,
+      detail: '반복 일정을 등록했어요.',
+      target: { type: 'recurring_schedule', id: program.id },
+    });
     return {
-      program: data as unknown as EducationProgram,
+      program,
       generatedScheduleCount,
     };
   } catch (error) {
@@ -254,8 +264,17 @@ export async function updateEducationProgram(
       )
     : 0;
 
+  const program = data as unknown as EducationProgram;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'schedule',
+    title: program.name,
+    detail: '반복 일정을 수정했어요.',
+    target: { type: 'recurring_schedule', id: program.id },
+  });
   return {
-    program: data as unknown as EducationProgram,
+    program,
     generatedScheduleCount,
   };
 }
@@ -272,6 +291,20 @@ export async function deleteEducationProgram(
   await requireFamilyManager(userId, familyId);
 
   const supabase = getSupabaseAdmin();
+  const { data: programData, error: programError } = await supabase
+    .from('education_programs')
+    .select('name')
+    .eq('id', programId)
+    .eq('family_id', familyId)
+    .maybeSingle();
+
+  if (programError) {
+    throw programError;
+  }
+
+  if (!programData) {
+    throw new HttpError(404, { error: 'education_program_not_found' });
+  }
 
   if (options.calendarApplyScope === 'future') {
     const timeZoneOffsetMinutes = normalizeTimeZoneOffset(
@@ -299,6 +332,14 @@ export async function deleteEducationProgram(
   if (error) {
     throw error;
   }
+
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'schedule',
+    title: programData.name as string,
+    detail: '반복 일정을 삭제했어요.',
+  });
 }
 
 async function replaceGeneratedSchedules(

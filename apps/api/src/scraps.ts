@@ -1,4 +1,5 @@
 import { requireMembership } from './families';
+import { recordGroupActivity } from './group-activity-logs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -530,13 +531,22 @@ export async function createScrapPost(
   }
 
   const [post] = await attachAuthorNicknames(familyId, [data as ScrapPost]);
-  return {
+  const result = {
     ...post,
     ...manageFlags(post.created_by_user_id, userId, membership.role),
     likeCount: 0,
     isLikedByMe: false,
     comments: [],
   };
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle(content),
+    detail: '스크랩 글을 등록했어요.',
+    target: { type: 'scrap_post', id: post.id, parentId: channelId },
+  });
+  return result;
 }
 
 export async function updateScrapPost(
@@ -575,13 +585,22 @@ export async function updateScrapPost(
   }
 
   const [updatedPost] = await attachAuthorNicknames(familyId, [data as ScrapPost]);
-  return {
+  const result = {
     ...updatedPost,
     ...manageFlags(updatedPost.created_by_user_id, userId, membership.role),
     likeCount: 0,
     isLikedByMe: false,
     comments: [],
   };
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle(content),
+    detail: '스크랩 글을 수정했어요.',
+    target: { type: 'scrap_post', id: updatedPost.id, parentId: channelId },
+  });
+  return result;
 }
 
 export async function createScrapComment(
@@ -611,11 +630,20 @@ export async function createScrapComment(
   }
 
   const [comment] = await attachAuthorNicknames(familyId, [data as ScrapComment]);
-  return {
+  const result = {
     ...withDeletePermission(comment, userId, membership.role),
     likeCount: 0,
     isLikedByMe: false,
   };
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle(result.content),
+    detail: '스크랩 글에 댓글을 남겼어요.',
+    target: { type: 'scrap_post', id: postId, parentId: channelId },
+  });
+  return result;
 }
 
 export async function updateScrapComment(
@@ -668,11 +696,20 @@ export async function updateScrapComment(
   const [updatedComment] = await attachAuthorNicknames(familyId, [
     data as ScrapComment,
   ]);
-  return {
+  const result = {
     ...withDeletePermission(updatedComment, userId, membership.role),
     likeCount: 0,
     isLikedByMe: false,
   };
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle(result.content),
+    detail: '스크랩 댓글을 수정했어요.',
+    target: { type: 'scrap_post', id: postId, parentId: channelId },
+  });
+  return result;
 }
 
 export async function toggleScrapPostLike(
@@ -739,6 +776,19 @@ export async function deleteScrapPost(
   if (error) {
     throw error;
   }
+
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle(post.content),
+    detail: '스크랩 글을 삭제했어요.',
+  });
+}
+
+function activityTitle(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  return normalized.length <= 60 ? normalized : '${normalized.substring(0, 57)}...';
 }
 
 export async function deleteScrapComment(
@@ -784,6 +834,14 @@ export async function deleteScrapComment(
   if (error) {
     throw error;
   }
+
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'scrap',
+    title: activityTitle((comment as ScrapComment).content),
+    detail: '스크랩 댓글을 삭제했어요.',
+  });
 }
 
 async function getChannelOrThrow(familyId: string, channelId: string) {

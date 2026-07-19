@@ -1,4 +1,5 @@
 import { requireFamilyManager, requireMembership } from './families';
+import { recordGroupActivity } from './group-activity-logs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
 
@@ -338,7 +339,16 @@ export async function createParkingRecord(
     throw error;
   }
 
-  return data as ParkingRecord;
+  const record = data as ParkingRecord;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'parking',
+    title: vehicle.nickname,
+    detail: `${record.location_text}에 주차 위치를 등록했어요.`,
+    target: { type: 'parking_vehicle', id: vehicle.id },
+  });
+  return record;
 }
 
 export async function listParkingHistory(

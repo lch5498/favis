@@ -134,6 +134,26 @@ class ApiClient {
         .toList();
   }
 
+  Future<List<GroupActivityItem>> getGroupActivities(
+    String sessionToken, {
+    required String familyId,
+    GroupActivityType? type,
+  }) async {
+    final path = Uri(
+      path: '/api/mobile/families/$familyId/activity-logs',
+      queryParameters: {'type': (type ?? GroupActivityType.all).apiValue},
+    ).toString();
+    final json = await _requestJson('GET', path, bearerToken: sessionToken);
+    final activities = json['activities'] as List<Object?>? ?? const [];
+
+    return activities
+        .map(
+          (activity) =>
+              GroupActivityItem.fromJson(activity as Map<String, Object?>),
+        )
+        .toList();
+  }
+
   Future<List<FamilySummary>> listFamilies(String sessionToken) async {
     final json = await _requestJson(
       'GET',
@@ -1527,6 +1547,101 @@ class PushNotificationHistoryItem {
       body: json['body'] as String,
       familyName: json['familyName'] as String?,
       sentAt: DateTime.parse(json['sentAt'] as String).toLocal(),
+    );
+  }
+}
+
+enum GroupActivityType {
+  all,
+  schedule,
+  parking,
+  scrap,
+  travel;
+
+  String get apiValue => name;
+}
+
+class GroupActivityItem {
+  const GroupActivityItem({
+    required this.id,
+    required this.actorUserId,
+    required this.type,
+    required this.title,
+    required this.detail,
+    required this.actorNickname,
+    required this.createdAt,
+    required this.target,
+  });
+
+  final String id;
+  final String? actorUserId;
+  final GroupActivityType type;
+  final String title;
+  final String detail;
+  final String? actorNickname;
+  final DateTime createdAt;
+  final GroupActivityTarget? target;
+
+  factory GroupActivityItem.fromJson(Map<String, Object?> json) {
+    return GroupActivityItem(
+      id: json['id'] as String,
+      actorUserId: json['actorUserId'] as String?,
+      type: GroupActivityType.values.firstWhere(
+        (type) => type.apiValue == json['type'],
+        orElse: () => GroupActivityType.all,
+      ),
+      title: json['title'] as String,
+      detail: json['detail'] as String,
+      actorNickname: json['actorNickname'] as String?,
+      createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      target: json['target'] is Map<String, Object?>
+          ? GroupActivityTarget.fromJson(json['target'] as Map<String, Object?>)
+          : null,
+    );
+  }
+}
+
+enum GroupActivityTargetType {
+  schedule,
+  recurringSchedule,
+  parkingVehicle,
+  scrapPost,
+  travelTrip,
+  travelItinerary;
+
+  String get apiValue => switch (this) {
+    GroupActivityTargetType.schedule => 'schedule',
+    GroupActivityTargetType.recurringSchedule => 'recurring_schedule',
+    GroupActivityTargetType.parkingVehicle => 'parking_vehicle',
+    GroupActivityTargetType.scrapPost => 'scrap_post',
+    GroupActivityTargetType.travelTrip => 'travel_trip',
+    GroupActivityTargetType.travelItinerary => 'travel_itinerary',
+  };
+}
+
+class GroupActivityTarget {
+  const GroupActivityTarget({
+    required this.type,
+    required this.id,
+    required this.parentId,
+    required this.startsAt,
+  });
+
+  final GroupActivityTargetType type;
+  final String id;
+  final String? parentId;
+  final DateTime? startsAt;
+
+  factory GroupActivityTarget.fromJson(Map<String, Object?> json) {
+    return GroupActivityTarget(
+      type: GroupActivityTargetType.values.firstWhere(
+        (type) => type.apiValue == json['type'],
+      ),
+      id: json['id'] as String,
+      parentId: json['parentId'] as String?,
+      startsAt: json['startsAt'] is String
+          ? DateTime.parse(json['startsAt'] as String).toLocal()
+          : null,
     );
   }
 }

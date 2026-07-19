@@ -4,6 +4,7 @@ import {
   requireMembership,
 } from './families';
 import { normalizeAlertOffsetMinutes } from './alert-offset';
+import { recordGroupActivity } from './group-activity-logs';
 import { listEducationPrograms } from './education-programs';
 import { HttpError } from './http';
 import { getSupabaseAdmin } from './supabase';
@@ -153,7 +154,20 @@ export async function createSchedule(
     throw error;
   }
 
-  return data as unknown as Schedule;
+  const schedule = data as unknown as Schedule;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'schedule',
+    title: schedule.title,
+    detail: '일정을 등록했어요.',
+    target: {
+      type: 'schedule',
+      id: schedule.id,
+      startsAt: schedule.starts_at,
+    },
+  });
+  return schedule;
 }
 
 export async function updateSchedule(
@@ -194,7 +208,20 @@ export async function updateSchedule(
     throw new HttpError(404, { error: 'schedule_not_found' });
   }
 
-  return data as unknown as Schedule;
+  const schedule = data as unknown as Schedule;
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'schedule',
+    title: schedule.title,
+    detail: '일정을 수정했어요.',
+    target: {
+      type: 'schedule',
+      id: schedule.id,
+      startsAt: schedule.starts_at,
+    },
+  });
+  return schedule;
 }
 
 export async function deleteSchedule(
@@ -203,7 +230,7 @@ export async function deleteSchedule(
   scheduleId: string,
 ) {
   await requireFamilyManager(userId, familyId);
-  await requireEditableSchedule(familyId, scheduleId);
+  const schedule = await requireEditableSchedule(familyId, scheduleId);
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
@@ -215,13 +242,21 @@ export async function deleteSchedule(
   if (error) {
     throw error;
   }
+
+  await recordGroupActivity({
+    familyId,
+    actorUserId: userId,
+    type: 'schedule',
+    title: schedule.title,
+    detail: '일정을 삭제했어요.',
+  });
 }
 
 async function requireEditableSchedule(familyId: string, scheduleId: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from('schedules')
-    .select('id, anniversary_id')
+    .select('id, anniversary_id, title')
     .eq('id', scheduleId)
     .eq('family_id', familyId)
     .maybeSingle();
@@ -237,6 +272,8 @@ async function requireEditableSchedule(familyId: string, scheduleId: string) {
   if (data.anniversary_id) {
     throw new HttpError(400, { error: 'anniversary_schedule_readonly' });
   }
+
+  return data as { id: string; anniversary_id: string | null; title: string };
 }
 
 async function normalizeScheduleInput(familyId: string, input: ScheduleInput) {

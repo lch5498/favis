@@ -6,7 +6,8 @@ import '../../core/api_client.dart';
 import '../../core/theme_preference.dart';
 import '../../design_system/app_colors.dart';
 import '../family/family_screen.dart';
-import '../notification/notification_history_screen.dart';
+import '../activity/group_activity_log_screen.dart';
+import '../activity/group_activity_read_state.dart';
 import '../parking/parking_screen.dart';
 import '../schedule/schedule_hub_screen.dart';
 import '../scrap/scrap_screen.dart';
@@ -64,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _homeRefreshToken = 0;
   int _scheduleRefreshToken = 0;
   int _todayScheduleRequestToken = 0;
+  int _notificationRefreshToken = 0;
   final Set<String> _handledInviteTokens = <String>{};
 
   AppFamily? get _selectedFamily {
@@ -119,6 +121,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.didChangeAppLifecycleState(state);
 
     if (state == AppLifecycleState.resumed) {
+      setState(() {
+        _notificationRefreshToken += 1;
+      });
       _consumeInviteLinkFromChannel('getLatestLink');
       _consumeInviteLinkFromChannelLater('getLatestLink');
     }
@@ -128,6 +133,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (_tabController.index == 0) {
       setState(() {
         _homeRefreshToken += 1;
+        _notificationRefreshToken += 1;
       });
     } else if (_tabController.index == 1) {
       setState(() {
@@ -538,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     family: selectedFamily,
                     families: families,
                     refreshToken: _homeRefreshToken,
+                    notificationRefreshToken: _notificationRefreshToken,
                     initialDashboardFamilyId: _resolveSelectedFamilyId(
                       _families,
                       widget.initialSelectedFamilyId,
@@ -564,7 +571,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        leading: _HomeNotificationButton(sessionToken: widget.sessionToken),
+        leading: _HomeNotificationButton(
+          sessionToken: widget.sessionToken,
+          family: selectedFamily!,
+          currentUserId: widget.user.id,
+          refreshToken: _notificationRefreshToken,
+          onOpenParkingTab: _openParkingTab,
+        ),
         middle: _HomeTitle(
           family: selectedFamily,
           canSwitch: _families.length > 1,
@@ -710,25 +723,115 @@ class _HomeNavigationTrailing extends StatelessWidget {
   }
 }
 
-class _HomeNotificationButton extends StatelessWidget {
-  const _HomeNotificationButton({required this.sessionToken});
+class _HomeNotificationButton extends StatefulWidget {
+  const _HomeNotificationButton({
+    required this.sessionToken,
+    required this.family,
+    required this.currentUserId,
+    required this.refreshToken,
+    required this.onOpenParkingTab,
+  });
 
   final String sessionToken;
+  final AppFamily family;
+  final String currentUserId;
+  final int refreshToken;
+  final VoidCallback onOpenParkingTab;
+
+  @override
+  State<_HomeNotificationButton> createState() =>
+      _HomeNotificationButtonState();
+}
+
+class _HomeNotificationButtonState extends State<_HomeNotificationButton> {
+  final _apiClient = ApiClient();
+  bool _hasUnreadActivities = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadActivities();
+  }
+
+  @override
+  void didUpdateWidget(covariant _HomeNotificationButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.family.id != widget.family.id ||
+        oldWidget.refreshToken != widget.refreshToken) {
+      _loadUnreadActivities();
+    }
+  }
+
+  Future<void> _loadUnreadActivities() async {
+    try {
+      final familyId = widget.family.id;
+      final activities = await _apiClient.getGroupActivities(
+        widget.sessionToken,
+        familyId: familyId,
+      );
+      final readAt = await GroupActivityReadState.readAt(familyId: familyId);
+      final hasUnread = activities.any(
+        (activity) =>
+            activity.actorUserId != widget.currentUserId &&
+            (readAt == null || activity.createdAt.isAfter(readAt)),
+      );
+
+      if (mounted && widget.family.id == familyId) {
+        setState(() {
+          _hasUnreadActivities = hasUnread;
+        });
+      }
+    } catch (_) {
+      // 활동 로그 조회 실패가 홈 탐색을 방해하지 않도록 배지는 그대로 둔다.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: const Size(32, 32),
-      onPressed: () {
-        Navigator.of(context, rootNavigator: true).push(
+      onPressed: () async {
+        await Navigator.of(context, rootNavigator: true).push(
           CupertinoPageRoute<void>(
-            builder: (_) =>
-                NotificationHistoryScreen(sessionToken: sessionToken),
+            builder: (_) => GroupActivityLogScreen(
+              sessionToken: widget.sessionToken,
+              family: widget.family,
+              onOpenParkingTab: widget.onOpenParkingTab,
+            ),
           ),
         );
+        await _loadUnreadActivities();
       },
-      child: const Icon(CupertinoIcons.bell),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(CupertinoIcons.bell),
+          if (_hasUnreadActivities)
+            Positioned(
+              top: -5,
+              right: -7,
+              child: Container(
+                width: 14,
+                height: 14,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.darkDanger,
+                  shape: BoxShape.circle,
+                ),
+                child: const Text(
+                  'N',
+                  style: TextStyle(
+                    color: CupertinoColors.white,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -740,6 +843,7 @@ class _HomeDashboardTab extends StatefulWidget {
     required this.family,
     required this.families,
     required this.refreshToken,
+    required this.notificationRefreshToken,
     required this.initialDashboardFamilyId,
     required this.initialScheduleDashboard,
     required this.initialParkingDashboard,
@@ -760,6 +864,7 @@ class _HomeDashboardTab extends StatefulWidget {
   final AppFamily family;
   final List<AppFamily> families;
   final int refreshToken;
+  final int notificationRefreshToken;
   final String? initialDashboardFamilyId;
   final ScheduleDashboard? initialScheduleDashboard;
   final ParkingDashboard? initialParkingDashboard;
@@ -1007,7 +1112,13 @@ class _HomeDashboardTabState extends State<_HomeDashboardTab> {
 
     return CupertinoPageScaffold(
       navigationBar: CupertinoNavigationBar(
-        leading: _HomeNotificationButton(sessionToken: widget.sessionToken),
+        leading: _HomeNotificationButton(
+          sessionToken: widget.sessionToken,
+          family: widget.family,
+          currentUserId: widget.user.id,
+          refreshToken: widget.notificationRefreshToken,
+          onOpenParkingTab: widget.onOpenParking,
+        ),
         middle: _HomeTitle(
           family: widget.family,
           canSwitch: widget.families.length > 1,

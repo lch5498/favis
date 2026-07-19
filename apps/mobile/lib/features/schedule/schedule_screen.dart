@@ -21,6 +21,7 @@ class ScheduleScreen extends StatefulWidget {
     required this.refreshToken,
     required this.todayRequestToken,
     required this.onSelectFamily,
+    this.initialDate,
     this.selectedScheduleSection,
     this.onScheduleSectionChanged,
   });
@@ -31,6 +32,7 @@ class ScheduleScreen extends StatefulWidget {
   final int refreshToken;
   final int todayRequestToken;
   final Future<void> Function(AppFamily family) onSelectFamily;
+  final DateTime? initialDate;
   final ScheduleSection? selectedScheduleSection;
   final ValueChanged<ScheduleSection>? onScheduleSectionChanged;
 
@@ -164,7 +166,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   void initState() {
     super.initState();
     _family = widget.family;
-    if (widget.todayRequestToken > 0) {
+    if (widget.initialDate != null) {
+      _mode = _CalendarMode.day;
+      _anchorDate = _dateOnly(widget.initialDate!);
+    } else if (widget.todayRequestToken > 0) {
       _setTodayDayViewState();
     }
     _loadSchedules();
