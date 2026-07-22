@@ -491,12 +491,14 @@ class ApiClient {
     required String familyId,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+    bool includeHolidays = true,
   }) async {
     final path = Uri(
       path: '/api/mobile/families/$familyId/schedules',
       queryParameters: {
         'rangeStart': rangeStart.toUtc().toIso8601String(),
         'rangeEnd': rangeEnd.toUtc().toIso8601String(),
+        if (!includeHolidays) 'includeHolidays': 'false',
       },
     ).toString();
     final json = await _requestJson('GET', path, bearerToken: sessionToken);

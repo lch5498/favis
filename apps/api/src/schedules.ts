@@ -66,20 +66,28 @@ type MembershipCheckOptions = {
   skipMembershipCheck?: boolean;
 };
 
+type ScheduleDashboardOptions = {
+  includeHolidays?: boolean;
+};
+
 export async function getScheduleDashboard(
   userId: string,
   familyId: string,
   rangeStart: string,
   rangeEnd: string,
+  options: ScheduleDashboardOptions = {},
 ) {
   const membership = await requireMembership(userId, familyId);
+  const holidaysPromise = options.includeHolidays === false
+    ? Promise.resolve([])
+    : listKoreanHolidays(rangeStart, rangeEnd);
   const [members, schedules, educationPrograms, holidays] = await Promise.all([
     listFamilyMembers(userId, familyId, { skipMembershipCheck: true }),
     listSchedules(userId, familyId, rangeStart, rangeEnd, {
       skipMembershipCheck: true,
     }),
     listEducationPrograms(userId, familyId, { skipMembershipCheck: true }),
-    listKoreanHolidays(rangeStart, rangeEnd),
+    holidaysPromise,
   ]);
 
   return {

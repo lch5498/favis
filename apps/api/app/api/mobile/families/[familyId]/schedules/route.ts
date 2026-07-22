@@ -24,6 +24,7 @@ export async function GET(request: Request, context: RouteContext) {
     const { searchParams } = new URL(request.url);
     const rangeStart = searchParams.get('rangeStart');
     const rangeEnd = searchParams.get('rangeEnd');
+    const includeHolidays = searchParams.get('includeHolidays') !== 'false';
 
     if (!rangeStart || !rangeEnd) {
       throw new HttpError(400, { error: 'invalid_payload', field: 'range' });
@@ -34,6 +35,7 @@ export async function GET(request: Request, context: RouteContext) {
       familyId,
       rangeStart,
       rangeEnd,
+      { includeHolidays },
     );
 
     return Response.json(dashboard);

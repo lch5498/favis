@@ -443,6 +443,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       return;
     }
 
+    final shouldSave = await _confirmScheduleConflicts(input, schedule);
+    if (!shouldSave) {
+      return;
+    }
+
     await _runTask(() async {
       if (schedule == null) {
         await _apiClient.createSchedule(
@@ -479,6 +484,103 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
       await _loadSchedules();
     });
+  }
+
+  Future<bool> _confirmScheduleConflicts(
+    _ScheduleInput input,
+    AppSchedule? editingSchedule,
+  ) async {
+    try {
+      final results = await Future.wait([
+        _apiClient.getScheduleDashboard(
+          widget.sessionToken,
+          familyId: _family.id,
+          rangeStart: input.startsAt,
+          rangeEnd: input.endsAt,
+          includeHolidays: false,
+        ),
+        _apiClient.getTravelDashboard(
+          widget.sessionToken,
+          familyId: _family.id,
+        ),
+      ]);
+      final dashboard = results[0] as ScheduleDashboard;
+      final travelDashboard = results[1] as TravelDashboard;
+      final conflicts = dashboard.schedules
+          .where(
+            (candidate) =>
+                candidate.id != editingSchedule?.id &&
+                candidate.familyMemberId == input.familyMemberId &&
+                candidate.startsAt.isBefore(input.endsAt) &&
+                candidate.endsAt.isAfter(input.startsAt),
+          )
+          .toList();
+      final overlappingTrips = travelDashboard.trips
+          .where(
+            (trip) =>
+                input.startsAt.isBefore(
+                  _dateOnly(trip.endsOn).add(const Duration(days: 1)),
+                ) &&
+                input.endsAt.isAfter(_dateOnly(trip.startsOn)),
+          )
+          .toList();
+
+      if (conflicts.isEmpty && overlappingTrips.isEmpty) {
+        return true;
+      }
+
+      if (!mounted) {
+        return false;
+      }
+
+      final member = dashboard.members.firstWhere(
+        (candidate) => candidate.id == input.familyMemberId,
+        orElse: () => dashboard.members.first,
+      );
+      final details = <String>[
+        ...conflicts.map(
+          (conflict) =>
+              '일정 · ${conflict.title} (${_scheduleConflictTimeLabel(conflict)})',
+        ),
+        ...overlappingTrips.map(
+          (trip) => '여행 · ${trip.title} (${_travelConflictDateLabel(trip)})',
+        ),
+      ];
+      final preview = details.take(4).join('\n');
+      final remainingCount = details.length - 4;
+      final confirmed = await showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialogContext) => CupertinoAlertDialog(
+          title: const Text('일정이 겹쳐요'),
+          content: Text(
+            '${member.nickname}의 기존 일정 또는 여행 기간과 겹칩니다.\n\n'
+            '$preview'
+            '${remainingCount > 0 ? '\n외 $remainingCount개' : ''}\n\n'
+            '그래도 저장할까요?',
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('취소'),
+            ),
+            CupertinoDialogAction(
+              isDefaultAction: true,
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('그래도 저장'),
+            ),
+          ],
+        ),
+      );
+
+      return confirmed == true;
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _message = '일정 충돌을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        });
+      }
+      return false;
+    }
   }
 
   Future<void> _deleteSchedule(AppSchedule schedule) async {
@@ -3958,6 +4060,18 @@ String _dateTimeLabel(DateTime date) {
 
 String _fullDateTimeLabel(DateTime date) {
   return '${_dateLabel(date)} ${_weekdayLabel(date.weekday)} ${_timeLabel(date)}';
+}
+
+String _scheduleConflictTimeLabel(AppSchedule schedule) {
+  if (schedule.isAllDay) {
+    return _dayLabel(schedule.startsAt);
+  }
+
+  return '${_dateTimeLabel(schedule.startsAt)} - ${_timeLabel(schedule.endsAt)}';
+}
+
+String _travelConflictDateLabel(TravelTrip trip) {
+  return '${_dateLabel(trip.startsOn)} - ${_dateLabel(trip.endsOn)}';
 }
 
 String _anniversaryDateDetailLabel(DateTime date) {

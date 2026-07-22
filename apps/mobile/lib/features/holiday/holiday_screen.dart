@@ -255,7 +255,8 @@ class _HolidayScreenState extends State<HolidayScreen> {
                           holiday.start,
                           holiday.end,
                         ).isEmpty,
-                        onPressed: () =>
+                        onPressed: () => widget.onOpenCalendarAt(holiday.start),
+                        onTravelPressed: () =>
                             _openTravelForRange(holiday.start, holiday.end),
                       ),
                 ],
@@ -286,6 +287,8 @@ class _HolidayScreenState extends State<HolidayScreen> {
                           bridgeDay.end,
                         ).isEmpty,
                         onPressed: () =>
+                            widget.onOpenCalendarAt(bridgeDay.date),
+                        onTravelPressed: () =>
                             _openTravelForRange(bridgeDay.start, bridgeDay.end),
                       ),
                 ],
@@ -392,6 +395,7 @@ class _HolidayTile extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.showTravelRegisterAction = false,
+    this.onTravelPressed,
   });
 
   final DateTime date;
@@ -400,12 +404,13 @@ class _HolidayTile extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final bool showTravelRegisterAction;
+  final VoidCallback? onTravelPressed;
 
   @override
   Widget build(BuildContext context) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      onPressed: onPressed,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPressed,
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -448,12 +453,22 @@ class _HolidayTile extends StatelessWidget {
                       ),
                       if (showTravelRegisterAction) ...[
                         const SizedBox(width: 8),
-                        const Text('✈️', style: TextStyle(fontSize: 16)),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          CupertinoIcons.plus_circle_fill,
-                          color: CupertinoColors.systemTeal,
-                          size: 19,
+                        CupertinoButton(
+                          padding: EdgeInsets.zero,
+                          minimumSize: const Size(46, 30),
+                          onPressed: onTravelPressed,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('✈️', style: TextStyle(fontSize: 16)),
+                              SizedBox(width: 4),
+                              Icon(
+                                CupertinoIcons.plus_circle_fill,
+                                color: CupertinoColors.systemTeal,
+                                size: 19,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ],
